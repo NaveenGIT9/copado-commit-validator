@@ -75,14 +75,19 @@ async function main() {
       process.exit(1);
     }
 
-    // Step 2: execute list view to get story records
+    // Step 2: execute list view to get story records.
+    // List view results API puts ALL field values inside row.columns[], not as top-level properties.
+    // Find Id and Name by their column index in the header, then read the same index per row.
     let storyIds = [], storyNames = [];
     try {
       const resultsRes = await conn.request({ method: 'GET', url: listViewResultsUrl });
-      const nameColIdx = (resultsRes.columns ?? []).findIndex(c => c.fieldNameOrPath === 'Name');
+      const headerCols = resultsRes.columns ?? [];
+      const idColIdx   = headerCols.findIndex(c => c.fieldNameOrPath === 'Id');
+      const nameColIdx = headerCols.findIndex(c => c.fieldNameOrPath === 'Name');
       for (const row of (resultsRes.records ?? [])) {
-        const id   = row.Id ?? row.id;
-        const name = nameColIdx >= 0 ? row.columns?.[nameColIdx]?.value : null;
+        const rowCols = row.columns ?? [];
+        const id   = idColIdx   >= 0 ? rowCols[idColIdx]?.value   : (row.Id ?? row.id);
+        const name = nameColIdx >= 0 ? rowCols[nameColIdx]?.value : (row.Name ?? row.name);
         if (id && name) { storyIds.push(id); storyNames.push(name); }
       }
     } catch (err) {
@@ -126,7 +131,9 @@ async function main() {
 
         if (latestPromo?.copado__Promotion__r?.copado__Status__c === 'Completed with Errors') {
           const promoFailedDate = latestPromo.copado__Promotion__r.LastModifiedDate;
-          const developerFixed  = latestCommitDate && new Date(latestCommitDate) > new Date(promoFailedDate);
+          // Only skip if we have a commit date AND it is NOT newer than the failure.
+          // If latestCommitDate is null (field not populated) we can't tell → include the story.
+          const developerFixed = !latestCommitDate || new Date(latestCommitDate) > new Date(promoFailedDate);
           if (!developerFixed) {
             skipStory = true;
             try {
