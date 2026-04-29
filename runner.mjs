@@ -1,5 +1,6 @@
 // Standalone runner — bypasses sf CLI framework entirely for fast startup
-import { AuthInfo, Connection } from '@salesforce/core';
+import { spawnSync } from 'child_process';
+import { Connection } from '@salesforce/core';
 import { simpleGit } from 'simple-git';
 
 function emit(data) {
@@ -43,10 +44,22 @@ function parseApiName(filePath) {
 }
 
 async function main() {
+  // Use sf org display to get the access token — this works regardless of how
+  // @salesforce/core stores auth files and handles any org alias correctly.
   let conn;
   try {
-    const authInfo = await AuthInfo.create({ username: orgAlias });
-    conn = await Connection.create({ authInfo });
+    const r = spawnSync('sf', ['org', 'display', '--target-org', orgAlias, '--json'], {
+      shell: true, encoding: 'utf8', timeout: 20_000,
+    });
+    const orgData = JSON.parse(r.stdout ?? '').result;
+    if (!orgData?.accessToken || !orgData?.instanceUrl) {
+      throw new Error(`sf org display returned no credentials for "${orgAlias}". Is the org authenticated? Run: sf org login web --alias ${orgAlias}`);
+    }
+    conn = new Connection({
+      instanceUrl: orgData.instanceUrl,
+      accessToken: orgData.accessToken,
+      version: orgData.apiVersion?.replace('v', '') || '62.0',
+    });
   } catch (err) {
     emit({ type: 'fatal', message: `Auth failed for "${orgAlias}": ${String(err)}` });
     process.exit(1);
