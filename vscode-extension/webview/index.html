@@ -445,7 +445,7 @@ function ensureProjectSection(projectId, projectName) {
   const hdr   = document.createElement('tr');
   hdr.id        = 'proj-hdr-' + projectId;
   hdr.className = 'project-header-row';
-  hdr.innerHTML = `<td colspan="9"><div class="project-hdr"><span class="project-dot"></span>${projectName || 'Unknown Project'}</div></td>`;
+  hdr.innerHTML = `<td colspan="10"><div class="project-hdr"><span class="project-dot"></span>${projectName || 'Unknown Project'}</div></td>`;
   tbody.appendChild(hdr);
   projectHeaderMap[projectId] = hdr;
   projectLastRow[projectId]   = hdr;
@@ -490,33 +490,43 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   const parentBlocked    = parentStory && !parentStory.promoted;
   const isPromotable     = commitOk && failedTests.length === 0 && !prBlocked && !noApexTestClass && !parentBlocked;
 
+  const LBL  = 'color:#5a8a9f;font-size:10px;white-space:nowrap;flex-shrink:0';
+  const ROW  = 'display:flex;align-items:baseline;gap:5px;margin-top:2px';
+  const OK   = 'color:#34d399;font-size:10px';
+  const ERR  = 'color:#f85149;font-size:10px';
+  const WARN = 'color:#e3b341;font-size:10px';
+
+  function kv(label, valueHtml) {
+    return `<div style="${ROW}"><span style="${LBL}">${label}</span>${valueHtml}</div>`;
+  }
+
   let promotableHtml;
   if (isVerifying) {
     promotableHtml = '—';
   } else {
-    const lines = [];
-    if (isPromotable) {
-      lines.push(`<span class="tag tag-clean" style="font-size:11px">✓ Yes</span>`);
-    } else {
-      lines.push(`<span class="tag tag-error" style="font-size:11px">✗ No</span>`);
-    }
+    const badge = isPromotable
+      ? `<span class="tag tag-clean" style="font-size:11px">✓ Yes</span>`
+      : `<span class="tag tag-error" style="font-size:11px">✗ No</span>`;
+
+    const rows = [];
     if (parentBlocked) {
-      lines.push(`<span style="font-size:10px;color:#f85149">⛔ Parent ${parentStory.name} not yet deployed</span>`);
+      rows.push(kv('Parent:', `<span style="${ERR}">⛔ ${parentStory.name} not yet deployed</span>`));
     }
     if (prBlocked !== undefined) {
-      lines.push(prBlocked
-        ? `<span style="font-size:10px;color:#f85149">PR: ✗ Not approved</span>`
-        : `<span style="font-size:10px;color:#34d399">PR: ✓ Approved</span>`);
+      rows.push(kv('PR:', prBlocked
+        ? `<span style="${ERR}">✗ Not approved</span>`
+        : `<span style="${OK}">✓ Approved</span>`));
     }
     if (noApexTestClass) {
-      lines.push(`<span style="font-size:10px;color:#f85149">Apex Tests: ✗ No test class</span>`);
+      rows.push(kv('Apex Tests:', `<span style="${ERR}">✗ No test class found</span>`));
     }
     (tests || []).forEach(t => {
       const ok = t.status === 'Success';
-      const col = ok ? '#34d399' : t.status === 'Failed' || t.status === 'Error' ? '#f85149' : '#e3b341';
-      lines.push(`<span style="font-size:10px;color:${col}">${t.tool}: ${t.status || '—'}</span>`);
+      const col = ok ? OK : (t.status === 'Failed' || t.status === 'Error' ? ERR : WARN);
+      rows.push(kv(`${t.tool}:`, `<span style="${col}">${ok ? '✓' : '✗'} ${t.status || '—'}</span>`));
     });
-    promotableHtml = lines.join('<br>');
+
+    promotableHtml = `<div style="display:flex;flex-direction:column">${badge}${rows.join('')}</div>`;
   }
 
   const verdictHtml = verdict === 'verifying'
