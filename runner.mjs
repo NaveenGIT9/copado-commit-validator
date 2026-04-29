@@ -346,7 +346,7 @@ async function main() {
   let stories = [];
   try {
     const result = await conn.query(
-      `SELECT Id, Name, copado__Org_Credential__c, copado__Project__c, copado__Project__r.Name, copado__Status__c, copado__Pull_Requests_Approved__c, copado__Has_Apex_Code__c ` +
+      `SELECT Id, Name, copado__Org_Credential__c, copado__Org_Credential__r.Name, copado__Project__c, copado__Project__r.Name, copado__Status__c, copado__Pull_Requests_Approved__c, copado__Has_Apex_Code__c ` +
       `FROM copado__User_Story__c WHERE Name IN (${nameList})`
     );
     stories = result.records;
@@ -441,12 +441,12 @@ async function main() {
     const pipelineId = pipelineRes.records[0]?.copado__Deployment_Flow__c;
     if (pipelineId) {
       const stepsRes = await conn.query(
-        `SELECT copado__Source_Org_Credential__c, copado__Destination_Org_Credential__c ` +
+        `SELECT copado__Source_Org_Credential__r.Name, copado__Destination_Org_Credential__r.Name ` +
         `FROM copado__Deployment_Flow_Step__c WHERE copado__Deployment_Flow__c = '${pipelineId}'`
       );
       const edges = stepsRes.records
-        .filter(s => s.copado__Source_Org_Credential__c && s.copado__Destination_Org_Credential__c)
-        .map(s => ({ from: s.copado__Source_Org_Credential__c, to: s.copado__Destination_Org_Credential__c }));
+        .filter(s => s.copado__Source_Org_Credential__r?.Name && s.copado__Destination_Org_Credential__r?.Name)
+        .map(s => ({ from: s.copado__Source_Org_Credential__r.Name, to: s.copado__Destination_Org_Credential__r.Name }));
 
       // Roots = credentials that appear only as source, never as destination
       const allDest = new Set(edges.map(e => e.to));
@@ -464,6 +464,14 @@ async function main() {
       }
     }
   } catch { /* non-fatal — parent env check will fall back to credential comparison */ }
+
+  // Debug: emit the pipeline level map so it's visible in the panel output
+  if (credLevel.size > 0) {
+    const mapStr = [...credLevel.entries()].map(([k, v]) => `${k}→L${v}`).join(', ');
+    emit({ type: 'stderr', message: `Pipeline level map: ${mapStr}` });
+  } else {
+    emit({ type: 'stderr', message: 'Pipeline level map is empty — parent story env check will be skipped' });
+  }
 
   for (const story of stories) {
     const branchName   = `feature/${story.Name}`;
@@ -598,15 +606,19 @@ async function main() {
       if (parentMatch) {
         const parentName = parentMatch[0];
         const parentRes = await conn.query(
-          `SELECT copado__Org_Credential__c FROM copado__User_Story__c WHERE Name = '${parentName}' LIMIT 1`
+          `SELECT copado__Org_Credential__r.Name FROM copado__User_Story__c WHERE Name = '${parentName}' LIMIT 1`
         );
-        const parentCredId = parentRes.records[0]?.copado__Org_Credential__c ?? null;
-        const currentLevel = credLevel.get(story.copado__Org_Credential__c) ?? 0;
-        const parentLevel  = parentCredId ? (credLevel.get(parentCredId) ?? 0) : 0;
-        // Parent is "promoted" only if it sits in a strictly higher environment
-        // in the pipeline flow than the current story.
-        const parentPromoted = parentLevel > currentLevel;
-        parentStory = { name: parentName, promoted: parentPromoted };
+        const parentCredName  = parentRes.records[0]?.copado__Org_Credential__r?.Name ?? null;
+        const currentCredName = story.copado__Org_Credential__r?.Name ?? null;
+        const currentLevel = currentCredName ? (credLevel.get(currentCredName) ?? -1) : -1;
+        const parentLevel  = parentCredName  ? (credLevel.get(parentCredName)  ?? -1) : -1;
+        // If either credential isn't found in the pipeline map, skip the check
+        // (unknown position → don't falsely block). Otherwise block if parent is
+        // not yet in a strictly higher environment.
+        if (currentLevel >= 0 && parentLevel >= 0) {
+          parentStory = { name: parentName, promoted: parentLevel > currentLevel };
+        }
+        emit({ type: 'stderr', message: `Parent check: current=${currentCredName}(L${currentLevel}) parent=${parentCredName}(L${parentLevel})` });
       }
     } catch { /* non-fatal */ }
 
