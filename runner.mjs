@@ -35,6 +35,14 @@ const doFetchReady    = args['fetch-ready'] === 'true';
 const doFetchStories  = args['fetch-stories'] === 'true';
 const fetchEnvType    = args['env-type'] ?? 'QA';
 
+// Extract the GitHub repo name from a Copado git repository URI.
+// Handles both HTTPS (https://github.com/Org/Repo-Name.git) and
+// SSH (git@github.com:Org/Repo-Name.git) formats.
+function repoNameFromUri(uri) {
+  if (!uri) return '';
+  return uri.replace(/\.git$/, '').split(/[/:]/).pop() ?? '';
+}
+
 function parseApiName(filePath) {
   const parts = filePath.replace(/\\/g, '/').split('/');
   const defaultIdx = parts.indexOf('default');
@@ -181,14 +189,15 @@ async function main() {
     if (validStories.length > 0) {
       try {
         const storyRec = await conn.query(
-          `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.Name ` +
+          `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.copado__URI__c ` +
           `FROM copado__User_Story__c WHERE Id = '${validStories[0].id}'`
         );
-        repoName = storyRec.records[0]
+        const uri = storyRec.records[0]
           ?.copado__Project__r
           ?.copado__Deployment_Flow__r
           ?.copado__Git_Repository__r
-          ?.Name ?? '';
+          ?.copado__URI__c ?? '';
+        repoName = repoNameFromUri(uri);
       } catch { /* non-fatal */ }
     }
 
@@ -222,14 +231,15 @@ async function main() {
     if (stories.length > 0) {
       try {
         const repoRec = await conn.query(
-          `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.Name ` +
+          `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.copado__URI__c ` +
           `FROM copado__User_Story__c WHERE Id = '${stories[0].Id}'`
         );
-        repoName = repoRec.records[0]
+        const uri = repoRec.records[0]
           ?.copado__Project__r
           ?.copado__Deployment_Flow__r
           ?.copado__Git_Repository__r
-          ?.Name ?? '';
+          ?.copado__URI__c ?? '';
+        repoName = repoNameFromUri(uri);
       } catch { /* non-fatal */ }
     }
     emit({ type: 'stories-fetched', repoName, found: stories.map(r => r.Name), notFound });
@@ -398,14 +408,15 @@ async function main() {
   // can update the Git Repo Path field if the current path is wrong.
   try {
     const repoRec = await conn.query(
-      `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.Name ` +
+      `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.copado__URI__c ` +
       `FROM copado__User_Story__c WHERE Id = '${stories[0].Id}'`
     );
-    const repoName = repoRec.records[0]
+    const repoUri = repoRec.records[0]
       ?.copado__Project__r
       ?.copado__Deployment_Flow__r
       ?.copado__Git_Repository__r
-      ?.Name ?? '';
+      ?.copado__URI__c ?? '';
+    const repoName = repoNameFromUri(repoUri);
     if (repoName) emit({ type: 'repo-name', repoName });
   } catch { /* non-fatal */ }
 
