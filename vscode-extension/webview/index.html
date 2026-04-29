@@ -231,18 +231,24 @@
 <!-- Input -->
 <div class="section">
   <label>User Stories (one per line or comma-separated)</label>
-  <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252"></textarea>
+  <div class="btn-row" style="margin-bottom:8px;">
+    <button class="btn btn-primary" onclick="fetchReady('QA')">Fetch QA Ready</button>
+    <button class="btn btn-primary" onclick="fetchReady('UAT')">Fetch UAT Ready</button>
+  </div>
+  <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado"></textarea>
 </div>
 
 <div class="row section">
   <div>
     <label>Target Org Alias</label>
-    <input type="text" id="orgAlias" list="orgAliasList" placeholder="e.g. srirama.bonthu@rubrik.com.copadogov" />
-    <datalist id="orgAliasList"></datalist>
+    <div id="orgDisplay" style="font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;color:#90d8f0;
+      padding:8px 11px;background:rgba(26,184,232,0.05);border:1px solid rgba(26,184,232,0.18);
+      border-radius:10px;min-height:34px;line-height:18px;">Detecting...</div>
+    <input type="hidden" id="orgAlias" />
   </div>
   <div>
     <label>Git Repo Path</label>
-    <input type="text" id="repoPath" list="repoPathList" placeholder="e.g. D:\RubrikRepoVDI\rbk-sfdc-release" />
+    <input type="text" id="repoPath" list="repoPathList" placeholder="Auto-detected after fetch, or enter manually" />
     <datalist id="repoPathList"></datalist>
   </div>
 </div>
@@ -321,6 +327,16 @@ function populateDatalist(id, key) {
 
 populateDatalist('orgAliasList', 'orgAliasHistory');
 populateDatalist('repoPathList', 'repoPathHistory');
+
+function fetchReady(envType) {
+  const orgAlias = document.getElementById('orgAlias').value.trim();
+  if (!orgAlias) { setStatus('error', 'No org alias detected. Check your SF default org.'); return; }
+  document.getElementById('stories').value = '';
+  setStatus('info', `Fetching ${envType} ready stories from Copado...`, true);
+  document.getElementById('verifyBtn').disabled = true;
+  document.getElementById('cancelBtn').style.display = 'inline-flex';
+  vscode.postMessage({ command: 'fetchReady', envType, orgAlias });
+}
 
 function verify() {
   const stories  = document.getElementById('stories').value.trim();
@@ -562,7 +578,37 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 window.addEventListener('message', (event) => {
   const msg = event.data;
 
-  if (msg.type === 'run-start') {
+  if (msg.type === 'default-org') {
+    document.getElementById('orgDisplay').textContent = msg.org;
+    document.getElementById('orgAlias').value = msg.org;
+  }
+
+  else if (msg.type === 'fetch-stories-found') {
+    setStatus('info', `Found ${msg.count} ${msg.envType} ready stories — checking promotion history...`, true);
+  }
+
+  else if (msg.type === 'fetch-unchecked') {
+    // Story auto-unchecked in Copado — no UI action needed, runner already skipped it
+  }
+
+  else if (msg.type === 'fetch-done') {
+    const stories = msg.stories ?? [];
+    document.getElementById('stories').value = stories.join('\n');
+    if (msg.repoPath) {
+      document.getElementById('repoPath').value = msg.repoPath;
+      saveHistory('repoPathHistory', msg.repoPath);
+      populateDatalist('repoPathList', 'repoPathHistory');
+    }
+    document.getElementById('verifyBtn').disabled = false;
+    document.getElementById('cancelBtn').style.display = 'none';
+    if (stories.length === 0) {
+      setStatus('warning', `No ${msg.envType ?? ''} ready stories found — all eligible stories may have failed promotions with no new commits.`);
+    } else {
+      setStatus('success', `${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} loaded. Click Verify Stories to proceed.`);
+    }
+  }
+
+  else if (msg.type === 'run-start') {
     setStatus('info', 'Connecting to Copado org...', true);
   }
 

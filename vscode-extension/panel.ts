@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 
 const RUNNER_PATH = path.join('D:', 'plugin-promoter', 'runner.mjs');
 
@@ -44,6 +45,18 @@ export class PromoterPanel {
     this.panel.webview.html = this.getHtml();
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage((msg) => this.handleMessage(msg), null, this.disposables);
+    this.postDefaults();
+  }
+
+  private postDefaults(): void {
+    try {
+      const sfConfigPath = path.join(os.homedir(), '.sf', 'config.json');
+      if (fs.existsSync(sfConfigPath)) {
+        const cfg = JSON.parse(fs.readFileSync(sfConfigPath, 'utf8')) as Record<string, string>;
+        const org = cfg['target-org'] ?? '';
+        if (org) this.post({ type: 'default-org', org });
+      }
+    } catch { /* non-fatal */ }
   }
 
   private handleMessage(msg: {
@@ -51,6 +64,7 @@ export class PromoterPanel {
     stories?: string;
     orgAlias?: string;
     repoPath?: string;
+    envType?: string;
     groups?: Array<{ projectId: string; credentialId: string; stories: string[]; storyIds: string[] }>;
     mergeDeployAfter?: boolean;
   }): void {
@@ -58,9 +72,21 @@ export class PromoterPanel {
       this.runVerify(msg.stories ?? '', msg.orgAlias ?? '', msg.repoPath ?? '');
     } else if (msg.command === 'promote') {
       this.runPromote(msg.groups ?? [], msg.orgAlias ?? '', msg.mergeDeployAfter ?? false);
+    } else if (msg.command === 'fetchReady') {
+      this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '');
     } else if (msg.command === 'abort') {
       this.abortRun();
     }
+  }
+
+  private runFetchReady(envType: string, orgAlias: string): void {
+    const args = [
+      RUNNER_PATH,
+      '--target-org', orgAlias,
+      '--fetch-ready', 'true',
+      '--env-type', envType,
+    ];
+    this.spawnCommand(args, true);
   }
 
   private abortRun(): void {
@@ -104,7 +130,7 @@ export class PromoterPanel {
     this.spawnCommand(args);
   }
 
-  private spawnCommand(args: string[]): void {
+  private spawnCommand(args: string[], isFetch = false): void {
     const proc = spawn(process.execPath, args, { shell: false });
     this.activeProc = proc;
 
@@ -120,7 +146,15 @@ export class PromoterPanel {
       for (const line of lines) {
         try {
           const msg = JSON.parse(line) as Record<string, unknown>;
-          this.post(msg);
+          if (isFetch && msg.type === 'fetch-done' && msg.repoName) {
+            const folders = vscode.workspace.workspaceFolders ?? [];
+            const repoName = msg.repoName as string;
+            const match = folders.find(f => f.uri.fsPath.endsWith(repoName) || f.uri.fsPath.endsWith('\\' + repoName) || f.uri.fsPath.endsWith('/' + repoName));
+            const repoPath = match?.uri.fsPath ?? folders[0]?.uri.fsPath ?? '';
+            this.post({ ...msg, repoPath });
+          } else {
+            this.post(msg);
+          }
         } catch {
           this.post({ type: 'stderr', message: `stdout: ${line}` });
         }

@@ -30,6 +30,8 @@ const orgAlias      = args['target-org'] ?? '';
 const repoPath      = (args['repo-path'] ?? process.cwd()).replace(/[>]+$/, '').trim();
 const doPromote     = args.promote === 'true';
 const doMergeDeploy = args['merge-deploy'] === 'true';
+const doFetchReady  = args['fetch-ready'] === 'true';
+const fetchEnvType  = args['env-type'] ?? 'QA';
 
 function parseApiName(filePath) {
   const parts = filePath.replace(/\\/g, '/').split('/');
@@ -48,6 +50,117 @@ async function main() {
   } catch (err) {
     emit({ type: 'fatal', message: `Auth failed for "${orgAlias}": ${String(err)}` });
     process.exit(1);
+  }
+
+  // ── FETCH READY MODE ────────────────────────────────────────────────────────
+  if (doFetchReady) {
+    const listViewLabel = fetchEnvType === 'UAT' ? 'UAT Deployment' : 'QA Deployment';
+    emit({ type: 'fetch-start', envType: fetchEnvType, listViewLabel });
+
+    // Step 1: find the list view by label
+    let listViewResultsUrl;
+    try {
+      const lvRes = await conn.request({
+        method: 'GET',
+        url: `/services/data/v${conn.version}/sobjects/copado__User_Story__c/listviews`,
+      });
+      const listView = (lvRes.listviews ?? []).find(lv => lv.label === listViewLabel);
+      if (!listView) {
+        emit({ type: 'fatal', message: `List view "${listViewLabel}" not found on copado__User_Story__c.` });
+        process.exit(1);
+      }
+      listViewResultsUrl = listView.resultsUrl;
+    } catch (err) {
+      emit({ type: 'fatal', message: `Failed to fetch list views: ${String(err)}` });
+      process.exit(1);
+    }
+
+    // Step 2: execute list view to get story records
+    let storyIds = [], storyNames = [];
+    try {
+      const resultsRes = await conn.request({ method: 'GET', url: listViewResultsUrl });
+      const nameColIdx = (resultsRes.columns ?? []).findIndex(c => c.fieldNameOrPath === 'Name');
+      for (const row of (resultsRes.records ?? [])) {
+        const id   = row.Id ?? row.id;
+        const name = nameColIdx >= 0 ? row.columns?.[nameColIdx]?.value : null;
+        if (id && name) { storyIds.push(id); storyNames.push(name); }
+      }
+    } catch (err) {
+      emit({ type: 'fatal', message: `Failed to fetch list view results: ${String(err)}` });
+      process.exit(1);
+    }
+
+    if (storyIds.length === 0) {
+      emit({ type: 'fetch-done', stories: [], repoName: '' });
+      process.exit(0);
+    }
+
+    emit({ type: 'fetch-stories-found', count: storyIds.length, envType: fetchEnvType });
+
+    // Step 3: fetch latest commit date for all stories in one query
+    const latestCommitDateMap = {};
+    try {
+      const storyIdList = storyIds.map(id => `'${id}'`).join(',');
+      const cdRes = await conn.query(
+        `SELECT Id, copado__Latest_Commit_Date__c FROM copado__User_Story__c WHERE Id IN (${storyIdList})`
+      );
+      for (const r of cdRes.records) latestCommitDateMap[r.Id] = r.copado__Latest_Commit_Date__c;
+    } catch { /* non-fatal — will skip date check */ }
+
+    // Step 4: per story — check latest promotion status vs latest commit date
+    const validStories = [];
+    for (let i = 0; i < storyIds.length; i++) {
+      const storyId          = storyIds[i];
+      const storyName        = storyNames[i];
+      const latestCommitDate = latestCommitDateMap[storyId] ?? null;
+
+      let skipStory = false;
+      try {
+        const promRes = await conn.query(
+          `SELECT copado__Promotion__r.copado__Status__c, copado__Promotion__r.LastModifiedDate ` +
+          `FROM copado__Promoted_User_Story__c ` +
+          `WHERE copado__User_Story__c = '${storyId}' ` +
+          `ORDER BY copado__Promotion__r.LastModifiedDate DESC LIMIT 1`
+        );
+        const latestPromo = promRes.records[0];
+
+        if (latestPromo?.copado__Promotion__r?.copado__Status__c === 'Completed with Errors') {
+          const promoFailedDate = latestPromo.copado__Promotion__r.LastModifiedDate;
+          const developerFixed  = latestCommitDate && new Date(latestCommitDate) > new Date(promoFailedDate);
+          if (!developerFixed) {
+            skipStory = true;
+            try {
+              await conn.sobject('copado__User_Story__c').update({
+                Id: storyId,
+                copado__Ready_to_Promote__c: false,
+              });
+            } catch { /* non-fatal */ }
+            emit({ type: 'fetch-unchecked', storyName, reason: 'Latest promotion failed with no new commits after failure' });
+          }
+        }
+      } catch { /* non-fatal — include story if check fails */ }
+
+      if (!skipStory) validStories.push({ id: storyId, name: storyName });
+    }
+
+    // Step 5: get git repo name from first valid story's project → pipeline → git repository
+    let repoName = '';
+    if (validStories.length > 0) {
+      try {
+        const storyRec = await conn.query(
+          `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.Name ` +
+          `FROM copado__User_Story__c WHERE Id = '${validStories[0].id}'`
+        );
+        repoName = storyRec.records[0]
+          ?.copado__Project__r
+          ?.copado__Deployment_Flow__r
+          ?.copado__Git_Repository__r
+          ?.Name ?? '';
+      } catch { /* non-fatal */ }
+    }
+
+    emit({ type: 'fetch-done', stories: validStories.map(s => s.name), repoName });
+    process.exit(0);
   }
 
   // ── PROMOTE MODE ────────────────────────────────────────────────────────────
