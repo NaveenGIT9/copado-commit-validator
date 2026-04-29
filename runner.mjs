@@ -435,7 +435,9 @@ async function main() {
         commitMessage = (await git.raw(['log', '--format=%s', '-1', sha])).trim();
       } catch { /* skip */ }
 
-      const copadoAuto = commitMessage.startsWith('Updated sourceApiVersion from');
+      const copadoAuto = commitMessage.startsWith('Updated sourceApiVersion from')
+        || commitMessage.startsWith('Clear custom_rulesets in code-analyzer.yml')
+        || commitMessage.startsWith('Add custom PMD rules to custom-rules-list.txt');
 
       const components        = [...new Set(files.map(parseApiName).filter(Boolean))];
       const coveredComponents   = components.filter(c => storyMetadataNames.has(c.toLowerCase()));
