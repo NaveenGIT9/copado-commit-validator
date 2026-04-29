@@ -240,7 +240,7 @@
 
 <div class="row section">
   <div>
-    <label>Target Org Alias</label>
+    <label>Copado Org Alias / Username</label>
     <input type="text" id="orgAlias" list="orgAliasList" placeholder="Auto-detecting..." />
     <datalist id="orgAliasList"></datalist>
   </div>
@@ -337,7 +337,7 @@ if (window.__defaultOrg && !document.getElementById('orgAlias').value) {
 
 function fetchReady(envType) {
   const orgAlias = document.getElementById('orgAlias').value.trim();
-  if (!orgAlias) { setStatus('error', 'Enter your SF org alias in the Target Org Alias field.'); return; }
+  if (!orgAlias) { setStatus('error', 'Enter your Copado org alias or username.'); return; }
   document.getElementById('stories').value = '';
   setStatus('info', `Fetching ${envType} ready stories from Copado...`, true);
   document.getElementById('verifyBtn').disabled = true;
@@ -352,7 +352,7 @@ function verify() {
   const repoPath = document.getElementById('repoPath').value.trim();
 
   if (!stories || !orgAlias) {
-    setStatus('error', 'Enter story names and org alias before verifying.');
+    setStatus('error', 'Enter story names and Copado org alias / username before verifying.');
     return;
   }
   currentOrg   = orgAlias;
@@ -419,6 +419,10 @@ function reset() {
   document.getElementById('verifyBtn').disabled = false;
   document.getElementById('cancelBtn').style.display = 'none';
   document.getElementById('stories').value = '';
+  // Restore org field to the default detected at panel load time
+  if (window.__defaultOrg) {
+    document.getElementById('orgAlias').value = window.__defaultOrg;
+  }
   cleanStories       = [];
   projectHeaderMap   = {};
   projectLastRow     = {};
