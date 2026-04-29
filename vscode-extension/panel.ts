@@ -102,6 +102,8 @@ export class PromoterPanel {
       this.runPromote(msg.groups ?? [], msg.orgAlias ?? '', msg.mergeDeployAfter ?? false);
     } else if (msg.command === 'fetchReady') {
       this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '');
+    } else if (msg.command === 'fetchStories') {
+      this.runFetchStories(msg.stories ?? '', msg.orgAlias ?? '');
     } else if (msg.command === 'abort') {
       this.abortRun();
     }
@@ -115,6 +117,17 @@ export class PromoterPanel {
       '--env-type', envType,
     ];
     this.spawnCommand(args, true);
+  }
+
+  private runFetchStories(stories: string, orgAlias: string): void {
+    const storyList = stories.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).join(',');
+    const args = [
+      RUNNER_PATH,
+      '--target-org', orgAlias,
+      '--fetch-stories', 'true',
+      '--stories', storyList,
+    ];
+    this.spawnCommand(args);
   }
 
   private abortRun(): void {
@@ -175,7 +188,8 @@ export class PromoterPanel {
         try {
           const msg = JSON.parse(line) as Record<string, unknown>;
           if ((isFetch && msg.type === 'fetch-done' && msg.repoName) ||
-              (msg.type === 'repo-name' && msg.repoName)) {
+              (msg.type === 'repo-name' && msg.repoName) ||
+              (msg.type === 'stories-fetched' && msg.repoName)) {
             const folders = vscode.workspace.workspaceFolders ?? [];
             const repoName = msg.repoName as string;
             const match = folders.find(f =>

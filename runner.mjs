@@ -31,8 +31,9 @@ const orgAlias      = args['target-org'] ?? '';
 const repoPath      = (args['repo-path'] ?? process.cwd()).replace(/[>]+$/, '').trim();
 const doPromote     = args.promote === 'true';
 const doMergeDeploy = args['merge-deploy'] === 'true';
-const doFetchReady  = args['fetch-ready'] === 'true';
-const fetchEnvType  = args['env-type'] ?? 'QA';
+const doFetchReady    = args['fetch-ready'] === 'true';
+const doFetchStories  = args['fetch-stories'] === 'true';
+const fetchEnvType    = args['env-type'] ?? 'QA';
 
 function parseApiName(filePath) {
   const parts = filePath.replace(/\\/g, '/').split('/');
@@ -178,6 +179,46 @@ async function main() {
     }
 
     emit({ type: 'fetch-done', stories: validStories.map(s => s.name), repoName });
+    process.exit(0);
+  }
+
+  // ── FETCH STORIES MODE ───────────────────────────────────────────────────────
+  // Lightweight: given manually-typed story names, detect the git repo name from
+  // Copado so the UI can auto-populate the Git Repo Path field before verifying.
+  if (doFetchStories) {
+    const storyNames = (args.stories ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    if (storyNames.length === 0) {
+      emit({ type: 'stories-fetched', repoName: '', found: [], notFound: [] });
+      process.exit(0);
+    }
+    const nameList = storyNames.map(n => `'${n}'`).join(',');
+    let stories = [];
+    try {
+      const result = await conn.query(
+        `SELECT Id, Name FROM copado__User_Story__c WHERE Name IN (${nameList})`
+      );
+      stories = result.records;
+    } catch (err) {
+      emit({ type: 'fatal', message: `Story query failed: ${String(err)}` });
+      process.exit(1);
+    }
+    const foundNames = new Set(stories.map(r => r.Name));
+    const notFound = storyNames.filter(n => !foundNames.has(n));
+    let repoName = '';
+    if (stories.length > 0) {
+      try {
+        const repoRec = await conn.query(
+          `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.Name ` +
+          `FROM copado__User_Story__c WHERE Id = '${stories[0].Id}'`
+        );
+        repoName = repoRec.records[0]
+          ?.copado__Project__r
+          ?.copado__Deployment_Flow__r
+          ?.copado__Git_Repository__r
+          ?.Name ?? '';
+      } catch { /* non-fatal */ }
+    }
+    emit({ type: 'stories-fetched', repoName, found: stories.map(r => r.Name), notFound });
     process.exit(0);
   }
 

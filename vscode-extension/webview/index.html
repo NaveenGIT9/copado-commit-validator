@@ -236,6 +236,10 @@
     <button class="btn btn-primary" onclick="fetchReady('UAT')">Fetch UAT Ready</button>
   </div>
   <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado"></textarea>
+  <div class="btn-row" style="margin-top:6px;">
+    <button class="btn btn-reset" id="fetchStoriesBtn" onclick="fetchStories()">Fetch Stories</button>
+    <span style="font-size:11px;color:#4a8aa0;align-self:center;">Auto-detect Git Repo Path from the stories above</span>
+  </div>
 </div>
 
 <div class="row section">
@@ -345,6 +349,17 @@ function fetchReady(envType) {
   vscode.postMessage({ command: 'fetchReady', envType, orgAlias });
 }
 
+function fetchStories() {
+  const stories  = document.getElementById('stories').value.trim();
+  const orgAlias = document.getElementById('orgAlias').value.trim();
+  if (!stories)  { setStatus('error', 'Enter story names in the box above first.'); return; }
+  if (!orgAlias) { setStatus('error', 'Enter your SF org alias in the Target Org Alias field.'); return; }
+  setStatus('info', 'Looking up stories in Copado to detect git repo...', true);
+  document.getElementById('fetchStoriesBtn').disabled = true;
+  document.getElementById('cancelBtn').style.display = 'inline-flex';
+  vscode.postMessage({ command: 'fetchStories', stories, orgAlias });
+}
+
 function verify() {
   const stories  = document.getElementById('stories').value.trim();
   const orgAlias = document.getElementById('orgAlias').value.trim();
@@ -355,7 +370,7 @@ function verify() {
     return;
   }
   if (!repoPath) {
-    setStatus('error', 'Git Repo Path is required. Enter the local path of your Salesforce git repo, or use Fetch QA/UAT Ready to auto-detect it.');
+    setStatus('error', 'Git Repo Path is required. Click "Fetch Stories" to auto-detect it, or enter the local clone path manually.');
     return;
   }
 
@@ -617,6 +632,25 @@ window.addEventListener('message', (event) => {
     // Story auto-unchecked in Copado — no UI action needed, runner already skipped it
   }
 
+  else if (msg.type === 'stories-fetched') {
+    document.getElementById('fetchStoriesBtn').disabled = false;
+    document.getElementById('cancelBtn').style.display = 'none';
+    if (msg.repoPath) {
+      document.getElementById('repoPath').value = msg.repoPath;
+      saveHistory('repoPathHistory', msg.repoPath);
+      populateDatalist('repoPathList', 'repoPathHistory');
+    }
+    const notFound = msg.notFound ?? [];
+    const notFoundMsg = notFound.length > 0 ? ` Stories not found in org: ${notFound.join(', ')}.` : '';
+    if (msg.repoPath) {
+      setStatus('success', `Git Repo Path set to "${msg.repoPath}".${notFoundMsg} Click Verify Stories to proceed.`);
+    } else if (msg.repoName) {
+      setStatus('warning', `Stories belong to repo "${msg.repoName}" — ensure it is cloned locally and enter its path in Git Repo Path, then verify.${notFoundMsg}`);
+    } else {
+      setStatus('warning', `Could not detect git repo from Copado. Enter the Git Repo Path manually.${notFoundMsg}`);
+    }
+  }
+
   else if (msg.type === 'fetch-done') {
     const stories = msg.stories ?? [];
     document.getElementById('stories').value = stories.join('\n');
@@ -654,7 +688,8 @@ window.addEventListener('message', (event) => {
 
   else if (msg.type === 'aborted') {
     runCompleted = true;
-    setStatus('warning', 'Verification cancelled.');
+    document.getElementById('fetchStoriesBtn').disabled = false;
+    setStatus('warning', 'Cancelled.');
     endRun();
   }
 
