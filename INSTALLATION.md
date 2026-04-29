@@ -13,8 +13,8 @@ Before installing the extension, make sure you have the following on your machin
 | Requirement | Details |
 |---|---|
 | **Node.js** | Version 18 or higher |
-| **Salesforce CLI** | `sf` CLI installed and your org authenticated (`sf org login web --alias your-alias`) |
-| **Git** | Installed and the `rbk-sfdc-release` Salesforce repo cloned locally |
+| **Salesforce CLI** | `sf` CLI installed and your Copado org authenticated (`sf org login web --alias your-alias`) |
+| **Git** | Installed and your Salesforce project repository cloned locally |
 
 ---
 
@@ -52,18 +52,18 @@ Before installing the extension, make sure you have the following on your machin
 ## Using the Tool
 
 1. Paste your story names (one per line or comma-separated) in the **User Stories** field
-2. Enter your **SF org alias** (the one you authenticated with `sf org login`)
-3. Enter the **local path** of your cloned `rbk-sfdc-release` repository (e.g. `D:\MyRepos\rbk-sfdc-release`)
+2. Enter your **SF org alias** (the alias you used when authenticating with `sf org login`)
+3. Enter the **local path** of your Salesforce project repository (e.g. `D:\Projects\my-sf-repo`)
 4. Click **Verify Stories**
 5. Once verification completes, eligible stories appear — click **Promote Eligible Stories** to promote
 
 ---
 
-## Does the GitHub Repo Need to Be Cloned?
+## Does This GitHub Repo Need to Be Cloned?
 
-**No.** You only need to download the `promoter-latest.vsix` file. Cloning the `copado-commit-validator` repository itself is only needed if you want to read or modify the source code.
+**No.** You only need to download the `promoter-latest.vsix` file. Cloning this `copado-commit-validator` repository is only needed if you want to read or modify the source code.
 
-What you **do** need cloned locally is the **Salesforce repository** (`rbk-sfdc-release`) — the tool runs git commands against it to verify commits.
+What you **do** need cloned locally is your **own Salesforce project repository** — the tool runs git commands against it to verify commits on each feature branch.
 
 ---
 
@@ -71,7 +71,7 @@ What you **do** need cloned locally is the **Salesforce repository** (`rbk-sfdc-
 
 **No.** Once the VSIX is downloaded and installed, it runs entirely on your local machine. It connects only to:
 - Your **Salesforce org** (via SF CLI authentication)
-- Your **local git repository** (via git commands)
+- Your **local Salesforce project repository** (via git commands)
 
 It never connects back to GitHub after installation. Private or public makes no difference once installed.
 
@@ -81,7 +81,7 @@ It never connects back to GitHub after installation. Private or public makes no 
 
 1. Add them as a **Collaborator** on this GitHub repo (Settings → Collaborators → Add people)
 2. They download `promoter-latest.vsix` and follow Steps 1–3 above
-3. They need their own SF org authenticated and the Salesforce repo cloned locally
+3. They need their own Copado org authenticated and their Salesforce project repository cloned locally
 4. Done — no other setup required
 
 ---
