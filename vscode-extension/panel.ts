@@ -53,27 +53,11 @@ export class PromoterPanel {
   }
 
   private getDefaultOrg(): string {
-    // spawnSync never throws on non-zero exit code — captures stdout regardless of exit code.
-    // sf config get exits with code 1 on this machine (plugin warnings) but still emits JSON on stdout.
-    const jsonArgs = ['config', 'get', 'target-org', '--json'];
-    const cmds: Array<{ cmd: string; args: string[] }> = process.platform === 'win32'
-      ? [
-          { cmd: 'cmd', args: ['/c', 'sf', ...jsonArgs] },
-          { cmd: 'cmd', args: ['/c', 'sf.cmd', ...jsonArgs] },
-        ]
-      : [{ cmd: 'sf', args: jsonArgs }];
-    for (const { cmd, args } of cmds) {
-      const result = spawnSync(cmd, args, { timeout: 5000, encoding: 'utf8' });
-      const out = result.stdout ?? '';
-      try {
-        const parsed = JSON.parse(out) as { result?: Array<{ value?: string }> };
-        const val = parsed?.result?.[0]?.value ?? '';
-        if (val) return val;
-      } catch { /* try next */ }
-    }
-
-    // Fallback: scan known local SF config locations in project and home dir
+    // Check config files first (instant). SF stores target-org locally per-project in .sf/config.json.
+    // Check all VS Code workspace folders so we find whichever project is open.
+    const workspacePaths = (vscode.workspace.workspaceFolders ?? []).map(f => f.uri.fsPath);
     const candidates = [
+      ...workspacePaths.map(p => path.join(p, '.sf', 'config.json')),
       path.join(process.cwd(), '.sf', 'config.json'),
       path.join(os.homedir(), '.sf', 'config.json'),
       path.join(os.homedir(), '.sfdx', 'sfdx-config.json'),
@@ -86,6 +70,19 @@ export class PromoterPanel {
         if (val) return val;
       } catch { /* try next */ }
     }
+
+    // Last resort: ask sf CLI directly. shell:true resolves sf.cmd on Windows.
+    // SF CLI loads all plugins on startup (~15 s) — give it 20 s.
+    try {
+      const result = spawnSync('sf', ['config', 'get', 'target-org', '--json'], {
+        timeout: 20_000,
+        encoding: 'utf8',
+        shell: true,
+      });
+      const parsed = JSON.parse(result.stdout ?? '') as { result?: Array<{ value?: string }> };
+      const val = parsed?.result?.[0]?.value ?? '';
+      if (val) return val;
+    } catch { /* give up */ }
 
     return '';
   }

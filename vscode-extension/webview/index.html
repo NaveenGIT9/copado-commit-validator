@@ -241,10 +241,8 @@
 <div class="row section">
   <div>
     <label>Target Org Alias</label>
-    <div id="orgDisplay" style="font-family:'Cascadia Code','Fira Code',monospace;font-size:12px;color:#90d8f0;
-      padding:8px 11px;background:rgba(26,184,232,0.05);border:1px solid rgba(26,184,232,0.18);
-      border-radius:10px;min-height:34px;line-height:18px;">Detecting...</div>
-    <input type="hidden" id="orgAlias" />
+    <input type="text" id="orgAlias" list="orgAliasList" placeholder="Auto-detecting..." />
+    <datalist id="orgAliasList"></datalist>
   </div>
   <div>
     <label>Git Repo Path</label>
@@ -328,17 +326,17 @@ function populateDatalist(id, key) {
 populateDatalist('orgAliasList', 'orgAliasHistory');
 populateDatalist('repoPathList', 'repoPathHistory');
 
-// Apply default org injected by panel.ts at HTML generation time
-if (window.__defaultOrg) {
-  document.getElementById('orgDisplay').textContent = window.__defaultOrg;
+// Apply default org injected by panel.ts at HTML generation time.
+// Only overwrite if the field is still empty (don't clobber user input).
+if (window.__defaultOrg && !document.getElementById('orgAlias').value) {
   document.getElementById('orgAlias').value = window.__defaultOrg;
-} else {
-  document.getElementById('orgDisplay').textContent = 'Not detected — check SF CLI auth';
+  saveHistory('orgAliasHistory', window.__defaultOrg);
+  populateDatalist('orgAliasList', 'orgAliasHistory');
 }
 
 function fetchReady(envType) {
   const orgAlias = document.getElementById('orgAlias').value.trim();
-  if (!orgAlias) { setStatus('error', 'No org alias detected. Check your SF default org.'); return; }
+  if (!orgAlias) { setStatus('error', 'Enter your SF org alias in the Target Org Alias field.'); return; }
   document.getElementById('stories').value = '';
   setStatus('info', `Fetching ${envType} ready stories from Copado...`, true);
   document.getElementById('verifyBtn').disabled = true;
