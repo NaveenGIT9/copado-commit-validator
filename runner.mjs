@@ -430,10 +430,10 @@ async function main() {
     emit({ type: 'git-fetch-done' });
   }
 
-  // Build set of "higher environment" credential IDs from pipeline steps.
-  // Any credential that is a DESTINATION in a pipeline step is above DEV1.
-  // Used to check if a parent story has been promoted to a higher environment.
-  const higherEnvCredIds = new Set();
+  // Build a pipeline level map: credentialId → level (0 = lowest/source, 1 = first dest, …)
+  // Uses BFS over pipeline steps so we know exactly where each environment sits in the flow.
+  // Example: TRNDEV1(0) → TRNQA(1) → TRNUAT(2) → TRNPROD(3)
+  const credLevel = new Map(); // credId → numeric level
   try {
     const pipelineRes = await conn.query(
       `SELECT copado__Deployment_Flow__c FROM copado__Project__c WHERE Id = '${stories[0].copado__Project__c}'`
@@ -441,16 +441,29 @@ async function main() {
     const pipelineId = pipelineRes.records[0]?.copado__Deployment_Flow__c;
     if (pipelineId) {
       const stepsRes = await conn.query(
-        `SELECT copado__Destination_Org_Credential__c FROM copado__Deployment_Flow_Step__c ` +
-        `WHERE copado__Deployment_Flow__c = '${pipelineId}'`
+        `SELECT copado__Source_Org_Credential__c, copado__Destination_Org_Credential__c ` +
+        `FROM copado__Deployment_Flow_Step__c WHERE copado__Deployment_Flow__c = '${pipelineId}'`
       );
-      for (const step of stepsRes.records) {
-        if (step.copado__Destination_Org_Credential__c) {
-          higherEnvCredIds.add(step.copado__Destination_Org_Credential__c);
+      const edges = stepsRes.records
+        .filter(s => s.copado__Source_Org_Credential__c && s.copado__Destination_Org_Credential__c)
+        .map(s => ({ from: s.copado__Source_Org_Credential__c, to: s.copado__Destination_Org_Credential__c }));
+
+      // Roots = credentials that appear only as source, never as destination
+      const allDest = new Set(edges.map(e => e.to));
+      const roots   = [...new Set(edges.map(e => e.from))].filter(id => !allDest.has(id));
+
+      const queue = roots.map(id => ({ id, level: 0 }));
+      while (queue.length > 0) {
+        const { id, level } = queue.shift();
+        if (!credLevel.has(id) || credLevel.get(id) < level) {
+          credLevel.set(id, level);
+          for (const e of edges.filter(e => e.from === id)) {
+            queue.push({ id: e.to, level: level + 1 });
+          }
         }
       }
     }
-  } catch { /* non-fatal — parent env check will be skipped */ }
+  } catch { /* non-fatal — parent env check will fall back to credential comparison */ }
 
   for (const story of stories) {
     const branchName   = `feature/${story.Name}`;
@@ -588,7 +601,11 @@ async function main() {
           `SELECT copado__Org_Credential__c FROM copado__User_Story__c WHERE Name = '${parentName}' LIMIT 1`
         );
         const parentCredId = parentRes.records[0]?.copado__Org_Credential__c ?? null;
-        const parentPromoted = parentCredId ? higherEnvCredIds.has(parentCredId) : false;
+        const currentLevel = credLevel.get(story.copado__Org_Credential__c) ?? 0;
+        const parentLevel  = parentCredId ? (credLevel.get(parentCredId) ?? 0) : 0;
+        // Parent is "promoted" only if it sits in a strictly higher environment
+        // in the pipeline flow than the current story.
+        const parentPromoted = parentLevel > currentLevel;
         parentStory = { name: parentName, promoted: parentPromoted };
       }
     } catch { /* non-fatal */ }
