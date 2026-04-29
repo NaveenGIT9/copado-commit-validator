@@ -1,6 +1,6 @@
 // Standalone runner — bypasses sf CLI framework entirely for fast startup
 import { spawnSync } from 'child_process';
-import { AuthInfo, Connection } from '@salesforce/core';
+import { AuthInfo, Connection, StateAggregator } from '@salesforce/core';
 import { simpleGit } from 'simple-git';
 
 function emit(data) {
@@ -45,19 +45,33 @@ function parseApiName(filePath) {
 }
 
 async function main() {
-  // Use sf org display to resolve the alias → actual username (email), then
-  // create AuthInfo by username. Auth files are indexed by username, not alias,
-  // so this works even when AuthInfo.create({ username: alias }) fails.
+  // Resolve alias → username using @salesforce/core StateAggregator (reads local
+  // auth files directly — no SF CLI startup cost). Falls back to sf org display
+  // if StateAggregator can't resolve the alias.
   let conn;
   try {
-    const r = spawnSync('sf', ['org', 'display', '--target-org', orgAlias, '--json'], {
-      shell: true, encoding: 'utf8', timeout: 20_000,
-    });
-    const orgData = JSON.parse(r.stdout ?? '').result;
-    if (!orgData?.username) {
-      throw new Error(`sf org display returned no username for "${orgAlias}". Is the org authenticated? Run: sf org login web --alias ${orgAlias}`);
+    let username = orgAlias;
+    try {
+      const sa = await StateAggregator.getInstance();
+      username = sa.aliases.getUsername(orgAlias) ?? orgAlias;
+    } catch {
+      // StateAggregator unavailable — fall through to sf CLI fallback below
+      username = null;
     }
-    const authInfo = await AuthInfo.create({ username: orgData.username });
+
+    if (!username) {
+      // Fall back: ask sf CLI (slow ~15s due to plugin loading, but reliable)
+      const r = spawnSync('sf', ['org', 'display', '--target-org', orgAlias, '--json'], {
+        shell: true, encoding: 'utf8', timeout: 20_000,
+      });
+      const orgData = JSON.parse(r.stdout ?? '').result;
+      if (!orgData?.username) {
+        throw new Error(`sf org display returned no username for "${orgAlias}". Is the org authenticated? Run: sf org login web --alias ${orgAlias}`);
+      }
+      username = orgData.username;
+    }
+
+    const authInfo = await AuthInfo.create({ username });
     conn = await Connection.create({ authInfo });
   } catch (err) {
     emit({ type: 'fatal', message: `Auth failed for "${orgAlias}": ${String(err)}` });
