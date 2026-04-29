@@ -639,11 +639,11 @@ window.addEventListener('message', (event) => {
     const notFound = msg.notFound ?? [];
     const notFoundMsg = notFound.length > 0 ? ` Stories not found in org: ${notFound.join(', ')}.` : '';
     if (msg.repoPath) {
-      setStatus('success', `Git Repo Path set to "${msg.repoPath}".${notFoundMsg} Click Verify Stories to proceed.`);
+      setStatus('success', `Stories found. Using local clone at "${msg.repoPath}".${notFoundMsg} Click Verify Stories to proceed.`);
     } else if (msg.repoName) {
-      setStatus('warning', `Stories belong to repo "${msg.repoName}" — ensure it is cloned locally and enter its path in Git Repo Path, then verify.${notFoundMsg}`);
+      setStatus('success', `Stories found in repo "${msg.repoName}".${notFoundMsg} Click Verify Stories — repo will be auto-cloned from GitHub on first run.`);
     } else {
-      setStatus('warning', `Could not detect git repo from Copado. Enter the Git Repo Path manually.${notFoundMsg}`);
+      setStatus('warning', `Stories found but could not detect git repo from Copado. Try clicking Verify Stories anyway.${notFoundMsg}`);
     }
   }
 
