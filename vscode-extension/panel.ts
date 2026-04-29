@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { spawn, execSync } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -53,14 +53,19 @@ export class PromoterPanel {
   }
 
   private getDefaultOrg(): string {
-    // Try sf config get target-org --json via shell (shell:true resolves .cmd on Windows)
-    // On Windows cmd files need to be invoked via cmd /c
-    const sfCmds = process.platform === 'win32'
-      ? ['cmd /c sf config get target-org --json', 'cmd /c sf.cmd config get target-org --json']
-      : ['sf config get target-org --json'];
-    for (const cmd of sfCmds) {
+    // spawnSync never throws on non-zero exit code — captures stdout regardless of exit code.
+    // sf config get exits with code 1 on this machine (plugin warnings) but still emits JSON on stdout.
+    const jsonArgs = ['config', 'get', 'target-org', '--json'];
+    const cmds: Array<{ cmd: string; args: string[] }> = process.platform === 'win32'
+      ? [
+          { cmd: 'cmd', args: ['/c', 'sf', ...jsonArgs] },
+          { cmd: 'cmd', args: ['/c', 'sf.cmd', ...jsonArgs] },
+        ]
+      : [{ cmd: 'sf', args: jsonArgs }];
+    for (const { cmd, args } of cmds) {
+      const result = spawnSync(cmd, args, { timeout: 5000, encoding: 'utf8' });
+      const out = result.stdout ?? '';
       try {
-        const out = execSync(cmd, { timeout: 5000 }).toString();
         const parsed = JSON.parse(out) as { result?: Array<{ value?: string }> };
         const val = parsed?.result?.[0]?.value ?? '';
         if (val) return val;
