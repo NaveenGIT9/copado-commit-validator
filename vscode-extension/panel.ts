@@ -210,10 +210,10 @@ export class PromoterPanel {
     if (fs.existsSync(htmlPath)) {
       let html = fs.readFileSync(htmlPath, 'utf8');
       const defaultOrg = this.getDefaultOrg();
-      // Inject default org as a global variable so it's available before any message listener fires
+      const defaultRepoPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
       html = html.replace(
         '<script>',
-        `<script>window.__defaultOrg = ${JSON.stringify(defaultOrg)};\n`,
+        `<script>window.__defaultOrg = ${JSON.stringify(defaultOrg)};\nwindow.__defaultRepoPath = ${JSON.stringify(defaultRepoPath)};\n`,
       );
       return html;
     }

@@ -327,12 +327,15 @@ function populateDatalist(id, key) {
 populateDatalist('orgAliasList', 'orgAliasHistory');
 populateDatalist('repoPathList', 'repoPathHistory');
 
-// Apply default org injected by panel.ts at HTML generation time.
+// Apply defaults injected by panel.ts at HTML generation time.
 // Only overwrite if the field is still empty (don't clobber user input).
 if (window.__defaultOrg && !document.getElementById('orgAlias').value) {
   document.getElementById('orgAlias').value = window.__defaultOrg;
   saveHistory('orgAliasHistory', window.__defaultOrg);
   populateDatalist('orgAliasList', 'orgAliasHistory');
+}
+if (window.__defaultRepoPath && !document.getElementById('repoPath').value) {
+  document.getElementById('repoPath').value = window.__defaultRepoPath;
 }
 
 function fetchReady(envType) {
@@ -352,6 +355,10 @@ function verify() {
 
   if (!stories || !orgAlias) {
     setStatus('error', 'Enter story names and org alias before verifying.');
+    return;
+  }
+  if (!repoPath) {
+    setStatus('error', 'Git Repo Path is required. Enter the local path of your Salesforce git repo, or use Fetch QA/UAT Ready to auto-detect it.');
     return;
   }
 

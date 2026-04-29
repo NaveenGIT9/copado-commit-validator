@@ -442,7 +442,7 @@ async function main() {
              prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
              hasApexCode: story.copado__Has_Apex_Code__c,
              parentStory: null, promotionCount: 0,
-             verdict: 'error', message: `Remote branch ${remoteBranch} not found.` });
+             verdict: 'error', message: `Branch ${remoteBranch} not found. Check that the correct repo is cloned locally and the path is set correctly.` });
       continue;
     }
 
