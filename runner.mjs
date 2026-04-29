@@ -333,6 +333,28 @@ async function main() {
   catch (err) { emit({ type: 'fatal', message: `git fetch failed: ${String(err)}` }); return; }
   emit({ type: 'git-fetch-done' });
 
+  // Build set of "higher environment" credential IDs from pipeline steps.
+  // Any credential that is a DESTINATION in a pipeline step is above DEV1.
+  // Used to check if a parent story has been promoted to a higher environment.
+  const higherEnvCredIds = new Set();
+  try {
+    const pipelineRes = await conn.query(
+      `SELECT copado__Deployment_Flow__c FROM copado__Project__c WHERE Id = '${stories[0].copado__Project__c}'`
+    );
+    const pipelineId = pipelineRes.records[0]?.copado__Deployment_Flow__c;
+    if (pipelineId) {
+      const stepsRes = await conn.query(
+        `SELECT copado__Destination_Org_Credential__c FROM copado__Deployment_Flow_Step__c ` +
+        `WHERE copado__Deployment_Flow__c = '${pipelineId}'`
+      );
+      for (const step of stepsRes.records) {
+        if (step.copado__Destination_Org_Credential__c) {
+          higherEnvCredIds.add(step.copado__Destination_Org_Credential__c);
+        }
+      }
+    }
+  } catch { /* non-fatal — parent env check will be skipped */ }
+
   for (const story of stories) {
     const branchName   = `feature/${story.Name}`;
     const remoteBranch = `origin/${branchName}`;
@@ -408,6 +430,7 @@ async function main() {
              extraCommittedBy: [], tests: storyTests,
              prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
              hasApexCode: story.copado__Has_Apex_Code__c,
+             parentStory: null, promotionCount: 0,
              verdict: 'error', message: `Remote branch ${remoteBranch} not found.` });
       continue;
     }
@@ -452,6 +475,49 @@ async function main() {
 
     const extraCommittedBy = [...new Set(unregisteredDetail.map(d => d.authorName).filter(Boolean))];
 
+    // Detect if this feature branch was created from another story's feature branch.
+    // Strategy: find the oldest commit on this branch not on master → get its parent SHA
+    // → find any remote feature/US-* branch containing that SHA → that's the parent story.
+    let parentStory = null; // { name: string, promoted: boolean } | null
+    try {
+      const ancestryLog = await git.raw([
+        'log', '--format=%H', '--ancestry-path', `origin/master..${remoteBranch}`,
+      ]);
+      const branchCommits = ancestryLog.split('\n').map(h => h.trim()).filter(Boolean);
+      if (branchCommits.length > 0) {
+        const oldestCommit = branchCommits[branchCommits.length - 1];
+        const parentSha = (await git.raw(['rev-parse', `${oldestCommit}^`])).trim();
+        const branchesRaw = await git.raw([
+          'branch', '-r', '--contains', parentSha, '--list', 'origin/feature/US-*',
+        ]);
+        const parentBranches = branchesRaw.split('\n').map(b => b.trim()).filter(Boolean);
+        if (parentBranches.length > 0) {
+          const nameMatch = parentBranches[0].match(/US-\d+/);
+          if (nameMatch) {
+            const parentStoryName = nameMatch[0];
+            const parentStoryRes = await conn.query(
+              `SELECT copado__Org_Credential__c FROM copado__User_Story__c ` +
+              `WHERE Name = '${parentStoryName}' LIMIT 1`
+            );
+            const parentCredId = parentStoryRes.records[0]?.copado__Org_Credential__c ?? null;
+            const parentPromoted = parentCredId ? higherEnvCredIds.has(parentCredId) : false;
+            parentStory = { name: parentStoryName, promoted: parentPromoted };
+          }
+        }
+      }
+    } catch { /* non-fatal — skip parent check */ }
+
+    // Count how many times this story has been successfully promoted (for re-deploy badge).
+    let promotionCount = 0;
+    try {
+      const countRes = await conn.query(
+        `SELECT COUNT() FROM copado__Promoted_User_Story__c ` +
+        `WHERE copado__User_Story__c = '${story.Id}' ` +
+        `AND copado__Promotion__r.copado__Status__c = 'Completed'`
+      );
+      promotionCount = countRes.totalSize ?? 0;
+    } catch { /* non-fatal */ }
+
     // Refined verdict — copado auto-commits (sourceApiVersion bumps) are always exempt
     const effectiveUnregistered = unregisteredDetail.filter(d => !d.copadoAuto);
     const allCovered    = effectiveUnregistered.length === 0 || effectiveUnregistered.every(d => d.uncoveredComponents.length === 0);
@@ -475,6 +541,7 @@ async function main() {
       tests: storyTests,
       prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
       hasApexCode: story.copado__Has_Apex_Code__c,
+      parentStory, promotionCount,
       verdict,
     });
   }
