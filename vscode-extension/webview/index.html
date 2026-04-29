@@ -250,7 +250,7 @@
   </div>
   <div>
     <label>Git Repo Path</label>
-    <input type="text" id="repoPath" list="repoPathList" placeholder="Auto-detected after fetch, or enter manually" />
+    <input type="text" id="repoPath" list="repoPathList" placeholder="Auto-managed (leave blank — cloned once, reused every run)" />
     <datalist id="repoPathList"></datalist>
   </div>
 </div>
@@ -369,11 +369,6 @@ function verify() {
     setStatus('error', 'Enter story names and org alias before verifying.');
     return;
   }
-  if (!repoPath) {
-    setStatus('error', 'Git Repo Path is required. Click "Fetch Stories" to auto-detect it, or enter the local clone path manually.');
-    return;
-  }
-
   currentOrg   = orgAlias;
   cleanStories = [];
   runCompleted = false;
@@ -706,18 +701,23 @@ window.addEventListener('message', (event) => {
     endRun();
   }
 
-  else if (msg.type === 'repo-name') {
-    // Runner detected the correct git repo from Copado pipeline.
-    // If panel resolved a local path, update the field so the next verify uses it.
+  else if (msg.type === 'effective-repo-path') {
+    // Runner resolved the actual local path (user-provided or auto-cloned temp dir).
+    // Show it in the field so the user can see where it lives.
     if (msg.repoPath) {
       const field = document.getElementById('repoPath');
-      if (field.value !== msg.repoPath) {
-        field.value = msg.repoPath;
-        setStatus('warning', `Git repo path updated to "${msg.repoPath}" (detected from Copado pipeline). Click Verify Stories again to re-run with the correct repo.`);
-      }
-    } else if (msg.repoName) {
-      setStatus('warning', `This story's pipeline uses repo "${msg.repoName}" — make sure it is cloned locally and enter its path in Git Repo Path, then re-verify.`);
+      field.value = msg.repoPath;
+      saveHistory('repoPathHistory', msg.repoPath);
+      populateDatalist('repoPathList', 'repoPathHistory');
     }
+  }
+
+  else if (msg.type === 'git-clone-start') {
+    setStatus('info', `First-time setup: cloning ${msg.repoName} from GitHub (one-time only, please wait)...`, true);
+  }
+
+  else if (msg.type === 'git-clone-done') {
+    setStatus('info', 'Clone complete. Starting verification...', true);
   }
 
   else if (msg.type === 'git-fetch-start') {

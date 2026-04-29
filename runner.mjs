@@ -1,5 +1,8 @@
 // Standalone runner — bypasses sf CLI framework entirely for fast startup
 import { spawnSync } from 'child_process';
+import { existsSync, mkdirSync } from 'fs';
+import { tmpdir } from 'os';
+import { join as pathJoin } from 'path';
 import { AuthInfo, Connection, StateAggregator } from '@salesforce/core';
 import { simpleGit } from 'simple-git';
 
@@ -28,7 +31,7 @@ const args = Object.fromEntries(
 );
 
 const orgAlias      = args['target-org'] ?? '';
-const repoPath      = (args['repo-path'] ?? process.cwd()).replace(/[>]+$/, '').trim();
+const repoPath      = (args['repo-path'] ?? '').replace(/[>]+$/, '').trim();
 const doPromote     = args.promote === 'true';
 const doMergeDeploy = args['merge-deploy'] === 'true';
 const doFetchReady    = args['fetch-ready'] === 'true';
@@ -403,28 +406,71 @@ async function main() {
     return;
   }
 
-  // Detect the git repo name from the story's Copado pipeline so the panel can
-  // resolve the correct local path — emitted before git operations so the UI
-  // can update the Git Repo Path field if the current path is wrong.
+  // Detect the git repo URI from Copado — used for both the repo-name UI event
+  // and auto-cloning to a temp directory if no local path is provided.
+  let repoUri = '';
+  let detectedRepoName = '';
   try {
     const repoRec = await conn.query(
       `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.copado__URI__c ` +
       `FROM copado__User_Story__c WHERE Id = '${stories[0].Id}'`
     );
-    const repoUri = repoRec.records[0]
+    repoUri = repoRec.records[0]
       ?.copado__Project__r
       ?.copado__Deployment_Flow__r
       ?.copado__Git_Repository__r
       ?.copado__URI__c ?? '';
-    const repoName = repoNameFromUri(repoUri);
-    if (repoName) emit({ type: 'repo-name', repoName });
+    detectedRepoName = repoNameFromUri(repoUri);
   } catch { /* non-fatal */ }
 
-  const git = simpleGit(repoPath);
-  emit({ type: 'git-fetch-start' });
-  try { await git.fetch(['origin']); }
-  catch (err) { emit({ type: 'fatal', message: `git fetch failed: ${String(err)}` }); return; }
-  emit({ type: 'git-fetch-done' });
+  // Resolve which local git path to use.
+  // If --repo-path was given and is a valid git dir, use it.
+  // Otherwise auto-clone to a temp dir (once) and reuse on future runs.
+  let effectiveRepoPath = repoPath;
+  let alreadyFetched = false;
+
+  if (!effectiveRepoPath || !existsSync(pathJoin(effectiveRepoPath, '.git'))) {
+    if (!repoUri) {
+      emit({ type: 'fatal', message: 'Could not detect git repository URI from Copado. Enter the Git Repo Path manually.' });
+      return;
+    }
+    const tempBase = pathJoin(tmpdir(), 'copado-validator');
+    effectiveRepoPath = pathJoin(tempBase, detectedRepoName);
+
+    if (existsSync(pathJoin(effectiveRepoPath, '.git'))) {
+      // Repo already cloned previously — just fetch latest
+      emit({ type: 'effective-repo-path', repoPath: effectiveRepoPath });
+      emit({ type: 'git-fetch-start' });
+      const g = simpleGit(effectiveRepoPath);
+      try { await g.fetch(['origin']); }
+      catch (err) { emit({ type: 'fatal', message: `git fetch failed: ${String(err)}` }); return; }
+      emit({ type: 'git-fetch-done' });
+      alreadyFetched = true;
+    } else {
+      // First time — clone without checking out files (faster, we only need git history)
+      emit({ type: 'git-clone-start', repoName: detectedRepoName });
+      mkdirSync(tempBase, { recursive: true });
+      try {
+        await simpleGit().clone(repoUri, effectiveRepoPath, ['--no-checkout']);
+      } catch (err) {
+        emit({ type: 'fatal', message: `git clone failed: ${String(err)}` });
+        return;
+      }
+      emit({ type: 'effective-repo-path', repoPath: effectiveRepoPath });
+      emit({ type: 'git-clone-done' });
+      alreadyFetched = true;
+    }
+  } else {
+    emit({ type: 'effective-repo-path', repoPath: effectiveRepoPath });
+  }
+
+  const git = simpleGit(effectiveRepoPath);
+  if (!alreadyFetched) {
+    emit({ type: 'git-fetch-start' });
+    try { await git.fetch(['origin']); }
+    catch (err) { emit({ type: 'fatal', message: `git fetch failed: ${String(err)}` }); return; }
+    emit({ type: 'git-fetch-done' });
+  }
 
   // Build set of "higher environment" credential IDs from pipeline steps.
   // Any credential that is a DESTINATION in a pipeline step is above DEV1.

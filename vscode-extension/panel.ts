@@ -17,7 +17,7 @@ interface StoryResult {
   message?: string;
 }
 
-const RUN_TIMEOUT_MS = 120_000; // 2 minutes
+const RUN_TIMEOUT_MS = 600_000; // 10 minutes — first-time clone can take several minutes
 
 export class PromoterPanel {
   public static currentPanel: PromoterPanel | undefined;
@@ -144,7 +144,7 @@ export class PromoterPanel {
       RUNNER_PATH,
       '--stories', storyList,
       '--target-org', orgAlias,
-      '--repo-path', repoPath || process.cwd(),
+      ...(repoPath ? ['--repo-path', repoPath] : []),
     ];
     this.spawnCommand(args);
   }
@@ -187,8 +187,9 @@ export class PromoterPanel {
       for (const line of lines) {
         try {
           const msg = JSON.parse(line) as Record<string, unknown>;
+          // For fetch-done and stories-fetched: try to resolve repoName to a local
+          // workspace folder path (best-effort; blank if not open in this window).
           if ((isFetch && msg.type === 'fetch-done' && msg.repoName) ||
-              (msg.type === 'repo-name' && msg.repoName) ||
               (msg.type === 'stories-fetched' && msg.repoName)) {
             const folders = vscode.workspace.workspaceFolders ?? [];
             const repoName = msg.repoName as string;
@@ -199,6 +200,7 @@ export class PromoterPanel {
             const repoPath = match?.uri.fsPath ?? '';
             this.post({ ...msg, repoPath });
           } else {
+            // All other messages (including effective-repo-path) pass through as-is
             this.post(msg);
           }
         } catch {
