@@ -102,8 +102,6 @@ export class PromoterPanel {
       this.runPromote(msg.groups ?? [], msg.orgAlias ?? '', msg.mergeDeployAfter ?? false);
     } else if (msg.command === 'fetchReady') {
       this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '');
-    } else if (msg.command === 'fetchStories') {
-      this.runFetchStories(msg.stories ?? '', msg.orgAlias ?? '');
     } else if (msg.command === 'abort') {
       this.abortRun();
     }
@@ -117,17 +115,6 @@ export class PromoterPanel {
       '--env-type', envType,
     ];
     this.spawnCommand(args, true);
-  }
-
-  private runFetchStories(stories: string, orgAlias: string): void {
-    const storyList = stories.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).join(',');
-    const args = [
-      RUNNER_PATH,
-      '--target-org', orgAlias,
-      '--fetch-stories', 'true',
-      '--stories', storyList,
-    ];
-    this.spawnCommand(args);
   }
 
   private abortRun(): void {

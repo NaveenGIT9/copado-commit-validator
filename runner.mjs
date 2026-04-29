@@ -34,9 +34,8 @@ const orgAlias      = args['target-org'] ?? '';
 const repoPath      = (args['repo-path'] ?? '').replace(/[>]+$/, '').trim();
 const doPromote     = args.promote === 'true';
 const doMergeDeploy = args['merge-deploy'] === 'true';
-const doFetchReady    = args['fetch-ready'] === 'true';
-const doFetchStories  = args['fetch-stories'] === 'true';
-const fetchEnvType    = args['env-type'] ?? 'QA';
+const doFetchReady  = args['fetch-ready'] === 'true';
+const fetchEnvType  = args['env-type'] ?? 'QA';
 
 // Extract the GitHub repo name from a Copado git repository URI.
 // Handles both HTTPS (https://github.com/Org/Repo-Name.git) and
@@ -205,47 +204,6 @@ async function main() {
     }
 
     emit({ type: 'fetch-done', stories: validStories.map(s => s.name), repoName });
-    process.exit(0);
-  }
-
-  // ── FETCH STORIES MODE ───────────────────────────────────────────────────────
-  // Lightweight: given manually-typed story names, detect the git repo name from
-  // Copado so the UI can auto-populate the Git Repo Path field before verifying.
-  if (doFetchStories) {
-    const storyNames = (args.stories ?? '').split(',').map(s => s.trim()).filter(Boolean);
-    if (storyNames.length === 0) {
-      emit({ type: 'stories-fetched', repoName: '', found: [], notFound: [] });
-      process.exit(0);
-    }
-    const nameList = storyNames.map(n => `'${n}'`).join(',');
-    let stories = [];
-    try {
-      const result = await conn.query(
-        `SELECT Id, Name FROM copado__User_Story__c WHERE Name IN (${nameList})`
-      );
-      stories = result.records;
-    } catch (err) {
-      emit({ type: 'fatal', message: `Story query failed: ${String(err)}` });
-      process.exit(1);
-    }
-    const foundNames = new Set(stories.map(r => r.Name));
-    const notFound = storyNames.filter(n => !foundNames.has(n));
-    let repoName = '';
-    if (stories.length > 0) {
-      try {
-        const repoRec = await conn.query(
-          `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.copado__URI__c ` +
-          `FROM copado__User_Story__c WHERE Id = '${stories[0].Id}'`
-        );
-        const uri = repoRec.records[0]
-          ?.copado__Project__r
-          ?.copado__Deployment_Flow__r
-          ?.copado__Git_Repository__r
-          ?.copado__URI__c ?? '';
-        repoName = repoNameFromUri(uri);
-      } catch { /* non-fatal */ }
-    }
-    emit({ type: 'stories-fetched', repoName, found: stories.map(r => r.Name), notFound });
     process.exit(0);
   }
 
@@ -614,37 +572,26 @@ async function main() {
 
     const extraCommittedBy = [...new Set(unregisteredDetail.map(d => d.authorName).filter(Boolean))];
 
-    // Detect if this feature branch was created from another story's feature branch.
-    // Strategy: find the oldest commit on this branch not on master → get its parent SHA
-    // → find any remote feature/US-* branch containing that SHA → that's the parent story.
+    // Check if this story's Base Branch points to another story's feature branch.
+    // If yes, that parent story must be in a higher environment before this one deploys.
+    // Source: copado__Base_Branch__c field (e.g. "feature/US-0004674") — no git needed.
     let parentStory = null; // { name: string, promoted: boolean } | null
     try {
-      const ancestryLog = await git.raw([
-        'log', '--format=%H', '--ancestry-path', `origin/master..${remoteBranch}`,
-      ]);
-      const branchCommits = ancestryLog.split('\n').map(h => h.trim()).filter(Boolean);
-      if (branchCommits.length > 0) {
-        const oldestCommit = branchCommits[branchCommits.length - 1];
-        const parentSha = (await git.raw(['rev-parse', `${oldestCommit}^`])).trim();
-        const branchesRaw = await git.raw([
-          'branch', '-r', '--contains', parentSha, '--list', 'origin/feature/US-*',
-        ]);
-        const parentBranches = branchesRaw.split('\n').map(b => b.trim()).filter(Boolean);
-        if (parentBranches.length > 0) {
-          const nameMatch = parentBranches[0].match(/US-\d+/);
-          if (nameMatch) {
-            const parentStoryName = nameMatch[0];
-            const parentStoryRes = await conn.query(
-              `SELECT copado__Org_Credential__c FROM copado__User_Story__c ` +
-              `WHERE Name = '${parentStoryName}' LIMIT 1`
-            );
-            const parentCredId = parentStoryRes.records[0]?.copado__Org_Credential__c ?? null;
-            const parentPromoted = parentCredId ? higherEnvCredIds.has(parentCredId) : false;
-            parentStory = { name: parentStoryName, promoted: parentPromoted };
-          }
-        }
+      const baseBranchRes = await conn.query(
+        `SELECT copado__Base_Branch__c FROM copado__User_Story__c WHERE Id = '${story.Id}'`
+      );
+      const baseBranch = baseBranchRes.records[0]?.copado__Base_Branch__c ?? '';
+      const parentMatch = baseBranch.match(/US-\d+/);
+      if (parentMatch) {
+        const parentName = parentMatch[0];
+        const parentRes = await conn.query(
+          `SELECT copado__Org_Credential__c FROM copado__User_Story__c WHERE Name = '${parentName}' LIMIT 1`
+        );
+        const parentCredId = parentRes.records[0]?.copado__Org_Credential__c ?? null;
+        const parentPromoted = parentCredId ? higherEnvCredIds.has(parentCredId) : false;
+        parentStory = { name: parentName, promoted: parentPromoted };
       }
-    } catch { /* non-fatal — skip parent check */ }
+    } catch { /* non-fatal */ }
 
     // Count how many times this story has been successfully promoted (for re-deploy badge).
     let promotionCount = 0;
