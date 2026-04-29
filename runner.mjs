@@ -612,13 +612,20 @@ async function main() {
         const currentCredName = story.copado__Org_Credential__r?.Name ?? null;
         const currentLevel = currentCredName ? (credLevel.get(currentCredName) ?? -1) : -1;
         const parentLevel  = parentCredName  ? (credLevel.get(parentCredName)  ?? -1) : -1;
-        // If either credential isn't found in the pipeline map, skip the check
-        // (unknown position → don't falsely block). Otherwise block if parent is
-        // not yet in a strictly higher environment.
-        if (currentLevel >= 0 && parentLevel >= 0) {
-          parentStory = { name: parentName, promoted: parentLevel > currentLevel };
+
+        let parentPromoted;
+        if (parentCredName && currentCredName && parentCredName === currentCredName) {
+          // Same credential = same environment → parent not yet promoted
+          parentPromoted = false;
+        } else if (currentLevel >= 0 && parentLevel >= 0) {
+          // Both found in pipeline map → compare positions
+          parentPromoted = parentLevel > currentLevel;
+        } else {
+          // Different credentials but pipeline map unavailable → skip (no false blocks)
+          parentPromoted = true;
         }
-        emit({ type: 'stderr', message: `Parent check: current=${currentCredName}(L${currentLevel}) parent=${parentCredName}(L${parentLevel})` });
+        parentStory = { name: parentName, promoted: parentPromoted };
+        emit({ type: 'stderr', message: `Parent check: current=${currentCredName}(L${currentLevel}) parent=${parentCredName}(L${parentLevel}) promoted=${parentPromoted}` });
       }
     } catch { /* non-fatal */ }
 
