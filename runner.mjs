@@ -338,6 +338,22 @@ async function main() {
     return;
   }
 
+  // Detect the git repo name from the story's Copado pipeline so the panel can
+  // resolve the correct local path — emitted before git operations so the UI
+  // can update the Git Repo Path field if the current path is wrong.
+  try {
+    const repoRec = await conn.query(
+      `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.Name ` +
+      `FROM copado__User_Story__c WHERE Id = '${stories[0].Id}'`
+    );
+    const repoName = repoRec.records[0]
+      ?.copado__Project__r
+      ?.copado__Deployment_Flow__r
+      ?.copado__Git_Repository__r
+      ?.Name ?? '';
+    if (repoName) emit({ type: 'repo-name', repoName });
+  } catch { /* non-fatal */ }
+
   const git = simpleGit(repoPath);
   emit({ type: 'git-fetch-start' });
   try { await git.fetch(['origin']); }

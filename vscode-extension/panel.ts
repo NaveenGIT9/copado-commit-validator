@@ -174,11 +174,15 @@ export class PromoterPanel {
       for (const line of lines) {
         try {
           const msg = JSON.parse(line) as Record<string, unknown>;
-          if (isFetch && msg.type === 'fetch-done' && msg.repoName) {
+          if ((isFetch && msg.type === 'fetch-done' && msg.repoName) ||
+              (msg.type === 'repo-name' && msg.repoName)) {
             const folders = vscode.workspace.workspaceFolders ?? [];
             const repoName = msg.repoName as string;
-            const match = folders.find(f => f.uri.fsPath.endsWith(repoName) || f.uri.fsPath.endsWith('\\' + repoName) || f.uri.fsPath.endsWith('/' + repoName));
-            const repoPath = match?.uri.fsPath ?? folders[0]?.uri.fsPath ?? '';
+            const match = folders.find(f =>
+              f.uri.fsPath.endsWith(repoName) ||
+              f.uri.fsPath.endsWith('\\' + repoName) ||
+              f.uri.fsPath.endsWith('/' + repoName));
+            const repoPath = match?.uri.fsPath ?? '';
             this.post({ ...msg, repoPath });
           } else {
             this.post(msg);

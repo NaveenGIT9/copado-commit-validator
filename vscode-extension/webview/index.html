@@ -673,6 +673,20 @@ window.addEventListener('message', (event) => {
     endRun();
   }
 
+  else if (msg.type === 'repo-name') {
+    // Runner detected the correct git repo from Copado pipeline.
+    // If panel resolved a local path, update the field so the next verify uses it.
+    if (msg.repoPath) {
+      const field = document.getElementById('repoPath');
+      if (field.value !== msg.repoPath) {
+        field.value = msg.repoPath;
+        setStatus('warning', `Git repo path updated to "${msg.repoPath}" (detected from Copado pipeline). Click Verify Stories again to re-run with the correct repo.`);
+      }
+    } else if (msg.repoName) {
+      setStatus('warning', `This story's pipeline uses repo "${msg.repoName}" — make sure it is cloned locally and enter its path in Git Repo Path, then re-verify.`);
+    }
+  }
+
   else if (msg.type === 'git-fetch-start') {
     setStatus('info', 'Running git fetch origin...', true);
   }
