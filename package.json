@@ -1,0 +1,44 @@
+{
+  "name": "@naveengit9/plugin-promoter",
+  "version": "1.0.0",
+  "description": "Copado User Story promotion utility — verify and promote stories from CLI",
+  "author": "NaveenBonthu9",
+  "bugs": "https://github.com/NaveenBonthu9/plugin-promoter/issues",
+  "dependencies": {
+    "@oclif/core": "^3",
+    "@salesforce/core": "^6",
+    "@salesforce/sf-plugins-core": "^9",
+    "simple-git": "^3.22.0"
+  },
+  "devDependencies": {
+    "@oclif/test": "^3",
+    "@salesforce/dev-scripts": "^10",
+    "@types/node": "^18",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": ["/lib", "/messages", "/oclif.manifest.json"],
+  "keywords": ["force", "salesforce", "sfdx", "salesforcedx", "sf", "sf-plugin", "copado"],
+  "license": "MIT",
+  "main": "lib/index.js",
+  "oclif": {
+    "bin": "sf",
+    "commands": "./lib/commands",
+    "devPlugins": [],
+    "flexibleTaxonomy": true,
+    "plugins": [],
+    "topics": {
+      "promoter": {
+        "description": "Copado User Story promotion utilities"
+      }
+    }
+  },
+  "scripts": {
+    "build": "npx tsc -p tsconfig.json",
+    "postpack": "shx rm -f oclif.manifest.json",
+    "prepack": "npx tsc -p tsconfig.json && oclif manifest && oclif readme"
+  },
+  "type": "module"
+}

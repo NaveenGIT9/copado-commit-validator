@@ -1,0 +1,27 @@
+{
+  "name": "promoter",
+  "displayName": "Copado Commit Validator",
+  "description": "Verify and promote Copado User Stories with branch commit validation",
+  "version": "1.0.0",
+  "publisher": "NaveenBonthu9",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "promoter.open",
+        "title": "Copado Commit Validator: Open Dashboard"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "npx tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^18",
+    "typescript": "^5"
+  }
+}

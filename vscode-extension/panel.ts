@@ -1,0 +1,160 @@
+import * as vscode from 'vscode';
+import { spawn } from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs';
+
+const RUNNER_PATH = path.join('D:', 'plugin-promoter', 'runner.mjs');
+
+interface StoryResult {
+  storyName: string;
+  storyId: string;
+  branch: string;
+  extraCommits: string[];
+  copadoCommits: string[];
+  unregistered: string[];
+  verdict: 'clean' | 'skip-no-commits' | 'skip-unregistered' | 'error';
+  message?: string;
+}
+
+const RUN_TIMEOUT_MS = 120_000; // 2 minutes
+
+export class PromoterPanel {
+  public static currentPanel: PromoterPanel | undefined;
+  private readonly panel: vscode.WebviewPanel;
+  private disposables: vscode.Disposable[] = [];
+  private activeProc: ReturnType<typeof spawn> | null = null;
+  private activeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  public static createOrShow(extensionUri: vscode.Uri): void {
+    if (PromoterPanel.currentPanel) {
+      PromoterPanel.currentPanel.panel.reveal(vscode.ViewColumn.One);
+      return;
+    }
+    const panel = vscode.window.createWebviewPanel(
+      'sfPromoter',
+      'Copado Commit Validator',
+      vscode.ViewColumn.One,
+      { enableScripts: true, retainContextWhenHidden: true }
+    );
+    PromoterPanel.currentPanel = new PromoterPanel(panel, extensionUri);
+  }
+
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+    this.panel = panel;
+    this.panel.webview.html = this.getHtml();
+    this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
+    this.panel.webview.onDidReceiveMessage((msg) => this.handleMessage(msg), null, this.disposables);
+  }
+
+  private handleMessage(msg: {
+    command: string;
+    stories?: string;
+    orgAlias?: string;
+    repoPath?: string;
+    groups?: Array<{ projectId: string; credentialId: string; stories: string[]; storyIds: string[] }>;
+    mergeDeployAfter?: boolean;
+  }): void {
+    if (msg.command === 'verify') {
+      this.runVerify(msg.stories ?? '', msg.orgAlias ?? '', msg.repoPath ?? '');
+    } else if (msg.command === 'promote') {
+      this.runPromote(msg.groups ?? [], msg.orgAlias ?? '', msg.mergeDeployAfter ?? false);
+    } else if (msg.command === 'abort') {
+      this.abortRun();
+    }
+  }
+
+  private abortRun(): void {
+    if (this.activeTimer) { clearTimeout(this.activeTimer); this.activeTimer = null; }
+    if (this.activeProc) { this.activeProc.kill(); this.activeProc = null; }
+    this.post({ type: 'aborted' });
+  }
+
+  private runVerify(stories: string, orgAlias: string, repoPath: string): void {
+    const storyList = stories.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).join(',');
+    this.post({ type: 'run-start' });
+
+    const args = [
+      RUNNER_PATH,
+      '--stories', storyList,
+      '--target-org', orgAlias,
+      '--repo-path', repoPath || process.cwd(),
+    ];
+    this.spawnCommand(args);
+  }
+
+  private runPromote(
+    groups: Array<{ projectId: string; credentialId: string; stories: string[]; storyIds: string[] }>,
+    orgAlias: string,
+    mergeDeployAfter: boolean
+  ): void {
+    if (groups.length === 0) {
+      this.post({ type: 'promote-none' });
+      return;
+    }
+    const totalStories = groups.reduce((n, g) => n + g.stories.length, 0);
+    this.post({ type: 'promote-start-ui', count: totalStories });
+
+    const args = [
+      RUNNER_PATH,
+      '--target-org', orgAlias,
+      '--promote', 'true',
+      '--groups', JSON.stringify(groups),
+      '--merge-deploy', String(mergeDeployAfter),
+    ];
+    this.spawnCommand(args);
+  }
+
+  private spawnCommand(args: string[]): void {
+    const proc = spawn(process.execPath, args, { shell: false });
+    this.activeProc = proc;
+
+    this.activeTimer = setTimeout(() => {
+      proc.kill();
+      this.activeProc = null;
+      this.activeTimer = null;
+      this.post({ type: 'fatal', message: 'Timed out after 2 minutes. Check org connectivity and try again.' });
+    }, RUN_TIMEOUT_MS);
+
+    proc.stdout.on('data', (chunk: Buffer) => {
+      const lines = chunk.toString().split('\n').filter(l => l.trim());
+      for (const line of lines) {
+        try {
+          const msg = JSON.parse(line) as Record<string, unknown>;
+          this.post(msg);
+        } catch {
+          this.post({ type: 'stderr', message: `stdout: ${line}` });
+        }
+      }
+    });
+
+    proc.stderr.on('data', (chunk: Buffer) => {
+      const text = chunk.toString().trim();
+      this.post({ type: 'stderr', message: text });
+    });
+
+    proc.on('close', (code) => {
+      if (this.activeTimer) { clearTimeout(this.activeTimer); this.activeTimer = null; }
+      this.activeProc = null;
+      this.post({ type: 'process-exit', code });
+    });
+  }
+
+  private post(data: Record<string, unknown>): void {
+    void this.panel.webview.postMessage(data);
+  }
+
+  private getHtml(): string {
+    const htmlPath = path.join(__dirname, '..', 'webview', 'index.html');
+    if (fs.existsSync(htmlPath)) {
+      return fs.readFileSync(htmlPath, 'utf8');
+    }
+    return '<html><body>Loading...</body></html>';
+  }
+
+  public dispose(): void {
+    PromoterPanel.currentPanel = undefined;
+    this.panel.dispose();
+    for (const d of this.disposables) d.dispose();
+    this.disposables = [];
+  }
+}
