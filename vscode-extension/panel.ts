@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -53,13 +53,32 @@ export class PromoterPanel {
   }
 
   private getDefaultOrg(): string {
+    // Try sf config get target-org --json first (most reliable)
+    try {
+      const out = execSync('sf config get target-org --json', { timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+      const parsed = JSON.parse(out) as { result?: Array<{ value?: string }> };
+      const val = parsed?.result?.[0]?.value ?? '';
+      if (val) return val;
+    } catch { /* fall through */ }
+
+    // Fallback: read ~/.sf/config.json
     try {
       const sfConfigPath = path.join(os.homedir(), '.sf', 'config.json');
       if (fs.existsSync(sfConfigPath)) {
         const cfg = JSON.parse(fs.readFileSync(sfConfigPath, 'utf8')) as Record<string, string>;
-        return cfg['target-org'] ?? '';
+        if (cfg['target-org']) return cfg['target-org'];
+      }
+    } catch { /* fall through */ }
+
+    // Fallback: read ~/.sfdx/sfdx-config.json
+    try {
+      const sfdxConfigPath = path.join(os.homedir(), '.sfdx', 'sfdx-config.json');
+      if (fs.existsSync(sfdxConfigPath)) {
+        const cfg = JSON.parse(fs.readFileSync(sfdxConfigPath, 'utf8')) as Record<string, string>;
+        if (cfg['defaultusername']) return cfg['defaultusername'];
       }
     } catch { /* non-fatal */ }
+
     return '';
   }
 
