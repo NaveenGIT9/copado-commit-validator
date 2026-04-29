@@ -589,15 +589,11 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     ? (extraCommittedBy || []).map(n => `<span style="font-size:11px">${n}</span>`).join('<br>')
     : (verdict === 'verifying' || extraCommits === null ? '—' : '<span style="color:#34d399;font-size:11px">None</span>');
 
-  const redeployBadge = promotionCount > 0
-    ? `<span style="font-size:10px;color:#f87171;margin-left:4px">(×${promotionCount + 1})</span>`
-    : '';
   const separateTd = isPromotable
     ? `<td style="text-align:center;vertical-align:middle">
-         <label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;font-size:11px;color:#90d8f0">
+         <label style="display:flex;align-items:center;justify-content:center;cursor:pointer">
            <input type="checkbox" class="separate-promo-cb" data-story="${storyName}"
              style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer" />
-           ${redeployBadge}
          </label>
        </td>`
     : `<td></td>`;
