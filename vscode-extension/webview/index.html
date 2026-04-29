@@ -328,6 +328,14 @@ function populateDatalist(id, key) {
 populateDatalist('orgAliasList', 'orgAliasHistory');
 populateDatalist('repoPathList', 'repoPathHistory');
 
+// Apply default org injected by panel.ts at HTML generation time
+if (window.__defaultOrg) {
+  document.getElementById('orgDisplay').textContent = window.__defaultOrg;
+  document.getElementById('orgAlias').value = window.__defaultOrg;
+} else {
+  document.getElementById('orgDisplay').textContent = 'Not detected — check SF CLI auth';
+}
+
 function fetchReady(envType) {
   const orgAlias = document.getElementById('orgAlias').value.trim();
   if (!orgAlias) { setStatus('error', 'No org alias detected. Check your SF default org.'); return; }
@@ -578,12 +586,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 window.addEventListener('message', (event) => {
   const msg = event.data;
 
-  if (msg.type === 'default-org') {
-    document.getElementById('orgDisplay').textContent = msg.org;
-    document.getElementById('orgAlias').value = msg.org;
-  }
-
-  else if (msg.type === 'fetch-stories-found') {
+  if (msg.type === 'fetch-stories-found') {
     setStatus('info', `Found ${msg.count} ${msg.envType} ready stories — checking promotion history...`, true);
   }
 

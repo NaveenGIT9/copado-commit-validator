@@ -49,14 +49,18 @@ export class PromoterPanel {
   }
 
   private postDefaults(): void {
+    // no-op — default org is now injected directly into HTML at load time via getDefaultOrg()
+  }
+
+  private getDefaultOrg(): string {
     try {
       const sfConfigPath = path.join(os.homedir(), '.sf', 'config.json');
       if (fs.existsSync(sfConfigPath)) {
         const cfg = JSON.parse(fs.readFileSync(sfConfigPath, 'utf8')) as Record<string, string>;
-        const org = cfg['target-org'] ?? '';
-        if (org) this.post({ type: 'default-org', org });
+        return cfg['target-org'] ?? '';
       }
     } catch { /* non-fatal */ }
+    return '';
   }
 
   private handleMessage(msg: {
@@ -180,7 +184,14 @@ export class PromoterPanel {
   private getHtml(): string {
     const htmlPath = path.join(__dirname, '..', 'webview', 'index.html');
     if (fs.existsSync(htmlPath)) {
-      return fs.readFileSync(htmlPath, 'utf8');
+      let html = fs.readFileSync(htmlPath, 'utf8');
+      const defaultOrg = this.getDefaultOrg();
+      // Inject default org as a global variable so it's available before any message listener fires
+      html = html.replace(
+        '<script>',
+        `<script>window.__defaultOrg = ${JSON.stringify(defaultOrg)};\n`,
+      );
+      return html;
     }
     return '<html><body>Loading...</body></html>';
   }
