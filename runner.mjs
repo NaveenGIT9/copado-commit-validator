@@ -155,35 +155,8 @@ async function main() {
       const storyName        = storyNames[i];
       const latestCommitDate = latestCommitDateMap[storyId] ?? null;
 
-      let skipStory = false;
-      try {
-        const promRes = await conn.query(
-          `SELECT copado__Promotion__r.copado__Status__c, copado__Promotion__r.LastModifiedDate ` +
-          `FROM copado__Promoted_User_Story__c ` +
-          `WHERE copado__User_Story__c = '${storyId}' ` +
-          `ORDER BY copado__Promotion__r.LastModifiedDate DESC LIMIT 1`
-        );
-        const latestPromo = promRes.records[0];
-
-        if (latestPromo?.copado__Promotion__r?.copado__Status__c === 'Completed with Errors') {
-          const promoFailedDate = latestPromo.copado__Promotion__r.LastModifiedDate;
-          // Only skip if we have a commit date AND it is NOT newer than the failure.
-          // If latestCommitDate is null (field not populated) we can't tell → include the story.
-          const developerFixed = !latestCommitDate || new Date(latestCommitDate) > new Date(promoFailedDate);
-          if (!developerFixed) {
-            skipStory = true;
-            try {
-              await conn.sobject('copado__User_Story__c').update({
-                Id: storyId,
-                copado__Ready_to_Promote__c: false,
-              });
-            } catch { /* non-fatal */ }
-            emit({ type: 'fetch-unchecked', storyName, reason: 'Latest promotion failed with no new commits after failure' });
-          }
-        }
-      } catch { /* non-fatal — include story if check fails */ }
-
-      if (!skipStory) validStories.push({ id: storyId, name: storyName });
+      // Always include the story — failed-promotion warning is shown during verify.
+      validStories.push({ id: storyId, name: storyName });
     }
 
     // Step 5: get git repo name from first valid story's project → pipeline → git repository
@@ -346,7 +319,7 @@ async function main() {
   let stories = [];
   try {
     const result = await conn.query(
-      `SELECT Id, Name, copado__Org_Credential__c, copado__Org_Credential__r.Name, copado__Project__c, copado__Project__r.Name, copado__Status__c, copado__Pull_Requests_Approved__c, copado__Has_Apex_Code__c ` +
+      `SELECT Id, Name, copado__Org_Credential__c, copado__Org_Credential__r.Name, copado__Latest_Commit_Date__c, copado__Project__c, copado__Project__r.Name, copado__Status__c, copado__Pull_Requests_Approved__c, copado__Has_Apex_Code__c ` +
       `FROM copado__User_Story__c WHERE Name IN (${nameList})`
     );
     stories = result.records;
@@ -433,7 +406,8 @@ async function main() {
   // Build a pipeline level map: credentialId → level (0 = lowest/source, 1 = first dest, …)
   // Uses BFS over pipeline steps so we know exactly where each environment sits in the flow.
   // Example: TRNDEV1(0) → TRNQA(1) → TRNUAT(2) → TRNPROD(3)
-  const credLevel = new Map(); // credId → numeric level
+  const credLevel = new Map(); // credName → numeric level
+  let pipelineEdges = []; // { from: credName, to: credName }[] — used for exact next-dest lookup
   try {
     const pipelineRes = await conn.query(
       `SELECT copado__Deployment_Flow__c FROM copado__Project__c WHERE Id = '${stories[0].copado__Project__c}'`
@@ -447,6 +421,7 @@ async function main() {
       const edges = stepsRes.records
         .filter(s => s.copado__Source_Org_Credential__r?.Name && s.copado__Destination_Org_Credential__r?.Name)
         .map(s => ({ from: s.copado__Source_Org_Credential__r.Name, to: s.copado__Destination_Org_Credential__r.Name }));
+      pipelineEdges = edges;
 
       // Roots = credentials that appear only as source, never as destination
       const allDest = new Set(edges.map(e => e.to));
@@ -548,7 +523,7 @@ async function main() {
              extraCommittedBy: [], tests: storyTests,
              prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
              hasApexCode: story.copado__Has_Apex_Code__c,
-             parentStory: null, promotionCount: 0,
+             parentStory: null, promotionCount: 0, lastPromotionFailed: false,
              verdict: 'error', message: `Branch ${remoteBranch} not found. Check that the correct repo is cloned locally and the path is set correctly.` });
       continue;
     }
@@ -640,6 +615,35 @@ async function main() {
       promotionCount = countRes.totalSize ?? 0;
     } catch { /* non-fatal */ }
 
+    // Check if the story's last promotion failed with no developer fix since then.
+    // Only flags if: source = story's current env, destination = exact next pipeline step.
+    let lastPromotionFailed = false;
+    try {
+      const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
+      const currentCredName  = story.copado__Org_Credential__r?.Name ?? null;
+      const expectedDest     = pipelineEdges.find(e => e.from === currentCredName)?.to ?? null;
+      if (currentCredName && expectedDest) {
+        const failRes = await conn.query(
+          `SELECT copado__Promotion__r.copado__Status__c, copado__Promotion__r.LastModifiedDate, ` +
+          `copado__Promotion__r.copado__Source_Org_Credential__r.Name, ` +
+          `copado__Promotion__r.copado__Destination_Org_Credential__r.Name ` +
+          `FROM copado__Promoted_User_Story__c ` +
+          `WHERE copado__User_Story__c = '${story.Id}' ` +
+          `ORDER BY copado__Promotion__r.LastModifiedDate DESC LIMIT 1`
+        );
+        const lp = failRes.records[0];
+        if (lp?.copado__Promotion__r?.copado__Status__c === 'Completed with Errors') {
+          const promoDate   = lp.copado__Promotion__r.LastModifiedDate;
+          const srcName     = lp.copado__Promotion__r.copado__Source_Org_Credential__r?.Name ?? null;
+          const dstName     = lp.copado__Promotion__r.copado__Destination_Org_Credential__r?.Name ?? null;
+          const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
+          if (noFixCommit && srcName === currentCredName && dstName === expectedDest) {
+            lastPromotionFailed = true;
+          }
+        }
+      }
+    } catch { /* non-fatal */ }
+
     // Refined verdict — copado auto-commits (sourceApiVersion bumps) are always exempt
     const effectiveUnregistered = unregisteredDetail.filter(d => !d.copadoAuto);
     const allCovered    = effectiveUnregistered.length === 0 || effectiveUnregistered.every(d => d.uncoveredComponents.length === 0);
@@ -663,7 +667,7 @@ async function main() {
       tests: storyTests,
       prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
       hasApexCode: story.copado__Has_Apex_Code__c,
-      parentStory, promotionCount,
+      parentStory, promotionCount, lastPromotionFailed,
       verdict,
     });
   }

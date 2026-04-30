@@ -485,7 +485,7 @@ function upsertRow(storyName, branch, copadoCommits, extraCommits, unregisteredD
   row.innerHTML = html;
 }
 
-function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, parentStory = null, promotionCount = 0) {
+function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, parentStory = null, promotionCount = 0, lastPromotionFailed = false) {
   const failedTests      = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
   const hasApexTest      = (tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || ''));
   const noApexTestClass  = hasApexCode && !hasApexTest;
@@ -529,6 +529,9 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       const col = ok ? OK : (t.status === 'Failed' || t.status === 'Error' ? ERR : WARN);
       rows.push(kv(`${t.tool}:`, `<span style="${col}">${ok ? '✓' : '✗'} ${t.status || '—'}</span>`));
     });
+    if (lastPromotionFailed) {
+      rows.push(kv('Last promo:', `<span style="color:#f59e0b;font-size:11px">✗ Failed — no fix commit</span>`));
+    }
 
     promotableHtml = `<div style="display:flex;flex-direction:column">${badge}${rows.join('')}</div>`;
   }
@@ -721,7 +724,7 @@ window.addEventListener('message', (event) => {
     const html = buildRowHtml(
       msg.storyName, msg.branch, msg.copadoCommits, msg.extraCommits,
       msg.unregisteredDetail, msg.verdict, msg.storyCommittedBy, msg.extraCommittedBy,
-      msg.tests, prBlocked, msg.hasApexCode, msg.parentStory ?? null, msg.promotionCount ?? 0
+      msg.tests, prBlocked, msg.hasApexCode, msg.parentStory ?? null, msg.promotionCount ?? 0, msg.lastPromotionFailed ?? false
     );
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
