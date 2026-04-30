@@ -608,10 +608,11 @@ async function main() {
       promotionCount = countRes.totalSize ?? 0;
     } catch { /* non-fatal */ }
 
-    // Check if the story's last promotion failed with no developer fix since then.
-    // Queries copado__Promotion__c directly (ORDER BY on its own field = always valid SOQL).
-    // Semi-join links to the story via the junction without relationship traversal in ORDER BY.
-    let lastPromotionFailed = false;
+    // Check if the story's latest promotion is in a warning state for the exact pipeline step.
+    // Queries copado__Promotion__c directly — ORDER BY on its own field is always valid SOQL.
+    // 'Conflicts Resolved' always warns (release team must re-trigger).
+    // 'Completed with Errors' and 'Merge Conflict' warn only if no new developer commit since.
+    let lastPromoWarning = null; // { status, name } | null
     try {
       const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
       const currentCredId    = story.copado__Org_Credential__c ?? null;
@@ -620,9 +621,9 @@ async function main() {
         : null;
       if (currentCredId) {
         let soql =
-          `SELECT Id, LastModifiedDate FROM copado__Promotion__c ` +
+          `SELECT Id, Name, copado__Status__c, LastModifiedDate FROM copado__Promotion__c ` +
           `WHERE copado__Source_Org_Credential__c = '${currentCredId}' ` +
-          `AND copado__Status__c = 'Completed with Errors' ` +
+          `AND copado__Status__c IN ('Completed with Errors', 'Merge Conflict', 'Conflicts Resolved') ` +
           `AND Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}')`;
         if (expectedDestId) {
           soql += ` AND copado__Destination_Org_Credential__c = '${expectedDestId}'`;
@@ -631,9 +632,11 @@ async function main() {
         const promoRes = await conn.query(soql);
         const promo = promoRes.records[0];
         if (promo) {
-          const promoDate   = promo.LastModifiedDate;
-          const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
-          if (noFixCommit) lastPromotionFailed = true;
+          const promoStatus  = promo.copado__Status__c;
+          const promoDate    = promo.LastModifiedDate;
+          const noFixCommit  = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
+          const shouldWarn   = promoStatus === 'Conflicts Resolved' || noFixCommit;
+          if (shouldWarn) lastPromoWarning = { status: promoStatus, name: promo.Name };
         }
       }
     } catch { /* non-fatal */ }
@@ -661,7 +664,7 @@ async function main() {
       tests: storyTests,
       prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
       hasApexCode: story.copado__Has_Apex_Code__c,
-      parentStory, promotionCount, lastPromotionFailed,
+      parentStory, promotionCount, lastPromoWarning,
       verdict,
     });
   }

@@ -485,7 +485,7 @@ function upsertRow(storyName, branch, copadoCommits, extraCommits, unregisteredD
   row.innerHTML = html;
 }
 
-function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, parentStory = null, promotionCount = 0, lastPromotionFailed = false) {
+function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, parentStory = null, promotionCount = 0, lastPromoWarning = null) {
   const failedTests      = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
   const hasApexTest      = (tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || ''));
   const noApexTestClass  = hasApexCode && !hasApexTest;
@@ -529,8 +529,13 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       const col = ok ? OK : (t.status === 'Failed' || t.status === 'Error' ? ERR : WARN);
       rows.push(kv(`${t.tool}:`, `<span style="${col}">${ok ? '✓' : '✗'} ${t.status || '—'}</span>`));
     });
-    if (lastPromotionFailed) {
-      rows.push(kv('Last promo:', `<span style="color:#f59e0b;font-size:11px">✗ Failed — no fix commit</span>`));
+    if (lastPromoWarning) {
+      const { status, name } = lastPromoWarning;
+      const msg =
+        status === 'Completed with Errors' ? '✗ Failed — no fix commit' :
+        status === 'Merge Conflict'        ? '✗ Merge Conflict — inform developer' :
+                                             '⚠ Conflicts resolved — re-initiate promotion';
+      rows.push(kv('Last promo:', `<span style="color:#f59e0b;font-size:11px">${msg}</span><br><span style="color:#94a3b8;font-size:10px">${name}</span>`));
     }
 
     promotableHtml = `<div style="display:flex;flex-direction:column">${badge}${rows.join('')}</div>`;
@@ -724,18 +729,18 @@ window.addEventListener('message', (event) => {
     const html = buildRowHtml(
       msg.storyName, msg.branch, msg.copadoCommits, msg.extraCommits,
       msg.unregisteredDetail, msg.verdict, msg.storyCommittedBy, msg.extraCommittedBy,
-      msg.tests, prBlocked, msg.hasApexCode, msg.parentStory ?? null, msg.promotionCount ?? 0, msg.lastPromotionFailed ?? false
+      msg.tests, prBlocked, msg.hasApexCode, msg.parentStory ?? null, msg.promotionCount ?? 0, msg.lastPromoWarning ?? null
     );
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
 
-    const isLastPromoFailed = msg.lastPromotionFailed ?? false;
+    const isLastPromoWarning = !!msg.lastPromoWarning;
     const isEligible = (msg.verdict === 'clean' || msg.verdict === 'skip-covered-same-author')
         && failedTests.length === 0 && !prBlocked && !noApexTestClass && !parentBlocked;
 
     // Normal eligible stories go into cleanStories immediately.
-    // lastPromotionFailed stories are excluded by default — user opts in via checkbox.
-    if (isEligible && !isLastPromoFailed) {
+    // lastPromoWarning stories are excluded by default — user opts in via Separate Promo checkbox.
+    if (isEligible && !isLastPromoWarning) {
       cleanStories.push({ name: msg.storyName, id: msg.storyId, projectId: msg.projectId, credentialId: msg.credentialId, separate: false });
     }
 
@@ -745,7 +750,7 @@ window.addEventListener('message', (event) => {
         const cb = row.querySelector(`.separate-promo-cb[data-story="${msg.storyName}"]`);
         if (cb) {
           cb.addEventListener('change', () => {
-            if (isLastPromoFailed) {
+            if (isLastPromoWarning) {
               // Opt-in: checking adds the story as a separate promotion; unchecking removes it
               if (cb.checked) {
                 if (!cleanStories.find(s => s.name === msg.storyName)) {
