@@ -729,18 +729,37 @@ window.addEventListener('message', (event) => {
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
 
-    if ((msg.verdict === 'clean' || msg.verdict === 'skip-covered-same-author')
-        && failedTests.length === 0 && !prBlocked && !noApexTestClass && !parentBlocked) {
-      cleanStories.push({ name: msg.storyName, id: msg.storyId, projectId: msg.projectId, credentialId: msg.credentialId, separate: false });
+    const isLastPromoFailed = msg.lastPromotionFailed ?? false;
+    const isEligible = (msg.verdict === 'clean' || msg.verdict === 'skip-covered-same-author')
+        && failedTests.length === 0 && !prBlocked && !noApexTestClass && !parentBlocked;
 
-      // Wire up the "Separate Promotion" checkbox for this story
+    // Normal eligible stories go into cleanStories immediately.
+    // lastPromotionFailed stories are excluded by default — user opts in via checkbox.
+    if (isEligible && !isLastPromoFailed) {
+      cleanStories.push({ name: msg.storyName, id: msg.storyId, projectId: msg.projectId, credentialId: msg.credentialId, separate: false });
+    }
+
+    if (isEligible) {
       const row = document.getElementById('row-' + msg.storyName.replace(/[^a-z0-9]/gi, '_'));
       if (row) {
         const cb = row.querySelector(`.separate-promo-cb[data-story="${msg.storyName}"]`);
         if (cb) {
           cb.addEventListener('change', () => {
-            const s = cleanStories.find(s => s.name === msg.storyName);
-            if (s) s.separate = cb.checked;
+            if (isLastPromoFailed) {
+              // Opt-in: checking adds the story as a separate promotion; unchecking removes it
+              if (cb.checked) {
+                if (!cleanStories.find(s => s.name === msg.storyName)) {
+                  cleanStories.push({ name: msg.storyName, id: msg.storyId, projectId: msg.projectId, credentialId: msg.credentialId, separate: true });
+                }
+              } else {
+                const idx = cleanStories.findIndex(s => s.name === msg.storyName);
+                if (idx !== -1) cleanStories.splice(idx, 1);
+              }
+            } else {
+              const s = cleanStories.find(s => s.name === msg.storyName);
+              if (s) s.separate = cb.checked;
+            }
+            document.getElementById('cleanCount').textContent = cleanStories.length;
           });
         }
       }
