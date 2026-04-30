@@ -502,7 +502,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   const effectivePrBlock = noCommits ? false : prBlocked;
   const isVerifying      = verdict === 'verifying' || tests === undefined;
   const parentBlocked    = parentStory && !parentStory.promoted;
-  const isPromotable     = commitOk && failedTests.length === 0 && !effectivePrBlock && !noApexTestClass && !parentBlocked;
+  const isPromotable     = commitOk && failedTests.length === 0 && !effectivePrBlock && !(noCommits ? false : noApexTestClass) && !parentBlocked;
 
   const LBL  = 'color:#5a8a9f;font-size:10px;white-space:nowrap;flex-shrink:0';
   const ROW  = 'display:flex;align-items:baseline;gap:5px;margin-top:2px';
@@ -531,7 +531,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         ? `<span style="${ERR}">✗ Not approved</span>`
         : `<span style="${OK}">✓ Approved</span>`));
     }
-    if (noApexTestClass) {
+    if (!noCommits && noApexTestClass) {
       rows.push(kv('Apex Tests:', `<span style="${ERR}">✗ No test class found</span>`));
     }
     (tests || []).forEach(t => {
@@ -749,7 +749,7 @@ window.addEventListener('message', (event) => {
     const isConflictsResolved   = msg.lastPromoWarning?.status === 'Conflicts Resolved';
     const noCommits  = msg.verdict === 'skip-no-commits';
     const isEligible = (msg.verdict === 'clean' || msg.verdict === 'skip-covered-same-author' || noCommits)
-        && failedTests.length === 0 && !(noCommits ? false : prBlocked) && !noApexTestClass && !parentBlocked;
+        && failedTests.length === 0 && !(noCommits ? false : prBlocked) && !(noCommits ? false : noApexTestClass) && !parentBlocked;
 
     if (isEligible) {
       if (!isLastPromoWarning || isConflictsResolved) {
