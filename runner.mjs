@@ -522,18 +522,24 @@ async function main() {
       const raw = await git.raw(['log', '--format=%H', `origin/master..${remoteBranch}`]);
       extraCommits = raw.split('\n').map(h => h.trim()).filter(Boolean);
     } catch {
-      emit({ type: 'story-verified', storyName: story.Name, storyId: story.Id,
-             projectId: story.copado__Project__c,
-             projectName: story.copado__Project__r?.Name ?? 'Unknown Project',
-             credentialId: story.copado__Org_Credential__c,
-             branch: branchName, extraCommits: [], copadoCommits, unregistered: [],
-             unregisteredDetail: [], storyCommittedBy: [...storyAuthorNames],
-             extraCommittedBy: [], tests: storyTests,
-             prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
-             hasApexCode: story.copado__Has_Apex_Code__c,
-             parentStory: null, promotionCount: 0, lastPromotionFailed: false,
-             verdict: 'error', message: `Branch ${remoteBranch} not found. Check that the correct repo is cloned locally and the path is set correctly.` });
-      continue;
+      if (copadoCommits.length === 0) {
+        // No Copado commits and branch doesn't exist — treat as no-commit story.
+        // Fall through to normal verdict flow so parent/lastPromoWarning are still checked.
+        extraCommits = [];
+      } else {
+        emit({ type: 'story-verified', storyName: story.Name, storyId: story.Id,
+               projectId: story.copado__Project__c,
+               projectName: story.copado__Project__r?.Name ?? 'Unknown Project',
+               credentialId: story.copado__Org_Credential__c,
+               branch: branchName, extraCommits: [], copadoCommits, unregistered: [],
+               unregisteredDetail: [], storyCommittedBy: [...storyAuthorNames],
+               extraCommittedBy: [], tests: storyTests,
+               prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
+               hasApexCode: story.copado__Has_Apex_Code__c,
+               parentStory: null, promotionCount: 0, lastPromotionFailed: false,
+               verdict: 'error', message: `Branch ${remoteBranch} not found. Check that the correct repo is cloned locally and the path is set correctly.` });
+        continue;
+      }
     }
 
     const copadoSet    = new Set(copadoCommits);

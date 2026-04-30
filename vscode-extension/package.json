@@ -2,7 +2,7 @@
   "name": "promoter",
   "displayName": "Copado Commit Validator",
   "description": "Verify and promote Copado User Stories with branch commit validation",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "publisher": "NaveenBonthu9",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Other"],
