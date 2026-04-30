@@ -263,11 +263,12 @@
 <!-- Results table -->
 <div id="results-section">
   <div class="section-title">Verification Results</div>
-  <table>
+  <div style="overflow-x:auto;width:100%">
+  <table style="min-width:max-content">
     <thead>
       <tr>
         <th>Story</th>
-        <th>Environment</th>
+        <th>Source → Target</th>
         <th>Branch</th>
         <th>Copado Commits</th>
         <th>Committed By</th>
@@ -281,6 +282,7 @@
     </thead>
     <tbody id="resultsBody"></tbody>
   </table>
+  </div><!-- /overflow-x:auto -->
 
   <div id="promote-section">
     <div class="btn-row">

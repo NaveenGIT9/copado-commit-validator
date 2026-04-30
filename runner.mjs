@@ -538,7 +538,7 @@ async function main() {
                hasApexCode: story.copado__Has_Apex_Code__c,
                parentStory: null, promotionCount: 0, lastPromotionFailed: false,
                srcEnvName: story.copado__Org_Credential__r?.Name ?? null,
-               dstEnvName: pipelineEdges.find(e => e.fromId === story.copado__Org_Credential__c)?.to ?? null,
+               dstEnvName: (() => { const s = story.copado__Org_Credential__r?.Name ?? null; return s ? (pipelineEdges.find(e => e.from === s)?.to ?? null) : null; })(),
                verdict: 'error', message: `Branch ${remoteBranch} not found. Check that the correct repo is cloned locally and the path is set correctly.` });
         continue;
       }
@@ -630,15 +630,24 @@ async function main() {
       promotionCount = countRes.totalSize ?? 0;
     } catch { /* non-fatal */ }
 
+    // Compute env names once — used both for lastPromoWarning comparison and the env column.
+    // Name-based lookup is more reliable than ID-based: the story's Org__c record and the
+    // pipeline step's Org__c record may be different objects pointing to the same environment.
+    const srcEnvName = story.copado__Org_Credential__r?.Name ?? null;
+    const dstEnvName = srcEnvName
+      ? (pipelineEdges.find(e => e.from === srcEnvName)?.to ?? null)
+      : null;
+
     // Check if the story's latest promotion is in a warning state.
-    // Semi-join guarantees the promotion included this story; single-story count ensures
-    // it was a dedicated promotion. No credential matching — Copado can assign different
-    // Org__c record IDs for the same environment, making ID/name comparison unreliable.
+    // Guards: single-story promotion + same source/destination pipeline step + no fix commit.
+    // Compare src/dst by env NAME (same values shown in the Source→Target column).
+    // noFixCommit: story's latest commit must be before the promotion's LastModifiedDate.
     let lastPromoWarning = null; // { status, name, id } | null
     try {
       const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
       const soql =
-        `SELECT Id, Name, copado__Status__c, CreatedDate ` +
+        `SELECT Id, Name, copado__Status__c, LastModifiedDate, ` +
+        `copado__Source_Org_Credential__r.Name, copado__Destination_Org_Credential__r.Name ` +
         `FROM copado__Promotion__c ` +
         `WHERE Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}') ` +
         `ORDER BY LastModifiedDate DESC LIMIT 1`;
@@ -646,17 +655,23 @@ async function main() {
       const promo = promoRes.records[0];
       const warningStatuses = ['Completed with Errors', 'Merge Conflict', 'Conflicts Resolved'];
       if (promo && warningStatuses.includes(promo.copado__Status__c)) {
-        // Only warn if this promotion contained exactly this one story.
-        const storyCountRes = await conn.query(
-          `SELECT COUNT() FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
-        );
-        if ((storyCountRes.totalSize ?? 0) === 1) {
-          const promoStatus = promo.copado__Status__c;
-          // Use CreatedDate (when promotion was initiated) not LastModifiedDate (updated by any
-          // field change, workflow, or Copado automation long after the promotion completed).
-          const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promo.CreatedDate);
-          const shouldWarn  = promoStatus === 'Conflicts Resolved' || noFixCommit;
-          if (shouldWarn) lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
+        // Match source/destination env names. Null on either side = can't verify, assume match.
+        const promoSrcName = promo.copado__Source_Org_Credential__r?.Name ?? null;
+        const promoDstName = promo.copado__Destination_Org_Credential__r?.Name ?? null;
+        const srcMatch = !srcEnvName || !promoSrcName || promoSrcName === srcEnvName;
+        const dstMatch = !dstEnvName || !promoDstName || promoDstName === dstEnvName;
+        if (srcMatch && dstMatch) {
+          // Only warn if this promotion contained exactly this one story.
+          const storyCountRes = await conn.query(
+            `SELECT COUNT() FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
+          );
+          if ((storyCountRes.totalSize ?? 0) === 1) {
+            const promoStatus = promo.copado__Status__c;
+            // noFixCommit: developer's latest commit is before the promotion's last modified date.
+            const noFixCommit = !latestCommitDate || new Date(latestCommitDate) < new Date(promo.LastModifiedDate);
+            const shouldWarn  = promoStatus === 'Conflicts Resolved' || noFixCommit;
+            if (shouldWarn) lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
+          }
         }
       }
     } catch { /* non-fatal */ }
@@ -685,8 +700,7 @@ async function main() {
       prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
       hasApexCode: story.copado__Has_Apex_Code__c,
       parentStory, promotionCount, lastPromoWarning,
-      srcEnvName: story.copado__Org_Credential__r?.Name ?? null,
-      dstEnvName: pipelineEdges.find(e => e.fromId === story.copado__Org_Credential__c)?.to ?? null,
+      srcEnvName, dstEnvName,
       verdict,
     });
   }
