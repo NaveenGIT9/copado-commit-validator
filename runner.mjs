@@ -643,7 +643,7 @@ async function main() {
       // Compare by credential NAME (not ID) — Copado can have multiple Org__c records for
       // the same environment, so ID comparison is unreliable. Names are stable identifiers.
       const soql =
-        `SELECT Id, Name, copado__Status__c, LastModifiedDate, ` +
+        `SELECT Id, Name, copado__Status__c, CreatedDate, LastModifiedDate, ` +
         `copado__Source_Org_Credential__r.Name, copado__Destination_Org_Credential__r.Name ` +
         `FROM copado__Promotion__c ` +
         `WHERE Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}') ` +
@@ -654,8 +654,10 @@ async function main() {
       if (promo && warningStatuses.includes(promo.copado__Status__c)) {
         const srcName  = promo.copado__Source_Org_Credential__r?.Name ?? null;
         const dstName  = promo.copado__Destination_Org_Credential__r?.Name ?? null;
-        const srcMatch = !currentCredName  || srcName === currentCredName;
-        const dstMatch = !expectedDestName || dstName === expectedDestName;
+        // Null-safe: if either side of the comparison is unknown, give benefit of the doubt.
+        // A null srcName/dstName means the relationship field wasn't populated — don't suppress.
+        const srcMatch = !currentCredName  || !srcName || srcName === currentCredName;
+        const dstMatch = !expectedDestName || !dstName || dstName === expectedDestName;
         if (srcMatch && dstMatch) {
           // Only warn if this promotion contained exactly this one story.
           const storyCountRes = await conn.query(
@@ -663,8 +665,10 @@ async function main() {
           );
           if ((storyCountRes.totalSize ?? 0) === 1) {
             const promoStatus = promo.copado__Status__c;
-            const promoDate   = promo.LastModifiedDate;
-            const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
+            // Use CreatedDate (when promotion was initiated) not LastModifiedDate (updated by any
+            // field change, workflow, or Copado automation long after the promotion completed).
+            const promoCreatedDate = promo.CreatedDate;
+            const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoCreatedDate);
             const shouldWarn  = promoStatus === 'Conflicts Resolved' || noFixCommit;
             if (shouldWarn) lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
           }
