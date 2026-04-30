@@ -634,17 +634,16 @@ async function main() {
     // 'Completed with Errors' and 'Merge Conflict' warn only if no new developer commit since.
     let lastPromoWarning = null; // { status, name, id } | null
     try {
-      const latestCommitDate  = story.copado__Latest_Commit_Date__c ?? null;
-      const currentCredName   = story.copado__Org_Credential__r?.Name ?? null;
-      const expectedDestName  = currentCredName
-        ? (pipelineEdges.find(e => e.from === currentCredName)?.to ?? null)
+      const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
+      const currentCredId    = story.copado__Org_Credential__c ?? null;
+      const expectedDestId   = currentCredId
+        ? (pipelineEdges.find(e => e.fromId === currentCredId)?.toId ?? null)
         : null;
       // Fetch the absolute latest promotion for this story — only the semi-join in WHERE.
-      // Compare by credential NAME (not ID) — Copado can have multiple Org__c records for
-      // the same environment, so ID comparison is unreliable. Names are stable identifiers.
+      // Use IDs (direct fields) not relationship .Name — IDs are always populated on promotions.
       const soql =
         `SELECT Id, Name, copado__Status__c, CreatedDate, LastModifiedDate, ` +
-        `copado__Source_Org_Credential__r.Name, copado__Destination_Org_Credential__r.Name ` +
+        `copado__Source_Org_Credential__c, copado__Destination_Org_Credential__c ` +
         `FROM copado__Promotion__c ` +
         `WHERE Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}') ` +
         `ORDER BY LastModifiedDate DESC LIMIT 1`;
@@ -652,12 +651,11 @@ async function main() {
       const promo = promoRes.records[0];
       const warningStatuses = ['Completed with Errors', 'Merge Conflict', 'Conflicts Resolved'];
       if (promo && warningStatuses.includes(promo.copado__Status__c)) {
-        const srcName  = promo.copado__Source_Org_Credential__r?.Name ?? null;
-        const dstName  = promo.copado__Destination_Org_Credential__r?.Name ?? null;
-        // Null-safe: if either side of the comparison is unknown, give benefit of the doubt.
-        // A null srcName/dstName means the relationship field wasn't populated — don't suppress.
-        const srcMatch = !currentCredName  || !srcName || srcName === currentCredName;
-        const dstMatch = !expectedDestName || !dstName || dstName === expectedDestName;
+        const srcId    = promo.copado__Source_Org_Credential__c ?? null;
+        const dstId    = promo.copado__Destination_Org_Credential__c ?? null;
+        // Null-safe: if either side is unknown, give benefit of the doubt.
+        const srcMatch = !currentCredId  || !srcId || srcId === currentCredId;
+        const dstMatch = !expectedDestId || !dstId || dstId === expectedDestId;
         if (srcMatch && dstMatch) {
           // Only warn if this promotion contained exactly this one story.
           const storyCountRes = await conn.query(
