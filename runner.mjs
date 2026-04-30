@@ -633,29 +633,31 @@ async function main() {
       const expectedDestId   = currentCredId
         ? (pipelineEdges.find(e => e.fromId === currentCredId)?.toId ?? null)
         : null;
-      if (currentCredId) {
-        let soql =
-          `SELECT Id, Name, copado__Status__c, LastModifiedDate FROM copado__Promotion__c ` +
-          `WHERE copado__Source_Org_Credential__c = '${currentCredId}' ` +
-          `AND copado__Status__c IN ('Completed with Errors', 'Merge Conflict', 'Conflicts Resolved') ` +
-          `AND Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}')`;
-        if (expectedDestId) {
-          soql += ` AND copado__Destination_Org_Credential__c = '${expectedDestId}'`;
-        }
-        soql += ` ORDER BY LastModifiedDate DESC LIMIT 1`;
-        const promoRes = await conn.query(soql);
-        const promo = promoRes.records[0];
-        if (promo) {
-          // Only warn if this promotion contained exactly this one story — no other stories.
+      // Fetch the absolute latest promotion for this story — only the semi-join in WHERE.
+      // Source, destination, status, and single-story count are all checked in JS so that
+      // a more-recent successful promotion correctly suppresses any older warning.
+      const soql =
+        `SELECT Id, Name, copado__Status__c, LastModifiedDate, ` +
+        `copado__Source_Org_Credential__c, copado__Destination_Org_Credential__c ` +
+        `FROM copado__Promotion__c ` +
+        `WHERE Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}') ` +
+        `ORDER BY LastModifiedDate DESC LIMIT 1`;
+      const promoRes = await conn.query(soql);
+      const promo = promoRes.records[0];
+      const warningStatuses = ['Completed with Errors', 'Merge Conflict', 'Conflicts Resolved'];
+      if (promo && warningStatuses.includes(promo.copado__Status__c)) {
+        const srcMatch = !currentCredId  || promo.copado__Source_Org_Credential__c      === currentCredId;
+        const dstMatch = !expectedDestId || promo.copado__Destination_Org_Credential__c === expectedDestId;
+        if (srcMatch && dstMatch) {
+          // Only warn if this promotion contained exactly this one story.
           const storyCountRes = await conn.query(
             `SELECT COUNT() FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
           );
-          const onlyStory = (storyCountRes.totalSize ?? 0) === 1;
-          if (onlyStory) {
-            const promoStatus  = promo.copado__Status__c;
-            const promoDate    = promo.LastModifiedDate;
-            const noFixCommit  = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
-            const shouldWarn   = promoStatus === 'Conflicts Resolved' || noFixCommit;
+          if ((storyCountRes.totalSize ?? 0) === 1) {
+            const promoStatus = promo.copado__Status__c;
+            const promoDate   = promo.LastModifiedDate;
+            const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
+            const shouldWarn  = promoStatus === 'Conflicts Resolved' || noFixCommit;
             if (shouldWarn) lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
           }
         }
