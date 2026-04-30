@@ -415,12 +415,14 @@ async function main() {
     const pipelineId = pipelineRes.records[0]?.copado__Deployment_Flow__c;
     if (pipelineId) {
       const stepsRes = await conn.query(
-        `SELECT copado__Source_Org_Credential__r.Name, copado__Destination_Org_Credential__r.Name ` +
+        `SELECT copado__Source_Org_Credential__c, copado__Source_Org_Credential__r.Name, ` +
+        `copado__Destination_Org_Credential__c, copado__Destination_Org_Credential__r.Name ` +
         `FROM copado__Deployment_Flow_Step__c WHERE copado__Deployment_Flow__c = '${pipelineId}'`
       );
       const edges = stepsRes.records
         .filter(s => s.copado__Source_Org_Credential__r?.Name && s.copado__Destination_Org_Credential__r?.Name)
-        .map(s => ({ from: s.copado__Source_Org_Credential__r.Name, to: s.copado__Destination_Org_Credential__r.Name }));
+        .map(s => ({ from: s.copado__Source_Org_Credential__r.Name, to: s.copado__Destination_Org_Credential__r.Name,
+                     fromId: s.copado__Source_Org_Credential__c, toId: s.copado__Destination_Org_Credential__c }));
       pipelineEdges = edges;
 
       // Roots = credentials that appear only as source, never as destination
@@ -439,14 +441,6 @@ async function main() {
       }
     }
   } catch { /* non-fatal — parent env check will fall back to credential comparison */ }
-
-  // Debug: emit the pipeline level map so it's visible in the panel output
-  if (credLevel.size > 0) {
-    const mapStr = [...credLevel.entries()].map(([k, v]) => `${k}→L${v}`).join(', ');
-    emit({ type: 'stderr', message: `Pipeline level map: ${mapStr}` });
-  } else {
-    emit({ type: 'stderr', message: 'Pipeline level map is empty — parent story env check will be skipped' });
-  }
 
   for (const story of stories) {
     const branchName   = `feature/${story.Name}`;
@@ -620,33 +614,32 @@ async function main() {
     let lastPromotionFailed = false;
     try {
       const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
-      const currentCredName  = story.copado__Org_Credential__r?.Name ?? null;
-      const expectedDest     = pipelineEdges.find(e => e.from === currentCredName)?.to ?? null;
-      emit({ type: 'stderr', message: `[lastPromoCheck] ${story.Name}: commitDate=${latestCommitDate} credName=${currentCredName} expectedDest=${expectedDest} edges=${pipelineEdges.length}` });
-      if (currentCredName && expectedDest) {
+      const currentCredId    = story.copado__Org_Credential__c ?? null;
+      const expectedDestId   = currentCredId
+        ? (pipelineEdges.find(e => e.fromId === currentCredId)?.toId ?? null)
+        : null;
+      if (currentCredId) {
+        // Filter by source credential ID directly in SOQL — avoids querying relationship names on Promotion.
+        // Destination credential ID is compared against the expected next step from the pipeline map.
         const failRes = await conn.query(
           `SELECT copado__Promotion__r.copado__Status__c, copado__Promotion__r.LastModifiedDate, ` +
-          `copado__Promotion__r.copado__Source_Org_Credential__r.Name, ` +
-          `copado__Promotion__r.copado__Destination_Org_Credential__r.Name ` +
+          `copado__Promotion__r.copado__Destination_Org_Credential__c ` +
           `FROM copado__Promoted_User_Story__c ` +
           `WHERE copado__User_Story__c = '${story.Id}' ` +
+          `AND copado__Promotion__r.copado__Source_Org_Credential__c = '${currentCredId}' ` +
           `ORDER BY copado__Promotion__r.LastModifiedDate DESC LIMIT 1`
         );
         const lp = failRes.records[0];
-        const promoStatus = lp?.copado__Promotion__r?.copado__Status__c ?? 'none';
-        const srcName     = lp?.copado__Promotion__r?.copado__Source_Org_Credential__r?.Name ?? null;
-        const dstName     = lp?.copado__Promotion__r?.copado__Destination_Org_Credential__r?.Name ?? null;
-        const promoDate   = lp?.copado__Promotion__r?.LastModifiedDate ?? null;
-        emit({ type: 'stderr', message: `[lastPromoCheck] ${story.Name}: promoStatus=${promoStatus} src=${srcName} dst=${dstName} promoDate=${promoDate}` });
-        if (promoStatus === 'Completed with Errors') {
+        if (lp?.copado__Promotion__r?.copado__Status__c === 'Completed with Errors') {
+          const promoDate  = lp.copado__Promotion__r.LastModifiedDate;
+          const dstId      = lp.copado__Promotion__r.copado__Destination_Org_Credential__c ?? null;
           const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
-          emit({ type: 'stderr', message: `[lastPromoCheck] ${story.Name}: noFixCommit=${noFixCommit} srcMatch=${srcName===currentCredName} dstMatch=${dstName===expectedDest}` });
-          if (noFixCommit && srcName === currentCredName && dstName === expectedDest) {
-            lastPromotionFailed = true;
-          }
+          // Destination must match expected next pipeline step (or skip dest check if map unavailable)
+          const dstMatch   = !expectedDestId || dstId === expectedDestId;
+          if (noFixCommit && dstMatch) lastPromotionFailed = true;
         }
       }
-    } catch (e) { emit({ type: 'stderr', message: `[lastPromoCheck] ${story.Name} error: ${e.message}` }); }
+    } catch { /* non-fatal */ }
 
     // Refined verdict — copado auto-commits (sourceApiVersion bumps) are always exempt
     const effectiveUnregistered = unregisteredDetail.filter(d => !d.copadoAuto);
