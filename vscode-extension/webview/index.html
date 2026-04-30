@@ -18,7 +18,7 @@
     padding: 20px;
     min-height: 100vh;
     position: relative;
-    overflow-x: hidden;
+    overflow-x: auto;
   }
 
   /* Top accent line */
@@ -260,6 +260,9 @@
 <!-- Status -->
 <div class="status-bar" id="statusBar" style="margin-top:16px; display:none;"></div>
 
+<!-- Debug log (shown during a run, hidden after) -->
+<div id="debugLog" style="display:none;margin-top:8px;padding:8px 12px;background:#0d1b26;border:1px solid #1ab8e833;border-radius:6px;font-family:monospace;font-size:11px;color:#5a9abf;max-height:120px;overflow-y:auto;white-space:pre-wrap"></div>
+
 <!-- Results table -->
 <div id="results-section">
   <div class="section-title">Verification Results</div>
@@ -277,6 +280,7 @@
         <th>Unregistered Detail</th>
         <th>Verdict</th>
         <th>Promotable</th>
+        <th style="width:60px">Skip</th>
         <th style="width:120px">Separate Promo</th>
       </tr>
     </thead>
@@ -294,6 +298,7 @@
         Auto Merge &amp; Deploy
       </label>
     </div>
+    <div id="promoteList" style="margin-top:8px;font-size:11px;color:#7fc9e0;line-height:1.6"></div>
   </div>
 </div>
 
@@ -302,11 +307,28 @@
 <script>
 const vscode = acquireVsCodeApi();
 
-let cleanStories       = [];   // [{name, id, projectId, credentialId}]
+let cleanStories       = [];   // [{name, id, projectId, credentialId, skipped}]
 let currentOrg         = '';
 let runCompleted       = false;
 let inPromoteMode      = false;
 let mergeDeployResults = [];   // [{success, promotionId, jobId?, error?}]
+
+function updatePromoteCount() {
+  const count = cleanStories.filter(s => !s.skipped).length;
+  document.getElementById('cleanCount').textContent = count;
+  updatePromoteList();
+}
+
+function updatePromoteList() {
+  const el = document.getElementById('promoteList');
+  if (!el) return;
+  const active = cleanStories.filter(s => !s.skipped);
+  if (active.length === 0) { el.textContent = ''; return; }
+  el.innerHTML = active.map(s => {
+    const dev = s.committedBy ? `, ${s.committedBy}` : '';
+    return `<div style="padding:1px 0">${s.name}${dev}</div>`;
+  }).join('');
+}
 
 // Project grouping state
 let projectHeaderMap = {};   // { [projectId]: <tr> header element }
@@ -349,6 +371,7 @@ function fetchReady(envType) {
   document.getElementById('results-section').style.display = 'none';
   document.getElementById('promote-section').style.display = 'none';
   document.getElementById('cleanCount').textContent = '0';
+  document.getElementById('promoteList').textContent = '';
   setStatus('info', `Fetching ${envType} ready stories from Copado...`, true);
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
@@ -392,14 +415,17 @@ function abort() {
 }
 
 function promote() {
-  if (cleanStories.length === 0) return;
+  const storiesToPromote = cleanStories.filter(s => !s.skipped);
+  if (storiesToPromote.length === 0) return;
 
   const groupMap = {};
-  for (const s of cleanStories) {
-    // Separate promotion per story (checkbox) gets a unique key.
-    // Otherwise group by project AND source credential so stories from different
-    // environments always land in separate Copado promotions.
-    const key = s.separate ? `__separate__${s.name}` : `${s.projectId}::${s.credentialId}`;
+  for (const s of storiesToPromote) {
+    // retriggerGroup: all stories share a key so they go into one re-trigger call.
+    // separate: story gets its own unique promotion.
+    // Otherwise: group by project + source credential.
+    const key = s.retriggerGroup ? `__retrigger__${s.retriggerGroup}`
+              : s.separate       ? `__separate__${s.name}`
+              : `${s.projectId}::${s.credentialId}`;
     if (!groupMap[key]) {
       groupMap[key] = { projectId: s.projectId, credentialId: s.credentialId, stories: [], storyIds: [],
         retriggerPromotionId: s.retriggerPromotionId ?? null, retriggerPromotionName: s.retriggerPromotionName ?? null };
@@ -409,7 +435,7 @@ function promote() {
   }
 
   const groups       = Object.values(groupMap);
-  const totalStories = cleanStories.length;
+  const totalStories = storiesToPromote.length;
   const mergeDeployAfter = document.getElementById('autoMergeDeploy').checked;
   document.getElementById('promoteBtn').disabled = true;
   const action = mergeDeployAfter ? 'Promoting + triggering Merge & Deploy' : 'Creating promotions';
@@ -432,6 +458,7 @@ function reset() {
     document.getElementById('orgAlias').value = window.__defaultOrg;
   }
   cleanStories       = [];
+  document.getElementById('promoteList').textContent = '';
   projectHeaderMap   = {};
   projectLastRow     = {};
   inPromoteMode      = false;
@@ -457,7 +484,7 @@ function ensureProjectSection(projectId, projectName) {
   const hdr   = document.createElement('tr');
   hdr.id        = 'proj-hdr-' + projectId;
   hdr.className = 'project-header-row';
-  hdr.innerHTML = `<td colspan="10"><div class="project-hdr"><span class="project-dot"></span>${projectName || 'Unknown Project'}</div></td>`;
+  hdr.innerHTML = `<td colspan="20"><div class="project-hdr"><span class="project-dot"></span>${projectName || 'Unknown Project'}</div></td>`;
   tbody.appendChild(hdr);
   projectHeaderMap[projectId] = hdr;
   projectLastRow[projectId]   = hdr;
@@ -503,6 +530,9 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   const isVerifying      = verdict === 'verifying' || tests === undefined;
   const parentBlocked    = parentStory && !parentStory.promoted;
   const isPromotable     = commitOk && failedTests.length === 0 && !effectivePrBlock && !(noCommits ? false : noApexTestClass) && !parentBlocked;
+  const isMergeConflict      = lastPromoWarning?.status === 'Merge Conflict';
+  const isInnocentConflict   = isMergeConflict && lastPromoWarning?.isConflictOnCurrentStory === false;
+  const isAlreadyInProg      = lastPromoWarning?.status === 'In Progress';
 
   const LBL  = 'color:#5a8a9f;font-size:10px;white-space:nowrap;flex-shrink:0';
   const ROW  = 'display:flex;align-items:baseline;gap:5px;margin-top:2px';
@@ -539,16 +569,46 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       const col = ok ? OK : (t.status === 'Failed' || t.status === 'Error' ? ERR : WARN);
       rows.push(kv(`${t.tool}:`, `<span style="${col}">${ok ? '✓' : '✗'} ${t.status || '—'}</span>`));
     });
-    if (lastPromoWarning) {
+    if (lastPromoWarning && !isMergeConflict && !isAlreadyInProg) {
       const { status, name } = lastPromoWarning;
       const msg =
-        status === 'Completed with Errors' ? '✗ Failed — no fix commit' :
-        status === 'Merge Conflict'        ? '✗ Merge Conflict — inform developer' :
+        status === 'Completed with errors' ? '✗ Failed — no fix commit' :
                                              '⚠ Conflicts resolved — re-initiate promotion';
       rows.push(kv('Last promo:', `<span style="color:#f59e0b;font-size:11px">${msg}</span><br><span style="color:#94a3b8;font-size:10px">${name}</span>`));
     }
 
-    promotableHtml = `<div style="display:flex;flex-direction:column">${badge}${rows.join('')}</div>`;
+    // Not-eligible badge: culprit Merge Conflict or In Progress
+    let notEligibleBadge = '';
+    if (isMergeConflict && !isInnocentConflict) {
+      notEligibleBadge = `<span style="display:inline-block;background:#451a03;border:1px solid #d97706;color:#fbbf24;font-size:10px;padding:2px 8px;border-radius:4px;white-space:nowrap;margin-top:4px">` +
+        `⚠ Merge Conflict — ${lastPromoWarning.name}</span>`;
+    } else if (isAlreadyInProg) {
+      const elapsedMin = lastPromoWarning.createdDate
+        ? Math.floor((Date.now() - new Date(lastPromoWarning.createdDate).getTime()) / 60000)
+        : null;
+      const isStuck   = elapsedMin !== null && elapsedMin >= 45;
+      const timeLabel = elapsedMin !== null
+        ? (elapsedMin < 60 ? `${elapsedMin} min` : `${Math.floor(elapsedMin / 60)}h ${elapsedMin % 60}m`)
+        : '';
+      const stuckLabel = isStuck ? ` — ⚠ possibly stuck` : '';
+      notEligibleBadge = `<span style="display:inline-block;background:#451a03;border:1px solid ${isStuck ? '#ef4444' : '#d97706'};color:${isStuck ? '#fca5a5' : '#fbbf24'};font-size:10px;padding:2px 8px;border-radius:4px;white-space:nowrap;margin-top:4px">` +
+        `⚠ In Progress — ${lastPromoWarning.name}${timeLabel ? ` (${timeLabel})` : ''}${stuckLabel}</span>`;
+    }
+
+    // Info badge (non-culprit story in a Merge Conflict promotion)
+    let innocentBadge = '';
+    if (isInnocentConflict) {
+      const culprit  = lastPromoWarning.conflictCulprit ?? 'unknown story';
+      const merged   = lastPromoWarning.mergedIntoPromotion;
+      const mergeLabel = merged === true  ? `✓ Merged into ${lastPromoWarning.name}`
+                       : merged === false ? `ℹ Not yet merged in ${lastPromoWarning.name}`
+                       : `ℹ Merge order unknown in ${lastPromoWarning.name}`;
+      innocentBadge =
+        `<span style="display:inline-block;background:#0c2340;border:1px solid #1ab8e8;color:#7fc9e0;font-size:10px;padding:2px 8px;border-radius:4px;white-space:nowrap;margin-top:4px">` +
+        `${mergeLabel} — conflict caused by ${culprit}</span>`;
+    }
+
+    promotableHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start">${badge}${notEligibleBadge}${innocentBadge}${rows.join('')}</div>`;
   }
 
   const verdictHtml = verdict === 'verifying'
@@ -608,7 +668,22 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     : (verdict === 'verifying' || extraCommits === null ? '—' : '<span style="color:#34d399;font-size:11px">None</span>');
 
   const isConflictsResolved = lastPromoWarning?.status === 'Conflicts Resolved';
-  const separateTd = (isPromotable && !isConflictsResolved)
+  // A story is "will be promoted" only if it passes the same gate as the cleanStories eligibility check:
+  // no warning, OR Conflicts Resolved, OR innocent Merge Conflict. Only these get interactive checkboxes.
+  const willBePromoted = isPromotable && (!lastPromoWarning || isConflictsResolved || isInnocentConflict);
+
+  // Skip: only for stories that will actually be promoted
+  const showSkip = willBePromoted;
+  const skipTd = showSkip
+    ? `<td style="text-align:center;vertical-align:middle">
+         <label style="display:flex;align-items:center;justify-content:center;cursor:pointer">
+           <input type="checkbox" class="skip-story-cb" data-story="${storyName}"
+             style="width:13px;height:13px;accent-color:#f59e0b;cursor:pointer" />
+         </label>
+       </td>`
+    : `<td></td>`;
+  // Separate Promo: only for normal eligible stories (not forced-separate, not blocked)
+  const separateTd = (willBePromoted && !lastPromoWarning)
     ? `<td style="text-align:center;vertical-align:middle">
          <label style="display:flex;align-items:center;justify-content:center;cursor:pointer">
            <input type="checkbox" class="separate-promo-cb" data-story="${storyName}"
@@ -632,6 +707,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     <td>${unregHtml}</td>
     <td>${verdictHtml}</td>
     <td>${promotableHtml}</td>
+    ${skipTd}
     ${separateTd}
   `;
 }
@@ -639,7 +715,14 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 window.addEventListener('message', (event) => {
   const msg = event.data;
 
-  if (msg.type === 'fetch-stories-found') {
+  if (msg.type === 'debug') {
+    const log = document.getElementById('debugLog');
+    log.style.display = 'block';
+    log.textContent += msg.message + '\n';
+    log.scrollTop = log.scrollHeight;
+  }
+
+  else if (msg.type === 'fetch-stories-found') {
     setStatus('info', `Found ${msg.count} ${msg.envType} ready stories — checking promotion history...`, true);
   }
 
@@ -666,6 +749,9 @@ window.addEventListener('message', (event) => {
 
   else if (msg.type === 'run-start') {
     setStatus('info', 'Connecting to Copado org...', true);
+    const log = document.getElementById('debugLog');
+    log.textContent = '';
+    log.style.display = 'none';
   }
 
   else if (msg.type === 'start') {
@@ -751,57 +837,62 @@ window.addEventListener('message', (event) => {
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
 
-    const isLastPromoWarning    = !!msg.lastPromoWarning;
-    const isConflictsResolved   = msg.lastPromoWarning?.status === 'Conflicts Resolved';
+    const isLastPromoWarning  = !!msg.lastPromoWarning;
+    const isConflictsResolved = msg.lastPromoWarning?.status === 'Conflicts Resolved';
+    // Innocent Merge Conflict: another story caused the conflict; current story still eligible but needs separate promo.
+    const isInnocentConflict  = msg.lastPromoWarning?.status === 'Merge Conflict'
+                                && msg.lastPromoWarning?.isConflictOnCurrentStory === false;
     const noCommits  = msg.verdict === 'skip-no-commits';
     const isEligible = (msg.verdict === 'clean' || msg.verdict === 'skip-covered-same-author' || noCommits)
         && failedTests.length === 0 && !(noCommits ? false : prBlocked) && !(noCommits ? false : noApexTestClass) && !parentBlocked;
 
     if (isEligible) {
-      if (!isLastPromoWarning || isConflictsResolved) {
-        // Normal stories and Conflicts Resolved go in immediately.
-        // Conflicts Resolved always forms its own group and re-triggers the existing promotion.
-        const entry = { name: msg.storyName, id: msg.storyId, projectId: msg.projectId, credentialId: msg.credentialId, separate: isConflictsResolved };
+      if (!isLastPromoWarning || isConflictsResolved || isInnocentConflict) {
+        const entry = {
+          name: msg.storyName, id: msg.storyId,
+          projectId: msg.projectId, credentialId: msg.credentialId,
+          // Conflicts Resolved and innocent Merge Conflict stories both need their own promotion.
+          separate: isConflictsResolved || isInnocentConflict,
+          skipped: false,
+          committedBy: msg.storyCommittedBy ?? '',
+        };
         if (isConflictsResolved) {
           entry.retriggerPromotionId   = msg.lastPromoWarning.id;
           entry.retriggerPromotionName = msg.lastPromoWarning.name;
+          entry.siblingStories         = msg.lastPromoWarning.siblingStories ?? [];
         }
         cleanStories.push(entry);
       }
 
-      // Checkbox wiring — only for stories that need opt-in (Completed with Errors / Merge Conflict)
-      if (isLastPromoWarning && !isConflictsResolved) {
-        const row = document.getElementById('row-' + msg.storyName.replace(/[^a-z0-9]/gi, '_'));
-        if (row) {
-          const cb = row.querySelector(`.separate-promo-cb[data-story="${msg.storyName}"]`);
-          if (cb) {
-            cb.addEventListener('change', () => {
-              if (cb.checked) {
-                if (!cleanStories.find(s => s.name === msg.storyName)) {
-                  cleanStories.push({ name: msg.storyName, id: msg.storyId, projectId: msg.projectId, credentialId: msg.credentialId, separate: true });
-                }
-              } else {
-                const idx = cleanStories.findIndex(s => s.name === msg.storyName);
-                if (idx !== -1) cleanStories.splice(idx, 1);
-              }
-              document.getElementById('cleanCount').textContent = cleanStories.length;
-            });
-          }
+      // Wire checkboxes for all eligible stories
+      const row = document.getElementById('row-' + msg.storyName.replace(/[^a-z0-9]/gi, '_'));
+      if (row) {
+        // Separate Promo checkbox
+        const cb = row.querySelector(`.separate-promo-cb[data-story="${msg.storyName}"]`);
+        if (cb) {
+          cb.addEventListener('change', () => {
+            const s = cleanStories.find(s => s.name === msg.storyName);
+            if (s) s.separate = cb.checked;
+            // Mutual exclusion: separate clears skip
+            if (cb.checked) {
+              const skipCb = row.querySelector(`.skip-story-cb[data-story="${msg.storyName}"]`);
+              if (skipCb && skipCb.checked) { skipCb.checked = false; if (s) s.skipped = false; }
+            }
+            updatePromoteCount();
+          });
         }
-      }
 
-      // Separate checkbox for normal stories
-      if (!isLastPromoWarning) {
-        const row = document.getElementById('row-' + msg.storyName.replace(/[^a-z0-9]/gi, '_'));
-        if (row) {
-          const cb = row.querySelector(`.separate-promo-cb[data-story="${msg.storyName}"]`);
-          if (cb) {
-            cb.addEventListener('change', () => {
-              const s = cleanStories.find(s => s.name === msg.storyName);
-              if (s) s.separate = cb.checked;
-              document.getElementById('cleanCount').textContent = cleanStories.length;
-            });
-          }
+        // Skip checkbox
+        const skipCb = row.querySelector(`.skip-story-cb[data-story="${msg.storyName}"]`);
+        if (skipCb) {
+          skipCb.addEventListener('change', () => {
+            const s = cleanStories.find(s => s.name === msg.storyName);
+            if (!s) return;
+            s.skipped = skipCb.checked;
+            // Mutual exclusion: skip clears separate
+            if (skipCb.checked && cb && cb.checked) { cb.checked = false; s.separate = false; }
+            updatePromoteCount();
+          });
         }
       }
     }
@@ -814,8 +905,37 @@ window.addEventListener('message', (event) => {
       inPromoteMode = false; // reset for next run
       return; // promote-summary already set the status bar
     }
+
+    // Post-process Conflicts Resolved multi-story groups.
+    // If ALL sibling stories from the promotion are present in cleanStories → safe to re-trigger together.
+    // If some are missing → fall back to treating each as a normal eligible story (separate new promotion).
+    const retriggerGroups = {};
+    for (const s of cleanStories) {
+      if (!s.retriggerPromotionId) continue;
+      if (!retriggerGroups[s.retriggerPromotionId]) retriggerGroups[s.retriggerPromotionId] = [];
+      retriggerGroups[s.retriggerPromotionId].push(s);
+    }
+    for (const [promoId, group] of Object.entries(retriggerGroups)) {
+      if (group.length <= 1) continue; // solo already handled correctly
+      const siblingNames = group[0].siblingStories ?? [];
+      const allSiblingsPresent = siblingNames.every(sib => cleanStories.some(s => s.name === sib));
+      if (allSiblingsPresent) {
+        // All siblings present — group them under one shared key for re-trigger
+        for (const s of group) { s.retriggerGroup = promoId; s.separate = false; }
+      } else {
+        // Some siblings missing — too risky to re-trigger; treat as normal eligible
+        for (const s of group) {
+          delete s.retriggerPromotionId;
+          delete s.retriggerPromotionName;
+          delete s.siblingStories;
+          delete s.retriggerGroup;
+          s.separate = false;
+        }
+      }
+    }
+
     if (cleanStories.length > 0) {
-      document.getElementById('cleanCount').textContent = cleanStories.length;
+      updatePromoteCount();
       document.getElementById('promote-section').style.display = 'block';
       document.getElementById('promoteBtn').disabled = false;
       setStatus('success', `Verification complete — ${cleanStories.length} stor${cleanStories.length === 1 ? 'y' : 'ies'} eligible to promote.`);

@@ -425,15 +425,16 @@ async function main() {
   let pipelineEdges = []; // { from, to, fromId, toId }[]
   try {
     const stepsRes = await conn.query(
-      `SELECT copado__Source_Org_Credential__c, copado__Source_Org_Credential__r.Name, ` +
-      `copado__Destination_Org_Credential__c, copado__Destination_Org_Credential__r.Name ` +
+      `SELECT copado__Source_Environment__c, copado__Source_Environment__r.Name, ` +
+      `copado__Destination_Environment__c, copado__Destination_Environment__r.Name ` +
       `FROM copado__Deployment_Flow_Step__c`
     );
     const edges = stepsRes.records
-      .filter(s => s.copado__Source_Org_Credential__r?.Name && s.copado__Destination_Org_Credential__r?.Name)
-      .map(s => ({ from: s.copado__Source_Org_Credential__r.Name, to: s.copado__Destination_Org_Credential__r.Name,
-                   fromId: s.copado__Source_Org_Credential__c, toId: s.copado__Destination_Org_Credential__c }));
+      .filter(s => s.copado__Source_Environment__r?.Name && s.copado__Destination_Environment__r?.Name)
+      .map(s => ({ from: s.copado__Source_Environment__r.Name, to: s.copado__Destination_Environment__r.Name,
+                   fromId: s.copado__Source_Environment__c, toId: s.copado__Destination_Environment__c }));
     pipelineEdges = edges;
+    emit({ type: 'debug', message: `pipeline: loaded ${edges.length} edges: ${edges.slice(0,8).map(e=>`${e.from}→${e.to}`).join(', ')}` });
 
     // BFS to assign numeric level to each environment (0 = lowest/source)
     const allDest = new Set(edges.map(e => e.to));
@@ -448,7 +449,7 @@ async function main() {
         }
       }
     }
-  } catch { /* non-fatal — parent env check will fall back to credential comparison */ }
+  } catch (pipelineErr) { emit({ type: 'debug', message: `pipeline ERROR: ${pipelineErr}` }); }
 
   for (const story of stories) {
     const branchName   = `feature/${story.Name}`;
@@ -631,6 +632,7 @@ async function main() {
     const dstEnvName = srcEnvName
       ? (pipelineEdges.find(e => e.from === srcEnvName)?.to ?? null)
       : null;
+    emit({ type: 'debug', message: `env ${story.Name}: credName=${srcEnvName} → dst=${dstEnvName ?? 'NOT FOUND'}` });
 
     // Check if the story's latest promotion is in a warning state.
     // Guards: single-story promotion + no fix commit since last promotion modification.
@@ -642,28 +644,120 @@ async function main() {
     try {
       const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
       const soql =
-        `SELECT Id, Name, copado__Status__c, LastModifiedDate ` +
+        `SELECT Id, Name, copado__Status__c, CreatedDate, LastModifiedDate ` +
         `FROM copado__Promotion__c ` +
         `WHERE Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}') ` +
-        `ORDER BY LastModifiedDate DESC LIMIT 1`;
+        `ORDER BY CreatedDate DESC LIMIT 1`;
       const promoRes = await conn.query(soql);
       const promo = promoRes.records[0];
-      const warningStatuses = ['Completed with Errors', 'Merge Conflict', 'Conflicts Resolved'];
-      if (promo && warningStatuses.includes(promo.copado__Status__c)) {
-        // Only warn if this promotion contained exactly this one story.
-        const storyCountRes = await conn.query(
-          `SELECT COUNT() FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
-        );
-        if ((storyCountRes.totalSize ?? 0) === 1) {
-          const promoStatus = promo.copado__Status__c;
-          // noFixCommit: story's latest commit date must be before the promotion was last modified.
-          // (i.e. no developer fix was committed after this promotion ran and failed.)
-          const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promo.LastModifiedDate);
-          const shouldWarn  = promoStatus === 'Conflicts Resolved' || noFixCommit;
-          if (shouldWarn) lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
+      emit({ type: 'debug', message: `promo ${story.Name}: latest = ${promo ? `${promo.Name} | status=${promo.copado__Status__c} | created=${promo.CreatedDate}` : 'none'}` });
+      const promoStatus = promo?.copado__Status__c;
+      const warningStatuses = ['Completed with errors', 'Merge Conflict', 'Conflicts Resolved', 'In Progress'];
+      if (promo && warningStatuses.includes(promoStatus)) {
+        if (promoStatus === 'In Progress') {
+          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, createdDate: promo.CreatedDate };
+
+        } else if (promoStatus === 'Merge Conflict') {
+          // 1. Find culprit story from job execution error message.
+          let conflictCulprit = null;
+          try {
+            const jeRes = await conn.query(
+              `SELECT copado__ErrorMessage__c FROM copado__JobExecution__c ` +
+              `WHERE copado__Promotion__c = '${promo.Id}' AND copado__Status__c = 'Error' ` +
+              `ORDER BY CreatedDate DESC LIMIT 1`
+            );
+            const errMsg = jeRes.records[0]?.copado__ErrorMessage__c ?? '';
+            const match = errMsg.match(/merging feature\/(US-\d+)/i);
+            conflictCulprit = match?.[1] ?? null;
+            emit({ type: 'debug', message: `conflict ${promo.Name}: culprit=${conflictCulprit ?? 'unknown'} | err=${errMsg.slice(0, 120)}` });
+          } catch (jeErr) {
+            emit({ type: 'debug', message: `conflict JE query error ${story.Name}: ${jeErr}` });
+          }
+
+          const isConflictOnCurrentStory = !conflictCulprit || conflictCulprit.toUpperCase() === story.Name.toUpperCase();
+
+          // 2. For non-culprit stories: determine merge position using commit date ordering.
+          // Stories are merged into the promotion branch in ascending order of their latest commit date
+          // (using the last commit BEFORE the promotion was created as the effective date).
+          let mergedIntoPromotion = null; // true = merged before culprit, false = not yet attempted, null = unknown
+          if (!isConflictOnCurrentStory && conflictCulprit) {
+            try {
+              // Get all stories in the promotion with their latest commit dates.
+              const storyListRes = await conn.query(
+                `SELECT copado__User_Story__c, copado__User_Story__r.Name, ` +
+                `copado__User_Story__r.copado__Latest_Commit_Date__c ` +
+                `FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
+              );
+
+              // Resolve effective commit date for each story:
+              // If latest commit date > promo.CreatedDate, use the last commit BEFORE promo creation instead.
+              const promoCreated = new Date(promo.CreatedDate);
+              const storyDates = {};
+              for (const rec of storyListRes.records) {
+                const sName = rec.copado__User_Story__r?.Name;
+                const sId   = rec.copado__User_Story__c;
+                if (!sName) continue;
+                let effectiveDate = new Date(rec.copado__User_Story__r?.copado__Latest_Commit_Date__c ?? 0);
+                if (effectiveDate >= promoCreated) {
+                  // Latest commit was made after promo was created — find the last commit before promo creation.
+                  try {
+                    const commitRes = await conn.query(
+                      `SELECT CreatedDate FROM copado__User_Story_Commit__c ` +
+                      `WHERE copado__User_Story__c = '${sId}' AND CreatedDate < ${promo.CreatedDate} ` +
+                      `ORDER BY CreatedDate DESC LIMIT 1`
+                    );
+                    effectiveDate = commitRes.records[0]
+                      ? new Date(commitRes.records[0].CreatedDate)
+                      : new Date(0);
+                  } catch { effectiveDate = new Date(0); }
+                }
+                storyDates[sName.toUpperCase()] = effectiveDate;
+              }
+
+              const culpritDate  = storyDates[conflictCulprit.toUpperCase()];
+              const currentDate  = storyDates[story.Name.toUpperCase()];
+              if (culpritDate && currentDate) {
+                mergedIntoPromotion = currentDate < culpritDate;
+              }
+              emit({ type: 'debug', message: `merge order ${story.Name}: effectiveDate=${currentDate?.toISOString()} culpritDate=${culpritDate?.toISOString()} merged=${mergedIntoPromotion}` });
+            } catch (orderErr) {
+              emit({ type: 'debug', message: `merge order error ${story.Name}: ${orderErr}` });
+            }
+          }
+
+          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, conflictCulprit, isConflictOnCurrentStory, mergedIntoPromotion };
+
+        } else {
+          // 'Completed with errors' or 'Conflicts Resolved'
+          const storyCountRes = await conn.query(
+            `SELECT COUNT() FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
+          );
+          const storyCount = storyCountRes.totalSize ?? 0;
+          emit({ type: 'debug', message: `promo ${story.Name}: story count in ${promo.Name} = ${storyCount}` });
+
+          if (storyCount === 1) {
+            const alwaysWarn  = promoStatus === 'Conflicts Resolved';
+            const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promo.LastModifiedDate);
+            if (alwaysWarn || noFixCommit) lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
+
+          } else if (promoStatus === 'Conflicts Resolved') {
+            // Multi-story Conflicts Resolved — emit sibling story names so the UI can decide
+            // whether all siblings are present in the current verify list (safe to re-trigger together)
+            // or some are missing (fall back to separate new promotion).
+            const sibRes = await conn.query(
+              `SELECT copado__User_Story__r.Name FROM copado__Promoted_User_Story__c ` +
+              `WHERE copado__Promotion__c = '${promo.Id}'`
+            );
+            const siblingStories = sibRes.records
+              .map(r => r.copado__User_Story__r?.Name)
+              .filter(Boolean)
+              .filter(n => n.toUpperCase() !== story.Name.toUpperCase());
+            lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, siblingStories };
+          }
+          // Multi-story 'Completed with errors': no warning — can't attribute to one story.
         }
       }
-    } catch { /* non-fatal */ }
+    } catch (promoErr) { emit({ type: 'debug', message: `promo ERROR ${story.Name}: ${promoErr}` }); }
 
     // Refined verdict — copado auto-commits (sourceApiVersion bumps) are always exempt
     const effectiveUnregistered = unregisteredDetail.filter(d => !d.copadoAuto);
