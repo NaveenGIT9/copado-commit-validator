@@ -267,6 +267,7 @@
     <thead>
       <tr>
         <th>Story</th>
+        <th>Environment</th>
         <th>Branch</th>
         <th>Copado Commits</th>
         <th>Committed By</th>
@@ -393,19 +394,16 @@ function promote() {
 
   const groupMap = {};
   for (const s of cleanStories) {
-    // Stories with "Separate Promotion" checked get their own unique group key
-    const key = s.separate ? `__separate__${s.name}` : s.projectId;
+    // Separate promotion per story (checkbox) gets a unique key.
+    // Otherwise group by project AND source credential so stories from different
+    // environments always land in separate Copado promotions.
+    const key = s.separate ? `__separate__${s.name}` : `${s.projectId}::${s.credentialId}`;
     if (!groupMap[key]) {
       groupMap[key] = { projectId: s.projectId, credentialId: s.credentialId, stories: [], storyIds: [],
         retriggerPromotionId: s.retriggerPromotionId ?? null, retriggerPromotionName: s.retriggerPromotionName ?? null };
     }
-    const g = groupMap[key];
-    if (!s.separate && g.credentialId !== s.credentialId) {
-      setStatus('error', `Credential mismatch within project ${s.projectId} — cannot promote.`);
-      return;
-    }
-    g.stories.push(s.name);
-    g.storyIds.push(s.id);
+    groupMap[key].stories.push(s.name);
+    groupMap[key].storyIds.push(s.id);
   }
 
   const groups       = Object.values(groupMap);
@@ -413,7 +411,7 @@ function promote() {
   const mergeDeployAfter = document.getElementById('autoMergeDeploy').checked;
   document.getElementById('promoteBtn').disabled = true;
   const action = mergeDeployAfter ? 'Promoting + triggering Merge & Deploy' : 'Creating promotions';
-  setStatus('info', `${action} for ${totalStories} stor${totalStories > 1 ? 'ies' : 'y'} across ${groups.length} project${groups.length > 1 ? 's' : ''}...`, true);
+  setStatus('info', `${action} for ${totalStories} stor${totalStories > 1 ? 'ies' : 'y'} across ${groups.length} group${groups.length > 1 ? 's' : ''}...`, true);
   inPromoteMode      = true;
   mergeDeployResults = [];
   vscode.postMessage({ command: 'promote', groups, orgAlias: currentOrg, mergeDeployAfter });
@@ -493,7 +491,7 @@ function upsertRow(storyName, branch, copadoCommits, extraCommits, unregisteredD
   row.innerHTML = html;
 }
 
-function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, parentStory = null, promotionCount = 0, lastPromoWarning = null) {
+function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null) {
   const failedTests      = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
   const hasApexTest      = (tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || ''));
   const noApexTestClass  = hasApexCode && !hasApexTest;
@@ -617,8 +615,13 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
        </td>`
     : `<td></td>`;
 
+  const envLabel = srcEnvName
+    ? (dstEnvName ? `${srcEnvName} → ${dstEnvName}` : srcEnvName)
+    : '—';
+
   return `
     <td><strong style="color:#e0f4ff">${storyName}</strong></td>
+    <td style="font-size:11px;color:#5a8a9f;white-space:nowrap">${envLabel}</td>
     <td style="font-family:monospace;font-size:11px;color:#2a6a8a">${branch || '—'}</td>
     <td>${copadoHtml}</td>
     <td>${storyByHtml}</td>
@@ -740,7 +743,8 @@ window.addEventListener('message', (event) => {
     const html = buildRowHtml(
       msg.storyName, msg.branch, msg.copadoCommits, msg.extraCommits,
       msg.unregisteredDetail, msg.verdict, msg.storyCommittedBy, msg.extraCommittedBy,
-      msg.tests, prBlocked, msg.hasApexCode, msg.parentStory ?? null, msg.promotionCount ?? 0, msg.lastPromoWarning ?? null
+      msg.tests, prBlocked, msg.hasApexCode, msg.parentStory ?? null, msg.promotionCount ?? 0, msg.lastPromoWarning ?? null,
+      msg.srcEnvName ?? null, msg.dstEnvName ?? null
     );
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
