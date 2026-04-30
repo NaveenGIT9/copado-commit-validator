@@ -618,12 +618,10 @@ async function main() {
       const expectedDestId   = currentCredId
         ? (pipelineEdges.find(e => e.fromId === currentCredId)?.toId ?? null)
         : null;
-      // SELECT source + destination IDs from the promotion; compare in JS rather than WHERE clause
-      // to avoid SOQL relationship-filter edge cases.
+      // Step 1: minimal query to get latest promotion status + date + Id
       const failRes = await conn.query(
-        `SELECT copado__Promotion__r.copado__Status__c, copado__Promotion__r.LastModifiedDate, ` +
-        `copado__Promotion__r.copado__Source_Org_Credential__c, ` +
-        `copado__Promotion__r.copado__Destination_Org_Credential__c ` +
+        `SELECT copado__Promotion__r.Id, copado__Promotion__r.copado__Status__c, ` +
+        `copado__Promotion__r.LastModifiedDate ` +
         `FROM copado__Promoted_User_Story__c ` +
         `WHERE copado__User_Story__c = '${story.Id}' ` +
         `ORDER BY copado__Promotion__r.LastModifiedDate DESC LIMIT 1`
@@ -631,14 +629,21 @@ async function main() {
       const lp = failRes.records[0];
       if (lp?.copado__Promotion__r?.copado__Status__c === 'Completed with Errors') {
         const promoDate   = lp.copado__Promotion__r.LastModifiedDate;
-        const srcId       = lp.copado__Promotion__r.copado__Source_Org_Credential__c ?? null;
-        const dstId       = lp.copado__Promotion__r.copado__Destination_Org_Credential__c ?? null;
+        const promotionId = lp.copado__Promotion__r.Id;
         const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
-        // Source must match story's current credential (or skip if unavailable).
-        const srcMatch    = !currentCredId || !srcId || srcId === currentCredId;
-        // Destination must match expected next pipeline step (or skip if map unavailable).
-        const dstMatch    = !expectedDestId || !dstId || dstId === expectedDestId;
-        if (noFixCommit && srcMatch && dstMatch) lastPromotionFailed = true;
+        if (noFixCommit && promotionId) {
+          // Step 2: query the Promotion record directly for source/dest credential IDs
+          const promoRec = await conn.query(
+            `SELECT copado__Source_Org_Credential__c, copado__Destination_Org_Credential__c ` +
+            `FROM copado__Promotion__c WHERE Id = '${promotionId}'`
+          );
+          const promo   = promoRec.records[0];
+          const srcId   = promo?.copado__Source_Org_Credential__c ?? null;
+          const dstId   = promo?.copado__Destination_Org_Credential__c ?? null;
+          const srcMatch = !currentCredId || !srcId || srcId === currentCredId;
+          const dstMatch = !expectedDestId || !dstId || dstId === expectedDestId;
+          if (srcMatch && dstMatch) lastPromotionFailed = true;
+        }
       }
     } catch { /* non-fatal */ }
 
