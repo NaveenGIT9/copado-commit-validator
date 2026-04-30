@@ -342,7 +342,8 @@ function fetchReady(envType) {
   projectHeaderMap = {};
   projectLastRow   = {};
   runCompleted     = false;
-  document.getElementById('results-body').innerHTML = '';
+  document.getElementById('resultsBody').innerHTML = '';
+  document.getElementById('results-section').style.display = 'none';
   document.getElementById('promote-section').style.display = 'none';
   document.getElementById('cleanCount').textContent = '0';
   setStatus('info', `Fetching ${envType} ready stories from Copado...`, true);
