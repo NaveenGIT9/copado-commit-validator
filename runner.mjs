@@ -618,26 +618,27 @@ async function main() {
       const expectedDestId   = currentCredId
         ? (pipelineEdges.find(e => e.fromId === currentCredId)?.toId ?? null)
         : null;
-      if (currentCredId) {
-        // Filter by source credential ID directly in SOQL — avoids querying relationship names on Promotion.
-        // Destination credential ID is compared against the expected next step from the pipeline map.
-        const failRes = await conn.query(
-          `SELECT copado__Promotion__r.copado__Status__c, copado__Promotion__r.LastModifiedDate, ` +
-          `copado__Promotion__r.copado__Destination_Org_Credential__c ` +
-          `FROM copado__Promoted_User_Story__c ` +
-          `WHERE copado__User_Story__c = '${story.Id}' ` +
-          `AND copado__Promotion__r.copado__Source_Org_Credential__c = '${currentCredId}' ` +
-          `ORDER BY copado__Promotion__r.LastModifiedDate DESC LIMIT 1`
-        );
-        const lp = failRes.records[0];
-        if (lp?.copado__Promotion__r?.copado__Status__c === 'Completed with Errors') {
-          const promoDate  = lp.copado__Promotion__r.LastModifiedDate;
-          const dstId      = lp.copado__Promotion__r.copado__Destination_Org_Credential__c ?? null;
-          const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
-          // Destination must match expected next pipeline step (or skip dest check if map unavailable)
-          const dstMatch   = !expectedDestId || dstId === expectedDestId;
-          if (noFixCommit && dstMatch) lastPromotionFailed = true;
-        }
+      // SELECT source + destination IDs from the promotion; compare in JS rather than WHERE clause
+      // to avoid SOQL relationship-filter edge cases.
+      const failRes = await conn.query(
+        `SELECT copado__Promotion__r.copado__Status__c, copado__Promotion__r.LastModifiedDate, ` +
+        `copado__Promotion__r.copado__Source_Org_Credential__c, ` +
+        `copado__Promotion__r.copado__Destination_Org_Credential__c ` +
+        `FROM copado__Promoted_User_Story__c ` +
+        `WHERE copado__User_Story__c = '${story.Id}' ` +
+        `ORDER BY copado__Promotion__r.LastModifiedDate DESC LIMIT 1`
+      );
+      const lp = failRes.records[0];
+      if (lp?.copado__Promotion__r?.copado__Status__c === 'Completed with Errors') {
+        const promoDate   = lp.copado__Promotion__r.LastModifiedDate;
+        const srcId       = lp.copado__Promotion__r.copado__Source_Org_Credential__c ?? null;
+        const dstId       = lp.copado__Promotion__r.copado__Destination_Org_Credential__c ?? null;
+        const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
+        // Source must match story's current credential (or skip if unavailable).
+        const srcMatch    = !currentCredId || !srcId || srcId === currentCredId;
+        // Destination must match expected next pipeline step (or skip if map unavailable).
+        const dstMatch    = !expectedDestId || !dstId || dstId === expectedDestId;
+        if (noFixCommit && srcMatch && dstMatch) lastPromotionFailed = true;
       }
     } catch { /* non-fatal */ }
 
