@@ -338,7 +338,6 @@ if (window.__defaultOrg && !document.getElementById('orgAlias').value) {
 function fetchReady(envType) {
   const orgAlias = document.getElementById('orgAlias').value.trim();
   if (!orgAlias) { setStatus('error', 'Enter your Copado org alias or username.'); return; }
-  document.getElementById('stories').value = '';
   cleanStories     = [];
   projectHeaderMap = {};
   projectLastRow   = {};
