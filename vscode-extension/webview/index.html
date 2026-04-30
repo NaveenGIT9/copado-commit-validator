@@ -339,6 +339,13 @@ function fetchReady(envType) {
   const orgAlias = document.getElementById('orgAlias').value.trim();
   if (!orgAlias) { setStatus('error', 'Enter your Copado org alias or username.'); return; }
   document.getElementById('stories').value = '';
+  cleanStories     = [];
+  projectHeaderMap = {};
+  projectLastRow   = {};
+  runCompleted     = false;
+  document.getElementById('results-body').innerHTML = '';
+  document.getElementById('promote-section').style.display = 'none';
+  document.getElementById('cleanCount').textContent = '0';
   setStatus('info', `Fetching ${envType} ready stories from Copado...`, true);
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
@@ -490,10 +497,12 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   const failedTests      = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
   const hasApexTest      = (tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || ''));
   const noApexTestClass  = hasApexCode && !hasApexTest;
-  const commitOk         = verdict === 'clean' || verdict === 'skip-covered-same-author';
+  const noCommits        = verdict === 'skip-no-commits';
+  const commitOk         = verdict === 'clean' || verdict === 'skip-covered-same-author' || noCommits;
+  const effectivePrBlock = noCommits ? false : prBlocked;
   const isVerifying      = verdict === 'verifying' || tests === undefined;
   const parentBlocked    = parentStory && !parentStory.promoted;
-  const isPromotable     = commitOk && failedTests.length === 0 && !prBlocked && !noApexTestClass && !parentBlocked;
+  const isPromotable     = commitOk && failedTests.length === 0 && !effectivePrBlock && !noApexTestClass && !parentBlocked;
 
   const LBL  = 'color:#5a8a9f;font-size:10px;white-space:nowrap;flex-shrink:0';
   const ROW  = 'display:flex;align-items:baseline;gap:5px;margin-top:2px';
@@ -517,8 +526,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     if (parentBlocked) {
       rows.push(kv('Parent:', `<span style="${ERR}">⛔ ${parentStory.name} not yet deployed</span>`));
     }
-    if (prBlocked !== undefined) {
-      rows.push(kv('PR:', prBlocked
+    if (!noCommits && prBlocked !== undefined) {
+      rows.push(kv('PR:', effectivePrBlock
         ? `<span style="${ERR}">✗ Not approved</span>`
         : `<span style="${OK}">✓ Approved</span>`));
     }
@@ -738,8 +747,9 @@ window.addEventListener('message', (event) => {
 
     const isLastPromoWarning    = !!msg.lastPromoWarning;
     const isConflictsResolved   = msg.lastPromoWarning?.status === 'Conflicts Resolved';
-    const isEligible = (msg.verdict === 'clean' || msg.verdict === 'skip-covered-same-author')
-        && failedTests.length === 0 && !prBlocked && !noApexTestClass && !parentBlocked;
+    const noCommits  = msg.verdict === 'skip-no-commits';
+    const isEligible = (msg.verdict === 'clean' || msg.verdict === 'skip-covered-same-author' || noCommits)
+        && failedTests.length === 0 && !(noCommits ? false : prBlocked) && !noApexTestClass && !parentBlocked;
 
     if (isEligible) {
       if (!isLastPromoWarning || isConflictsResolved) {
