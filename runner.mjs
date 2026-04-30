@@ -646,11 +646,18 @@ async function main() {
         const promoRes = await conn.query(soql);
         const promo = promoRes.records[0];
         if (promo) {
-          const promoStatus  = promo.copado__Status__c;
-          const promoDate    = promo.LastModifiedDate;
-          const noFixCommit  = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
-          const shouldWarn   = promoStatus === 'Conflicts Resolved' || noFixCommit;
-          if (shouldWarn) lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
+          // Only warn if this promotion contained exactly this one story — no other stories.
+          const storyCountRes = await conn.query(
+            `SELECT COUNT() FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
+          );
+          const onlyStory = (storyCountRes.totalSize ?? 0) === 1;
+          if (onlyStory) {
+            const promoStatus  = promo.copado__Status__c;
+            const promoDate    = promo.LastModifiedDate;
+            const noFixCommit  = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
+            const shouldWarn   = promoStatus === 'Conflicts Resolved' || noFixCommit;
+            if (shouldWarn) lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
+          }
         }
       }
     } catch { /* non-fatal */ }

@@ -598,7 +598,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     ? (extraCommittedBy || []).map(n => `<span style="font-size:11px">${n}</span>`).join('<br>')
     : (verdict === 'verifying' || extraCommits === null ? '—' : '<span style="color:#34d399;font-size:11px">None</span>');
 
-  const separateTd = isPromotable
+  const isConflictsResolved = lastPromoWarning?.status === 'Conflicts Resolved';
+  const separateTd = (isPromotable && !isConflictsResolved)
     ? `<td style="text-align:center;vertical-align:middle">
          <label style="display:flex;align-items:center;justify-content:center;cursor:pointer">
            <input type="checkbox" class="separate-promo-cb" data-story="${storyName}"
@@ -735,44 +736,56 @@ window.addEventListener('message', (event) => {
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
 
-    const isLastPromoWarning = !!msg.lastPromoWarning;
+    const isLastPromoWarning    = !!msg.lastPromoWarning;
+    const isConflictsResolved   = msg.lastPromoWarning?.status === 'Conflicts Resolved';
     const isEligible = (msg.verdict === 'clean' || msg.verdict === 'skip-covered-same-author')
         && failedTests.length === 0 && !prBlocked && !noApexTestClass && !parentBlocked;
 
-    // Normal eligible stories go into cleanStories immediately.
-    // lastPromoWarning stories are excluded by default — user opts in via Separate Promo checkbox.
-    if (isEligible && !isLastPromoWarning) {
-      cleanStories.push({ name: msg.storyName, id: msg.storyId, projectId: msg.projectId, credentialId: msg.credentialId, separate: false });
-    }
-
     if (isEligible) {
-      const row = document.getElementById('row-' + msg.storyName.replace(/[^a-z0-9]/gi, '_'));
-      if (row) {
-        const cb = row.querySelector(`.separate-promo-cb[data-story="${msg.storyName}"]`);
-        if (cb) {
-          cb.addEventListener('change', () => {
-            if (isLastPromoWarning) {
-              // Opt-in: checking adds the story as a separate promotion; unchecking removes it
+      if (!isLastPromoWarning || isConflictsResolved) {
+        // Normal stories and Conflicts Resolved go in immediately.
+        // Conflicts Resolved always forms its own group and re-triggers the existing promotion.
+        const entry = { name: msg.storyName, id: msg.storyId, projectId: msg.projectId, credentialId: msg.credentialId, separate: isConflictsResolved };
+        if (isConflictsResolved) {
+          entry.retriggerPromotionId   = msg.lastPromoWarning.id;
+          entry.retriggerPromotionName = msg.lastPromoWarning.name;
+        }
+        cleanStories.push(entry);
+      }
+
+      // Checkbox wiring — only for stories that need opt-in (Completed with Errors / Merge Conflict)
+      if (isLastPromoWarning && !isConflictsResolved) {
+        const row = document.getElementById('row-' + msg.storyName.replace(/[^a-z0-9]/gi, '_'));
+        if (row) {
+          const cb = row.querySelector(`.separate-promo-cb[data-story="${msg.storyName}"]`);
+          if (cb) {
+            cb.addEventListener('change', () => {
               if (cb.checked) {
                 if (!cleanStories.find(s => s.name === msg.storyName)) {
-                  const entry = { name: msg.storyName, id: msg.storyId, projectId: msg.projectId, credentialId: msg.credentialId, separate: true };
-                  // Conflicts Resolved: re-trigger the existing promotion instead of creating a new one
-                  if (msg.lastPromoWarning?.status === 'Conflicts Resolved') {
-                    entry.retriggerPromotionId   = msg.lastPromoWarning.id;
-                    entry.retriggerPromotionName = msg.lastPromoWarning.name;
-                  }
-                  cleanStories.push(entry);
+                  cleanStories.push({ name: msg.storyName, id: msg.storyId, projectId: msg.projectId, credentialId: msg.credentialId, separate: true });
                 }
               } else {
                 const idx = cleanStories.findIndex(s => s.name === msg.storyName);
                 if (idx !== -1) cleanStories.splice(idx, 1);
               }
-            } else {
+              document.getElementById('cleanCount').textContent = cleanStories.length;
+            });
+          }
+        }
+      }
+
+      // Separate checkbox for normal stories
+      if (!isLastPromoWarning) {
+        const row = document.getElementById('row-' + msg.storyName.replace(/[^a-z0-9]/gi, '_'));
+        if (row) {
+          const cb = row.querySelector(`.separate-promo-cb[data-story="${msg.storyName}"]`);
+          if (cb) {
+            cb.addEventListener('change', () => {
               const s = cleanStories.find(s => s.name === msg.storyName);
               if (s) s.separate = cb.checked;
-            }
-            document.getElementById('cleanCount').textContent = cleanStories.length;
-          });
+              document.getElementById('cleanCount').textContent = cleanStories.length;
+            });
+          }
         }
       }
     }
