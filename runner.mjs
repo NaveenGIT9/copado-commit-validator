@@ -622,6 +622,7 @@ async function main() {
       const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
       const currentCredName  = story.copado__Org_Credential__r?.Name ?? null;
       const expectedDest     = pipelineEdges.find(e => e.from === currentCredName)?.to ?? null;
+      emit({ type: 'stderr', message: `[lastPromoCheck] ${story.Name}: commitDate=${latestCommitDate} credName=${currentCredName} expectedDest=${expectedDest} edges=${pipelineEdges.length}` });
       if (currentCredName && expectedDest) {
         const failRes = await conn.query(
           `SELECT copado__Promotion__r.copado__Status__c, copado__Promotion__r.LastModifiedDate, ` +
@@ -632,17 +633,20 @@ async function main() {
           `ORDER BY copado__Promotion__r.LastModifiedDate DESC LIMIT 1`
         );
         const lp = failRes.records[0];
-        if (lp?.copado__Promotion__r?.copado__Status__c === 'Completed with Errors') {
-          const promoDate   = lp.copado__Promotion__r.LastModifiedDate;
-          const srcName     = lp.copado__Promotion__r.copado__Source_Org_Credential__r?.Name ?? null;
-          const dstName     = lp.copado__Promotion__r.copado__Destination_Org_Credential__r?.Name ?? null;
+        const promoStatus = lp?.copado__Promotion__r?.copado__Status__c ?? 'none';
+        const srcName     = lp?.copado__Promotion__r?.copado__Source_Org_Credential__r?.Name ?? null;
+        const dstName     = lp?.copado__Promotion__r?.copado__Destination_Org_Credential__r?.Name ?? null;
+        const promoDate   = lp?.copado__Promotion__r?.LastModifiedDate ?? null;
+        emit({ type: 'stderr', message: `[lastPromoCheck] ${story.Name}: promoStatus=${promoStatus} src=${srcName} dst=${dstName} promoDate=${promoDate}` });
+        if (promoStatus === 'Completed with Errors') {
           const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
+          emit({ type: 'stderr', message: `[lastPromoCheck] ${story.Name}: noFixCommit=${noFixCommit} srcMatch=${srcName===currentCredName} dstMatch=${dstName===expectedDest}` });
           if (noFixCommit && srcName === currentCredName && dstName === expectedDest) {
             lastPromotionFailed = true;
           }
         }
       }
-    } catch { /* non-fatal */ }
+    } catch (e) { emit({ type: 'stderr', message: `[lastPromoCheck] ${story.Name} error: ${e.message}` }); }
 
     // Refined verdict — copado auto-commits (sourceApiVersion bumps) are always exempt
     const effectiveUnregistered = unregisteredDetail.filter(d => !d.copadoAuto);
