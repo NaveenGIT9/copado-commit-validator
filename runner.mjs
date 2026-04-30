@@ -594,7 +594,6 @@ async function main() {
           parentPromoted = true;
         }
         parentStory = { name: parentName, promoted: parentPromoted };
-        emit({ type: 'stderr', message: `Parent check: current=${currentCredName}(L${currentLevel}) parent=${parentCredName}(L${parentLevel}) promoted=${parentPromoted}` });
       }
     } catch { /* non-fatal */ }
 
@@ -610,7 +609,8 @@ async function main() {
     } catch { /* non-fatal */ }
 
     // Check if the story's last promotion failed with no developer fix since then.
-    // Only flags if: source = story's current env, destination = exact next pipeline step.
+    // Queries copado__Promotion__c directly (ORDER BY on its own field = always valid SOQL).
+    // Semi-join links to the story via the junction without relationship traversal in ORDER BY.
     let lastPromotionFailed = false;
     try {
       const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
@@ -618,31 +618,22 @@ async function main() {
       const expectedDestId   = currentCredId
         ? (pipelineEdges.find(e => e.fromId === currentCredId)?.toId ?? null)
         : null;
-      // Step 1: minimal query to get latest promotion status + date + Id
-      const failRes = await conn.query(
-        `SELECT copado__Promotion__r.Id, copado__Promotion__r.copado__Status__c, ` +
-        `copado__Promotion__r.LastModifiedDate ` +
-        `FROM copado__Promoted_User_Story__c ` +
-        `WHERE copado__User_Story__c = '${story.Id}' ` +
-        `ORDER BY copado__Promotion__r.LastModifiedDate DESC LIMIT 1`
-      );
-      const lp = failRes.records[0];
-      if (lp?.copado__Promotion__r?.copado__Status__c === 'Completed with Errors') {
-        const promoDate   = lp.copado__Promotion__r.LastModifiedDate;
-        const promotionId = lp.copado__Promotion__r.Id;
-        const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
-        if (noFixCommit && promotionId) {
-          // Step 2: query the Promotion record directly for source/dest credential IDs
-          const promoRec = await conn.query(
-            `SELECT copado__Source_Org_Credential__c, copado__Destination_Org_Credential__c ` +
-            `FROM copado__Promotion__c WHERE Id = '${promotionId}'`
-          );
-          const promo   = promoRec.records[0];
-          const srcId   = promo?.copado__Source_Org_Credential__c ?? null;
-          const dstId   = promo?.copado__Destination_Org_Credential__c ?? null;
-          const srcMatch = !currentCredId || !srcId || srcId === currentCredId;
-          const dstMatch = !expectedDestId || !dstId || dstId === expectedDestId;
-          if (srcMatch && dstMatch) lastPromotionFailed = true;
+      if (currentCredId) {
+        let soql =
+          `SELECT Id, LastModifiedDate FROM copado__Promotion__c ` +
+          `WHERE copado__Source_Org_Credential__c = '${currentCredId}' ` +
+          `AND copado__Status__c = 'Completed with Errors' ` +
+          `AND Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}')`;
+        if (expectedDestId) {
+          soql += ` AND copado__Destination_Org_Credential__c = '${expectedDestId}'`;
+        }
+        soql += ` ORDER BY LastModifiedDate DESC LIMIT 1`;
+        const promoRes = await conn.query(soql);
+        const promo = promoRes.records[0];
+        if (promo) {
+          const promoDate   = promo.LastModifiedDate;
+          const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
+          if (noFixCommit) lastPromotionFailed = true;
         }
       }
     } catch { /* non-fatal */ }
