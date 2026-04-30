@@ -389,7 +389,8 @@ function promote() {
     // Stories with "Separate Promotion" checked get their own unique group key
     const key = s.separate ? `__separate__${s.name}` : s.projectId;
     if (!groupMap[key]) {
-      groupMap[key] = { projectId: s.projectId, credentialId: s.credentialId, stories: [], storyIds: [] };
+      groupMap[key] = { projectId: s.projectId, credentialId: s.credentialId, stories: [], storyIds: [],
+        retriggerPromotionId: s.retriggerPromotionId ?? null, retriggerPromotionName: s.retriggerPromotionName ?? null };
     }
     const g = groupMap[key];
     if (!s.separate && g.credentialId !== s.credentialId) {
@@ -754,7 +755,13 @@ window.addEventListener('message', (event) => {
               // Opt-in: checking adds the story as a separate promotion; unchecking removes it
               if (cb.checked) {
                 if (!cleanStories.find(s => s.name === msg.storyName)) {
-                  cleanStories.push({ name: msg.storyName, id: msg.storyId, projectId: msg.projectId, credentialId: msg.credentialId, separate: true });
+                  const entry = { name: msg.storyName, id: msg.storyId, projectId: msg.projectId, credentialId: msg.credentialId, separate: true };
+                  // Conflicts Resolved: re-trigger the existing promotion instead of creating a new one
+                  if (msg.lastPromoWarning?.status === 'Conflicts Resolved') {
+                    entry.retriggerPromotionId   = msg.lastPromoWarning.id;
+                    entry.retriggerPromotionName = msg.lastPromoWarning.name;
+                  }
+                  cleanStories.push(entry);
                 }
               } else {
                 const idx = cleanStories.findIndex(s => s.name === msg.storyName);

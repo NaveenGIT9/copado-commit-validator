@@ -189,6 +189,20 @@ async function main() {
     const mergeDeployQueue = []; // promotionIds — bulk-triggered after all groups complete
     for (const group of groups) {
       const { projectId, credentialId, stories: groupStories, storyIds } = group;
+
+      // Re-trigger an existing "Conflicts Resolved" promotion — no new record needed.
+      if (group.retriggerPromotionId) {
+        const pid = group.retriggerPromotionId;
+        const promotionName = group.retriggerPromotionName ?? pid;
+        emit({ type: 'promotion-retriggered', promotionId: pid, promotionName, projectId, storyCount: groupStories.length });
+        promotionSummary.push({ success: true, projectId, destEnvName: '—', promotionName, storyCount: groupStories.length });
+        for (const name of groupStories) {
+          emit({ type: 'promote-result', storyName: name, success: true, promotionId: pid });
+        }
+        mergeDeployQueue.push(pid);
+        continue;
+      }
+
       let promotionId;
       try {
         // Step 1: Get deployment flow from project
@@ -636,7 +650,7 @@ async function main() {
           const promoDate    = promo.LastModifiedDate;
           const noFixCommit  = !latestCommitDate || new Date(latestCommitDate) <= new Date(promoDate);
           const shouldWarn   = promoStatus === 'Conflicts Resolved' || noFixCommit;
-          if (shouldWarn) lastPromoWarning = { status: promoStatus, name: promo.Name };
+          if (shouldWarn) lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
         }
       }
     } catch { /* non-fatal */ }
