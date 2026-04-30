@@ -626,19 +626,19 @@ async function main() {
     // Queries copado__Promotion__c directly — ORDER BY on its own field is always valid SOQL.
     // 'Conflicts Resolved' always warns (release team must re-trigger).
     // 'Completed with Errors' and 'Merge Conflict' warn only if no new developer commit since.
-    let lastPromoWarning = null; // { status, name } | null
+    let lastPromoWarning = null; // { status, name, id } | null
     try {
-      const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
-      const currentCredId    = story.copado__Org_Credential__c ?? null;
-      const expectedDestId   = currentCredId
-        ? (pipelineEdges.find(e => e.fromId === currentCredId)?.toId ?? null)
+      const latestCommitDate  = story.copado__Latest_Commit_Date__c ?? null;
+      const currentCredName   = story.copado__Org_Credential__r?.Name ?? null;
+      const expectedDestName  = currentCredName
+        ? (pipelineEdges.find(e => e.from === currentCredName)?.to ?? null)
         : null;
       // Fetch the absolute latest promotion for this story — only the semi-join in WHERE.
-      // Source, destination, status, and single-story count are all checked in JS so that
-      // a more-recent successful promotion correctly suppresses any older warning.
+      // Compare by credential NAME (not ID) — Copado can have multiple Org__c records for
+      // the same environment, so ID comparison is unreliable. Names are stable identifiers.
       const soql =
         `SELECT Id, Name, copado__Status__c, LastModifiedDate, ` +
-        `copado__Source_Org_Credential__c, copado__Destination_Org_Credential__c ` +
+        `copado__Source_Org_Credential__r.Name, copado__Destination_Org_Credential__r.Name ` +
         `FROM copado__Promotion__c ` +
         `WHERE Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}') ` +
         `ORDER BY LastModifiedDate DESC LIMIT 1`;
@@ -646,8 +646,10 @@ async function main() {
       const promo = promoRes.records[0];
       const warningStatuses = ['Completed with Errors', 'Merge Conflict', 'Conflicts Resolved'];
       if (promo && warningStatuses.includes(promo.copado__Status__c)) {
-        const srcMatch = !currentCredId  || promo.copado__Source_Org_Credential__c      === currentCredId;
-        const dstMatch = !expectedDestId || promo.copado__Destination_Org_Credential__c === expectedDestId;
+        const srcName  = promo.copado__Source_Org_Credential__r?.Name ?? null;
+        const dstName  = promo.copado__Destination_Org_Credential__r?.Name ?? null;
+        const srcMatch = !currentCredName  || srcName === currentCredName;
+        const dstMatch = !expectedDestName || dstName === expectedDestName;
         if (srcMatch && dstMatch) {
           // Only warn if this promotion contained exactly this one story.
           const storyCountRes = await conn.query(
