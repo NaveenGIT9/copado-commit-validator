@@ -417,40 +417,34 @@ async function main() {
     emit({ type: 'git-fetch-done' });
   }
 
-  // Build a pipeline level map: credentialId → level (0 = lowest/source, 1 = first dest, …)
-  // Uses BFS over pipeline steps so we know exactly where each environment sits in the flow.
+  // Build a pipeline level map across ALL deployment flow steps in the org.
+  // Querying without a pipeline filter covers stories from multiple projects that
+  // may belong to different pipelines (e.g. RBKDEV1 pipeline vs RBKMSPDEV pipeline).
   // Example: TRNDEV1(0) → TRNQA(1) → TRNUAT(2) → TRNPROD(3)
   const credLevel = new Map(); // credName → numeric level
-  let pipelineEdges = []; // { from: credName, to: credName }[] — used for exact next-dest lookup
+  let pipelineEdges = []; // { from, to, fromId, toId }[]
   try {
-    const pipelineRes = await conn.query(
-      `SELECT copado__Deployment_Flow__c FROM copado__Project__c WHERE Id = '${stories[0].copado__Project__c}'`
+    const stepsRes = await conn.query(
+      `SELECT copado__Source_Org_Credential__c, copado__Source_Org_Credential__r.Name, ` +
+      `copado__Destination_Org_Credential__c, copado__Destination_Org_Credential__r.Name ` +
+      `FROM copado__Deployment_Flow_Step__c`
     );
-    const pipelineId = pipelineRes.records[0]?.copado__Deployment_Flow__c;
-    if (pipelineId) {
-      const stepsRes = await conn.query(
-        `SELECT copado__Source_Org_Credential__c, copado__Source_Org_Credential__r.Name, ` +
-        `copado__Destination_Org_Credential__c, copado__Destination_Org_Credential__r.Name ` +
-        `FROM copado__Deployment_Flow_Step__c WHERE copado__Deployment_Flow__c = '${pipelineId}'`
-      );
-      const edges = stepsRes.records
-        .filter(s => s.copado__Source_Org_Credential__r?.Name && s.copado__Destination_Org_Credential__r?.Name)
-        .map(s => ({ from: s.copado__Source_Org_Credential__r.Name, to: s.copado__Destination_Org_Credential__r.Name,
-                     fromId: s.copado__Source_Org_Credential__c, toId: s.copado__Destination_Org_Credential__c }));
-      pipelineEdges = edges;
+    const edges = stepsRes.records
+      .filter(s => s.copado__Source_Org_Credential__r?.Name && s.copado__Destination_Org_Credential__r?.Name)
+      .map(s => ({ from: s.copado__Source_Org_Credential__r.Name, to: s.copado__Destination_Org_Credential__r.Name,
+                   fromId: s.copado__Source_Org_Credential__c, toId: s.copado__Destination_Org_Credential__c }));
+    pipelineEdges = edges;
 
-      // Roots = credentials that appear only as source, never as destination
-      const allDest = new Set(edges.map(e => e.to));
-      const roots   = [...new Set(edges.map(e => e.from))].filter(id => !allDest.has(id));
-
-      const queue = roots.map(id => ({ id, level: 0 }));
-      while (queue.length > 0) {
-        const { id, level } = queue.shift();
-        if (!credLevel.has(id) || credLevel.get(id) < level) {
-          credLevel.set(id, level);
-          for (const e of edges.filter(e => e.from === id)) {
-            queue.push({ id: e.to, level: level + 1 });
-          }
+    // BFS to assign numeric level to each environment (0 = lowest/source)
+    const allDest = new Set(edges.map(e => e.to));
+    const roots   = [...new Set(edges.map(e => e.from))].filter(n => !allDest.has(n));
+    const queue   = roots.map(n => ({ n, level: 0 }));
+    while (queue.length > 0) {
+      const { n, level } = queue.shift();
+      if (!credLevel.has(n) || credLevel.get(n) < level) {
+        credLevel.set(n, level);
+        for (const e of edges.filter(e => e.from === n)) {
+          queue.push({ n: e.to, level: level + 1 });
         }
       }
     }
@@ -639,15 +633,16 @@ async function main() {
       : null;
 
     // Check if the story's latest promotion is in a warning state.
-    // Guards: single-story promotion + same source/destination pipeline step + no fix commit.
-    // Compare src/dst by env NAME (same values shown in the Source→Target column).
-    // noFixCommit: story's latest commit must be before the promotion's LastModifiedDate.
+    // Guards: single-story promotion + no fix commit since last promotion modification.
+    // Source/destination env comparison is intentionally omitted — Copado may use different
+    // Org__c records for the same environment on the promotion vs the story, making any
+    // credential comparison (ID or name) unreliable. The semi-join already scopes to
+    // promotions that contained this specific story.
     let lastPromoWarning = null; // { status, name, id } | null
     try {
       const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
       const soql =
-        `SELECT Id, Name, copado__Status__c, LastModifiedDate, ` +
-        `copado__Source_Org_Credential__r.Name, copado__Destination_Org_Credential__r.Name ` +
+        `SELECT Id, Name, copado__Status__c, LastModifiedDate ` +
         `FROM copado__Promotion__c ` +
         `WHERE Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}') ` +
         `ORDER BY LastModifiedDate DESC LIMIT 1`;
@@ -655,23 +650,17 @@ async function main() {
       const promo = promoRes.records[0];
       const warningStatuses = ['Completed with Errors', 'Merge Conflict', 'Conflicts Resolved'];
       if (promo && warningStatuses.includes(promo.copado__Status__c)) {
-        // Match source/destination env names. Null on either side = can't verify, assume match.
-        const promoSrcName = promo.copado__Source_Org_Credential__r?.Name ?? null;
-        const promoDstName = promo.copado__Destination_Org_Credential__r?.Name ?? null;
-        const srcMatch = !srcEnvName || !promoSrcName || promoSrcName === srcEnvName;
-        const dstMatch = !dstEnvName || !promoDstName || promoDstName === dstEnvName;
-        if (srcMatch && dstMatch) {
-          // Only warn if this promotion contained exactly this one story.
-          const storyCountRes = await conn.query(
-            `SELECT COUNT() FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
-          );
-          if ((storyCountRes.totalSize ?? 0) === 1) {
-            const promoStatus = promo.copado__Status__c;
-            // noFixCommit: developer's latest commit is before the promotion's last modified date.
-            const noFixCommit = !latestCommitDate || new Date(latestCommitDate) < new Date(promo.LastModifiedDate);
-            const shouldWarn  = promoStatus === 'Conflicts Resolved' || noFixCommit;
-            if (shouldWarn) lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
-          }
+        // Only warn if this promotion contained exactly this one story.
+        const storyCountRes = await conn.query(
+          `SELECT COUNT() FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
+        );
+        if ((storyCountRes.totalSize ?? 0) === 1) {
+          const promoStatus = promo.copado__Status__c;
+          // noFixCommit: story's latest commit date must be before the promotion was last modified.
+          // (i.e. no developer fix was committed after this promotion ran and failed.)
+          const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promo.LastModifiedDate);
+          const shouldWarn  = promoStatus === 'Conflicts Resolved' || noFixCommit;
+          if (shouldWarn) lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
         }
       }
     } catch { /* non-fatal */ }
