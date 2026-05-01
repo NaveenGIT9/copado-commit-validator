@@ -434,7 +434,7 @@ async function main() {
       .map(s => ({ from: s.copado__Source_Environment__r.Name, to: s.copado__Destination_Environment__r.Name,
                    fromId: s.copado__Source_Environment__c, toId: s.copado__Destination_Environment__c }));
     pipelineEdges = edges;
-    emit({ type: 'debug', message: `pipeline: loaded ${edges.length} edges: ${edges.slice(0,8).map(e=>`${e.from}→${e.to}`).join(', ')}` });
+    emit({ type: 'debug', message: `pipeline: loaded ${edges.length} edges: ${edges.map(e=>`${e.from}→${e.to}`).join(', ')}` });
 
     // BFS to assign numeric level to each environment (0 = lowest/source)
     const allDest = new Set(edges.map(e => e.to));
