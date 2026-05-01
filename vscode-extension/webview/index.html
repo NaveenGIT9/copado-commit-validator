@@ -263,8 +263,17 @@
 <!-- Pipeline names (populated once pipeline edges are loaded) -->
 <div id="pipelineNamesBar" style="display:none;margin-top:8px;padding:6px 14px;background:#0c1e2e;border:1px solid #1ab8e844;border-radius:6px;font-size:11px;color:#7fc9e0;letter-spacing:0.3px"></div>
 
-<!-- Debug log (shown during a run, hidden after) -->
-<div id="debugLog" style="display:none;margin-top:8px;padding:8px 12px;background:#0d1b26;border:1px solid #1ab8e833;border-radius:6px;font-family:monospace;font-size:11px;color:#5a9abf;max-height:120px;overflow-y:auto;white-space:pre-wrap"></div>
+<!-- Debug log — hidden by default, toggle via link -->
+<div id="debugLogWrap" style="display:none;margin-top:6px">
+  <button id="debugToggle" onclick="
+    const log = document.getElementById('debugLog');
+    const btn = document.getElementById('debugToggle');
+    const open = log.style.display !== 'none';
+    log.style.display = open ? 'none' : 'block';
+    btn.textContent = open ? '▶ Show debug log' : '▼ Hide debug log';
+  " style="background:none;border:none;color:#3a6a8a;font-size:10px;cursor:pointer;padding:0;letter-spacing:0.3px">▶ Show debug log</button>
+  <div id="debugLog" style="display:none;margin-top:4px;padding:8px 12px;background:#0d1b26;border:1px solid #1ab8e833;border-radius:6px;font-family:monospace;font-size:11px;color:#5a9abf;max-height:160px;overflow-y:auto;white-space:pre-wrap"></div>
+</div>
 
 <!-- Results table -->
 <div id="results-section">
@@ -469,6 +478,10 @@ function reset() {
   document.getElementById('promoteList').textContent = '';
   document.getElementById('pipelineNamesBar').style.display = 'none';
   document.getElementById('pipelineNamesBar').textContent = '';
+  document.getElementById('debugLog').textContent = '';
+  document.getElementById('debugLog').style.display = 'none';
+  document.getElementById('debugLogWrap').style.display = 'none';
+  document.getElementById('debugToggle').textContent = '▶ Show debug log';
   projectHeaderMap   = {};
   projectLastRow     = {};
   inPromoteMode      = false;
@@ -729,10 +742,10 @@ window.addEventListener('message', (event) => {
   const msg = event.data;
 
   if (msg.type === 'debug') {
+    document.getElementById('debugLogWrap').style.display = 'block';
     const log = document.getElementById('debugLog');
-    log.style.display = 'block';
     log.textContent += msg.message + '\n';
-    log.scrollTop = log.scrollHeight;
+    if (log.style.display !== 'none') log.scrollTop = log.scrollHeight;
   }
 
   else if (msg.type === 'pipeline-names') {
@@ -771,6 +784,8 @@ window.addEventListener('message', (event) => {
     const log = document.getElementById('debugLog');
     log.textContent = '';
     log.style.display = 'none';
+    document.getElementById('debugLogWrap').style.display = 'none';
+    document.getElementById('debugToggle').textContent = '▶ Show debug log';
   }
 
   else if (msg.type === 'start') {
