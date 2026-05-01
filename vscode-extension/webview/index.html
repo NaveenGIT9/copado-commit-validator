@@ -260,6 +260,9 @@
 <!-- Status -->
 <div class="status-bar" id="statusBar" style="margin-top:16px; display:none;"></div>
 
+<!-- Pipeline names (populated once pipeline edges are loaded) -->
+<div id="pipelineNamesBar" style="display:none;margin-top:8px;padding:6px 14px;background:#0c1e2e;border:1px solid #1ab8e844;border-radius:6px;font-size:11px;color:#7fc9e0;letter-spacing:0.3px"></div>
+
 <!-- Debug log (shown during a run, hidden after) -->
 <div id="debugLog" style="display:none;margin-top:8px;padding:8px 12px;background:#0d1b26;border:1px solid #1ab8e833;border-radius:6px;font-family:monospace;font-size:11px;color:#5a9abf;max-height:120px;overflow-y:auto;white-space:pre-wrap"></div>
 
@@ -398,6 +401,8 @@ function verify() {
 
   document.getElementById('results-section').style.display = 'none';
   document.getElementById('promote-section').style.display = 'none';
+  document.getElementById('pipelineNamesBar').style.display = 'none';
+  document.getElementById('pipelineNamesBar').textContent = '';
   document.getElementById('resultsBody').innerHTML = '';
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
@@ -462,6 +467,8 @@ function reset() {
   cleanStories       = [];
   verifiedStoryNames = new Set();
   document.getElementById('promoteList').textContent = '';
+  document.getElementById('pipelineNamesBar').style.display = 'none';
+  document.getElementById('pipelineNamesBar').textContent = '';
   projectHeaderMap   = {};
   projectLastRow     = {};
   inPromoteMode      = false;
@@ -726,6 +733,12 @@ window.addEventListener('message', (event) => {
     log.style.display = 'block';
     log.textContent += msg.message + '\n';
     log.scrollTop = log.scrollHeight;
+  }
+
+  else if (msg.type === 'pipeline-names') {
+    const bar = document.getElementById('pipelineNamesBar');
+    bar.textContent = 'Pipeline: ' + msg.names.join('  |  ');
+    bar.style.display = 'block';
   }
 
   else if (msg.type === 'fetch-stories-found') {

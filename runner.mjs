@@ -426,14 +426,18 @@ async function main() {
   try {
     const stepsRes = await conn.query(
       `SELECT copado__Source_Environment__c, copado__Source_Environment__r.Name, ` +
-      `copado__Destination_Environment__c, copado__Destination_Environment__r.Name ` +
+      `copado__Destination_Environment__c, copado__Destination_Environment__r.Name, ` +
+      `copado__Pipeline__r.Name ` +
       `FROM copado__Deployment_Flow_Step__c`
     );
     const edges = stepsRes.records
       .filter(s => s.copado__Source_Environment__r?.Name && s.copado__Destination_Environment__r?.Name)
       .map(s => ({ from: s.copado__Source_Environment__r.Name, to: s.copado__Destination_Environment__r.Name,
-                   fromId: s.copado__Source_Environment__c, toId: s.copado__Destination_Environment__c }));
+                   fromId: s.copado__Source_Environment__c, toId: s.copado__Destination_Environment__c,
+                   pipelineName: s.copado__Pipeline__r?.Name ?? null }));
     pipelineEdges = edges;
+    const pipelineNames = [...new Set(edges.map(e => e.pipelineName).filter(Boolean))];
+    emit({ type: 'pipeline-names', names: pipelineNames });
     emit({ type: 'debug', message: `pipeline: loaded ${edges.length} edges: ${edges.map(e=>`${e.from}→${e.to}`).join(', ')}` });
 
     // BFS to assign numeric level to each environment (0 = lowest/source)
