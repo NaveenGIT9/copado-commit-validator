@@ -436,12 +436,16 @@ async function main() {
     pipelineEdges = edges;
     emit({ type: 'debug', message: `pipeline: loaded ${edges.length} edges: ${edges.map(e=>`${e.from}→${e.to}`).join(', ')}` });
 
-    // Separate optional query for pipeline names — failure here cannot affect edge routing.
+    // Separate optional query for pipeline names — filter by the current git repo so only
+    // the relevant pipeline(s) are shown, not every pipeline in the org.
     try {
+      const repoName = repoPath.split(/[\\/]/).filter(Boolean).pop() ?? '';
       const flowRes = await conn.query(
-        `SELECT Name FROM copado__Deployment_Flow__c ORDER BY Name`
+        `SELECT Name FROM copado__Deployment_Flow__c ` +
+        `WHERE copado__Git_Repository__r.Name = '${repoName}' ORDER BY Name`
       );
       const pipelineNames = flowRes.records.map(r => r.Name).filter(Boolean);
+      emit({ type: 'debug', message: `pipeline name query: repoName=${repoName} found=${pipelineNames.join(', ') || 'none'}` });
       if (pipelineNames.length > 0) emit({ type: 'pipeline-names', names: pipelineNames });
     } catch (flowErr) {
       emit({ type: 'debug', message: `pipeline names query failed (non-fatal): ${flowErr}` });
