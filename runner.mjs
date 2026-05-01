@@ -333,7 +333,7 @@ async function main() {
   let stories = [];
   try {
     const result = await conn.query(
-      `SELECT Id, Name, copado__Org_Credential__c, copado__Org_Credential__r.Name, copado__Latest_Commit_Date__c, copado__Project__c, copado__Project__r.Name, copado__Status__c, copado__Pull_Requests_Approved__c, copado__Has_Apex_Code__c ` +
+      `SELECT Id, Name, copado__Org_Credential__c, copado__Org_Credential__r.Name, copado__Latest_Commit_Date__c, copado__Project__c, copado__Project__r.Name, copado__Status__c, copado__Pull_Requests_Approved__c, copado__Has_Apex_Code__c, copado__Developer__r.Name ` +
       `FROM copado__User_Story__c WHERE Name IN (${nameList})`
     );
     stories = result.records;
@@ -797,6 +797,7 @@ async function main() {
       credentialId: story.copado__Org_Credential__c,
       branch: branchName, extraCommits, copadoCommits, unregistered,
       unregisteredDetail, storyCommittedBy: [...storyAuthorNames], extraCommittedBy,
+      storyDeveloper: story.copado__Developer__r?.Name ?? null,
       tests: storyTests,
       prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
       hasApexCode: story.copado__Has_Apex_Code__c,

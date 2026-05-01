@@ -329,7 +329,7 @@ function updatePromoteList() {
   const active = cleanStories.filter(s => !s.skipped);
   if (active.length === 0) { el.textContent = ''; return; }
   el.innerHTML = active.map(s => {
-    const dev = s.committedBy ? `, ${s.committedBy}` : '';
+    const dev = s.developer ? `, ${s.developer}` : '';
     return `<div style="padding:1px 0">${s.name}${dev}</div>`;
   }).join('');
 }
@@ -875,7 +875,7 @@ window.addEventListener('message', (event) => {
           // Conflicts Resolved and innocent Merge Conflict stories both need their own promotion.
           separate: isConflictsResolved || isInnocentConflict,
           skipped: false,
-          committedBy: msg.storyCommittedBy ?? '',
+          developer: msg.storyDeveloper ?? '',
         };
         if (isConflictsResolved) {
           entry.retriggerPromotionId   = msg.lastPromoWarning.id;
