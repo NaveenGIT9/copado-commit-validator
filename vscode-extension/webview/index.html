@@ -686,11 +686,13 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
          </label>
        </td>`
     : `<td></td>`;
-  // Separate Promo: only for normal eligible stories (not forced-separate, not blocked)
-  const separateTd = (willBePromoted && !lastPromoWarning)
+  // Separate Promo: shown for normal eligible stories and innocent Merge Conflict stories.
+  // Innocent conflict stories are pre-checked (forced separate) but user can override.
+  const separateTd = (willBePromoted && (!lastPromoWarning || isInnocentConflict))
     ? `<td style="text-align:center;vertical-align:middle">
          <label style="display:flex;align-items:center;justify-content:center;cursor:pointer">
            <input type="checkbox" class="separate-promo-cb" data-story="${storyName}"
+             ${isInnocentConflict ? 'checked' : ''}
              style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer" />
          </label>
        </td>`
