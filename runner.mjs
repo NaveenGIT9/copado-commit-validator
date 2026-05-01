@@ -654,7 +654,14 @@ async function main() {
       const promoStatus = promo?.copado__Status__c;
       const warningStatuses = ['Completed with errors', 'Merge Conflict', 'Conflicts Resolved', 'In Progress'];
       if (promo && warningStatuses.includes(promoStatus)) {
-        if (promoStatus === 'In Progress') {
+        // Stale promotion check: if a new commit was registered AFTER the promotion was last modified,
+        // the promotion is no longer relevant — ignore it entirely, lastPromoWarning stays null.
+        // copado__Latest_Commit_Date__c is a DateTime field — comparison is precise to the minute.
+        const isStalePromo = latestCommitDate && new Date(latestCommitDate) > new Date(promo.LastModifiedDate);
+        if (isStalePromo) {
+          emit({ type: 'debug', message: `promo ${story.Name}: stale — commitDate=${latestCommitDate} > promoLastMod=${promo.LastModifiedDate}, ignoring ${promo.Name}` });
+
+        } else if (promoStatus === 'In Progress') {
           lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, createdDate: promo.CreatedDate };
 
         } else if (promoStatus === 'Merge Conflict') {
@@ -736,9 +743,9 @@ async function main() {
           emit({ type: 'debug', message: `promo ${story.Name}: story count in ${promo.Name} = ${storyCount}` });
 
           if (storyCount === 1) {
-            const alwaysWarn  = promoStatus === 'Conflicts Resolved';
-            const noFixCommit = !latestCommitDate || new Date(latestCommitDate) <= new Date(promo.LastModifiedDate);
-            if (alwaysWarn || noFixCommit) lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
+            // Stale gate already passed — no new commit since this promotion.
+            // Conflicts Resolved always warns (needs re-trigger); Completed with errors always warns (no fix commit).
+            lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
 
           } else if (promoStatus === 'Conflicts Resolved') {
             // Multi-story Conflicts Resolved — emit sibling story names so the UI can decide
