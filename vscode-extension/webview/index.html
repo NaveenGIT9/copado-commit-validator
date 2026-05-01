@@ -308,6 +308,7 @@
 const vscode = acquireVsCodeApi();
 
 let cleanStories       = [];   // [{name, id, projectId, credentialId, skipped}]
+let verifiedStoryNames = new Set(); // all story names that came back from verify (uppercased), for culprit-in-list check
 let currentOrg         = '';
 let runCompleted       = false;
 let inPromoteMode      = false;
@@ -388,11 +389,12 @@ function verify() {
     setStatus('error', 'Enter story names and Copado org alias / username before verifying.');
     return;
   }
-  currentOrg   = orgAlias;
-  cleanStories = [];
-  runCompleted = false;
-  projectHeaderMap = {};
-  projectLastRow   = {};
+  currentOrg         = orgAlias;
+  cleanStories       = [];
+  verifiedStoryNames = new Set();
+  runCompleted       = false;
+  projectHeaderMap   = {};
+  projectLastRow     = {};
 
   document.getElementById('results-section').style.display = 'none';
   document.getElementById('promote-section').style.display = 'none';
@@ -458,6 +460,7 @@ function reset() {
     document.getElementById('orgAlias').value = window.__defaultOrg;
   }
   cleanStories       = [];
+  verifiedStoryNames = new Set();
   document.getElementById('promoteList').textContent = '';
   projectHeaderMap   = {};
   projectLastRow     = {};
@@ -603,9 +606,10 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       const mergeLabel = merged === true  ? `✓ Merged into ${lastPromoWarning.name}`
                        : merged === false ? `ℹ Not yet merged in ${lastPromoWarning.name}`
                        : `ℹ Merge order unknown in ${lastPromoWarning.name}`;
+      // data-culprit used by done handler to append "(also in this list — not eligible)" if culprit verified
       innocentBadge =
-        `<span style="display:inline-block;background:#0c2340;border:1px solid #1ab8e8;color:#7fc9e0;font-size:10px;padding:2px 8px;border-radius:4px;white-space:nowrap;margin-top:4px">` +
-        `${mergeLabel} — conflict caused by ${culprit}</span>`;
+        `<span data-innocent-badge data-culprit="${culprit}" style="display:inline-block;background:#0c2340;border:1px solid #1ab8e8;color:#7fc9e0;font-size:10px;padding:2px 8px;border-radius:4px;white-space:nowrap;margin-top:4px">` +
+        `${mergeLabel} — conflict caused by ${culprit}<span class="culprit-in-list-note"></span></span>`;
     }
 
     promotableHtml = `<div style="display:flex;flex-direction:column;align-items:flex-start">${badge}${notEligibleBadge}${innocentBadge}${rows.join('')}</div>`;
@@ -837,6 +841,8 @@ window.addEventListener('message', (event) => {
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
 
+    verifiedStoryNames.add(msg.storyName.toUpperCase());
+
     const isLastPromoWarning  = !!msg.lastPromoWarning;
     const isConflictsResolved = msg.lastPromoWarning?.status === 'Conflicts Resolved';
     // Innocent Merge Conflict: another story caused the conflict; current story still eligible but needs separate promo.
@@ -933,6 +939,16 @@ window.addEventListener('message', (event) => {
         }
       }
     }
+
+    // If the culprit story that caused a Merge Conflict is also in the current verify list,
+    // update the innocent badge to say "(also in this list — not eligible)" for extra context.
+    document.querySelectorAll('[data-innocent-badge]').forEach(span => {
+      const culprit = span.getAttribute('data-culprit');
+      if (culprit && verifiedStoryNames.has(culprit.toUpperCase())) {
+        const note = span.querySelector('.culprit-in-list-note');
+        if (note) note.textContent = ' (also in this list — not eligible)';
+      }
+    });
 
     if (cleanStories.length > 0) {
       updatePromoteCount();
