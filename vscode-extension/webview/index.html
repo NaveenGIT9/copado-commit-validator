@@ -969,7 +969,8 @@ window.addEventListener('message', (event) => {
       retriggerGroups[s.retriggerPromotionId].push(s);
     }
     for (const [promoId, group] of Object.entries(retriggerGroups)) {
-      if (group.length <= 1) continue; // solo already handled correctly
+      // Don't skip group.length === 1: that means only one story from a multi-story CR promo was verified.
+      // siblingNames.length === 0 means a true solo CR → vacuous allSiblingsPresent → re-trigger correctly.
       const siblingNames = group[0].siblingStories ?? [];
       const allSiblingsPresent = siblingNames.every(sib => cleanStories.some(s => s.name === sib));
       if (allSiblingsPresent) {
