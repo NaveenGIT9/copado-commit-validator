@@ -727,9 +727,9 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     : isCRMultiStory
     ? `<td style="text-align:center;vertical-align:middle">
          <label style="display:flex;align-items:center;cursor:pointer;gap:4px">
-           <input type="checkbox" class="separate-promo-cb" data-story="${storyName}" checked
+           <input type="checkbox" class="separate-promo-cb" data-story="${storyName}"
              style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0" />
-           <span style="font-size:9px;color:#5a8a9f;white-space:nowrap">[resolution attachments will be added if any]</span>
+           <span style="font-size:8px;color:#5a8a9f;white-space:nowrap">[resolution attachments will be added if any]</span>
          </label>
        </td>`
     : `<td></td>`;
@@ -903,8 +903,8 @@ window.addEventListener('message', (event) => {
         const entry = {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,
-          // Conflicts Resolved and innocent Merge Conflict stories both need their own promotion.
-          separate: isConflictsResolved || isInnocentConflict,
+          // Innocent Merge Conflict always separate. CR multi-story defaults unchecked (re-trigger).
+          separate: isInnocentConflict,
           skipped: false,
           developer: msg.storyDeveloper ?? '',
         };
