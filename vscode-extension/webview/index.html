@@ -726,10 +726,13 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
        </td>`
     : isCRMultiStory
     ? `<td style="text-align:center;vertical-align:middle">
-         <label style="display:flex;align-items:center;cursor:pointer;gap:4px">
+         <label style="display:inline-flex;flex-direction:column;align-items:center;cursor:pointer;gap:3px;
+                       border:1px solid #2a4a5a;border-radius:4px;padding:4px 6px;background:#0a1a26">
            <input type="checkbox" class="separate-promo-cb" data-story="${storyName}"
-             style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0" />
-           <span style="font-size:8px;color:#5a8a9f;white-space:nowrap">[resolution attachments will be added if any]</span>
+             style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer" />
+           <span style="font-size:8px;color:#5a8a9f;text-align:center;max-width:90px;white-space:normal;line-height:1.2">
+             [resolution attachments will be added if any]
+           </span>
          </label>
        </td>`
     : `<td></td>`;
