@@ -444,7 +444,8 @@ function promote() {
               : `${s.projectId}::${s.credentialId}`;
     if (!groupMap[key]) {
       groupMap[key] = { projectId: s.projectId, credentialId: s.credentialId, stories: [], storyIds: [],
-        retriggerPromotionId: s.retriggerPromotionId ?? null, retriggerPromotionName: s.retriggerPromotionName ?? null };
+        retriggerPromotionId: s.retriggerPromotionId ?? null, retriggerPromotionName: s.retriggerPromotionName ?? null,
+        conflictResolvedSourcePromoId: s.conflictResolvedSourcePromoId ?? null };
     }
     groupMap[key].stories.push(s.name);
     groupMap[key].storyIds.push(s.id);
@@ -556,6 +557,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   const isMergeConflict      = lastPromoWarning?.status === 'Merge Conflict';
   const isInnocentConflict   = isMergeConflict && lastPromoWarning?.isConflictOnCurrentStory === false;
   const isAlreadyInProg      = lastPromoWarning?.status === 'In Progress';
+  const isConflictsResolved  = lastPromoWarning?.status === 'Conflicts Resolved';
+  const isCRMultiStory       = isConflictsResolved && (lastPromoWarning?.siblingStories?.length ?? 0) > 0;
 
   const LBL  = 'color:#5a8a9f;font-size:10px;white-space:nowrap;flex-shrink:0';
   const ROW  = 'display:flex;align-items:baseline;gap:5px;margin-top:2px';
@@ -594,10 +597,16 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     });
     if (lastPromoWarning && !isMergeConflict && !isAlreadyInProg) {
       const { status, name } = lastPromoWarning;
-      const msg =
-        status === 'Completed with errors' ? '✗ Failed — no fix commit' :
-                                             '⚠ Conflicts resolved — re-initiate promotion';
-      rows.push(kv('Last promo:', `<span style="color:#f59e0b;font-size:11px">${msg}</span><br><span style="color:#94a3b8;font-size:10px">${name}</span>`));
+      let badgeSpan;
+      if (status === 'Completed with errors') {
+        badgeSpan = `<span style="color:#f59e0b;font-size:11px">✗ Failed — no fix commit</span>`;
+      } else if (isCRMultiStory) {
+        // Placeholders updated by done handler depending on whether all siblings are present
+        badgeSpan = `<span style="color:#f59e0b;font-size:11px">⚠ Conflicts resolved — <span class="cr-badge-action">re-initiate promotion</span><span class="cr-badge-note"></span></span>`;
+      } else {
+        badgeSpan = `<span style="color:#f59e0b;font-size:11px">⚠ Conflicts resolved — re-initiate promotion</span>`;
+      }
+      rows.push(kv('Last promo:', `${badgeSpan}<br><span style="color:#94a3b8;font-size:10px">${name}</span>`));
     }
 
     // Not-eligible badge: culprit Merge Conflict or In Progress
@@ -691,7 +700,6 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     ? (extraCommittedBy || []).map(n => `<span style="font-size:11px">${n}</span>`).join('<br>')
     : (verdict === 'verifying' || extraCommits === null ? '—' : '<span style="color:#34d399;font-size:11px">None</span>');
 
-  const isConflictsResolved = lastPromoWarning?.status === 'Conflicts Resolved';
   // A story is "will be promoted" only if it passes the same gate as the cleanStories eligibility check:
   // no warning, OR Conflicts Resolved, OR innocent Merge Conflict. Only these get interactive checkboxes.
   const willBePromoted = isPromotable && (!lastPromoWarning || isConflictsResolved || isInnocentConflict);
@@ -708,12 +716,21 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     : `<td></td>`;
   // Separate Promo: shown for normal eligible stories and innocent Merge Conflict stories.
   // Innocent conflict stories are pre-checked (forced separate) but user can override.
+  // CR multi-story stories get a hidden cell that the done handler reveals only when some siblings are missing.
   const separateTd = (willBePromoted && (!lastPromoWarning || isInnocentConflict))
     ? `<td style="text-align:center;vertical-align:middle">
          <label style="display:flex;align-items:center;justify-content:center;cursor:pointer">
            <input type="checkbox" class="separate-promo-cb" data-story="${storyName}"
              ${isInnocentConflict ? 'checked' : ''}
              style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer" />
+         </label>
+       </td>`
+    : isCRMultiStory
+    ? `<td data-cr-separate style="display:none;text-align:center;vertical-align:middle">
+         <label style="display:flex;align-items:center;cursor:pointer;gap:4px">
+           <input type="checkbox" class="separate-promo-cb" data-story="${storyName}" checked
+             style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0" />
+           <span style="font-size:9px;color:#5a8a9f;white-space:nowrap">[resolution attachments will be added if any]</span>
          </label>
        </td>`
     : `<td></td>`;
@@ -959,13 +976,35 @@ window.addEventListener('message', (event) => {
         // All siblings present — group them under one shared key for re-trigger
         for (const s of group) { s.retriggerGroup = promoId; s.separate = false; }
       } else {
-        // Some siblings missing — too risky to re-trigger; treat as normal eligible
+        // Some siblings missing — create a new separate promotion per story.
+        // Preserve the old promo ID for RESOLVED attachment copy, and set separate=true
+        // so each story gets its own new promotion (ensures attachment copy targets correct record).
         for (const s of group) {
+          s.conflictResolvedSourcePromoId = s.retriggerPromotionId;
           delete s.retriggerPromotionId;
           delete s.retriggerPromotionName;
           delete s.siblingStories;
           delete s.retriggerGroup;
-          s.separate = false;
+          s.separate = true;
+        }
+        // Update DOM: change badge text and reveal the Separate Promo cell for each story in this group
+        for (const s of group) {
+          const rowId = 'row-' + s.name.replace(/[^a-z0-9]/gi, '_');
+          const row = document.getElementById(rowId);
+          if (!row) continue;
+          const action = row.querySelector('.cr-badge-action');
+          if (action) action.textContent = 'new separate promotion';
+          const note = row.querySelector('.cr-badge-note');
+          if (note) note.textContent = ' — resolutions will be copied';
+          const sepTd = row.querySelector('[data-cr-separate]');
+          if (sepTd) {
+            sepTd.style.display = '';
+            const cb = sepTd.querySelector('.separate-promo-cb');
+            if (cb) cb.addEventListener('change', () => {
+              const entry = cleanStories.find(e => e.name === s.name);
+              if (entry) { entry.separate = cb.checked; updatePromoteCount(); }
+            });
+          }
         }
       }
     }

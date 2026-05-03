@@ -282,6 +282,36 @@ async function main() {
         }
       }
 
+      // Copy RESOLVED attachments from old Conflicts Resolved promotion to this new one.
+      // Copado reads "RESOLVED <storyName> <filepath>" attachments during merge to skip re-resolution.
+      if (group.conflictResolvedSourcePromoId) {
+        try {
+          const storyName = groupStories[0];
+          const attRes = await conn.query(
+            `SELECT Id, Name, ContentType FROM Attachment ` +
+            `WHERE ParentId = '${group.conflictResolvedSourcePromoId}' ` +
+            `AND Name LIKE 'RESOLVED ${storyName}%'`
+          );
+          emit({ type: 'debug', message: `attachment copy: found ${attRes.records.length} RESOLVED attachment(s) for ${storyName} on ${group.conflictResolvedSourcePromoId}` });
+          for (const att of attRes.records) {
+            // jsforce REST SOQL returns Body as a download URL — must fetch separately
+            const bodyBase64 = await conn.request({
+              url: `/services/data/v${conn.version}/sobjects/Attachment/${att.Id}/Body`,
+              encoding: 'base64',
+            });
+            await conn.sobject('Attachment').create({
+              ParentId:    promotionId,
+              Name:        att.Name,
+              Body:        bodyBase64,
+              ContentType: att.ContentType ?? 'application/octet-stream',
+            });
+          }
+          emit({ type: 'debug', message: `attachment copy: copied ${attRes.records.length} attachment(s) to ${promotionId}` });
+        } catch (attErr) {
+          emit({ type: 'debug', message: `attachment copy failed (non-fatal): ${attErr}` });
+        }
+      }
+
       // Collect for bulk Merge & Deploy after all promotions are created
       if (doMergeDeploy) mergeDeployQueue.push(promotionId);
     }
@@ -649,12 +679,9 @@ async function main() {
       : null;
     emit({ type: 'debug', message: `env ${story.Name}: credName=${srcEnvName} → dst=${dstEnvName ?? 'NOT FOUND'}` });
 
-    // Check if the story's latest promotion is in a warning state.
-    // Guards: single-story promotion + no fix commit since last promotion modification.
-    // Source/destination env comparison is intentionally omitted — Copado may use different
-    // Org__c records for the same environment on the promotion vs the story, making any
-    // credential comparison (ID or name) unreliable. The semi-join already scopes to
-    // promotions that contained this specific story.
+    // Check if the story's latest promotion (same source credential) is in a warning state.
+    // Filtering by copado__Source_Org_Credential__c ensures we only consider promotions from
+    // the same pipeline step as the story — important for attachment copy correctness.
     let lastPromoWarning = null; // { status, name, id } | null
     try {
       const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
@@ -662,6 +689,7 @@ async function main() {
         `SELECT Id, Name, copado__Status__c, CreatedDate, LastModifiedDate ` +
         `FROM copado__Promotion__c ` +
         `WHERE Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}') ` +
+        `AND copado__Source_Org_Credential__c = '${story.copado__Org_Credential__c}' ` +
         `ORDER BY CreatedDate DESC LIMIT 1`;
       const promoRes = await conn.query(soql);
       const promo = promoRes.records[0];
