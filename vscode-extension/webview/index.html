@@ -436,16 +436,18 @@ function promote() {
 
   const groupMap = {};
   for (const s of storiesToPromote) {
-    // retriggerGroup: all stories share a key so they go into one re-trigger call.
-    // separate: story gets its own unique promotion.
+    // separate wins over retriggerGroup: user explicitly checked the box → own new promotion.
+    // retriggerGroup: checkbox unchecked → re-trigger the shared old promotion.
     // Otherwise: group by project + source credential.
-    const key = s.retriggerGroup ? `__retrigger__${s.retriggerGroup}`
-              : s.separate       ? `__separate__${s.name}`
+    const key = s.separate       ? `__separate__${s.name}`
+              : s.retriggerGroup ? `__retrigger__${s.retriggerGroup}`
               : `${s.projectId}::${s.credentialId}`;
     if (!groupMap[key]) {
       groupMap[key] = { projectId: s.projectId, credentialId: s.credentialId, stories: [], storyIds: [],
-        retriggerPromotionId: s.retriggerPromotionId ?? null, retriggerPromotionName: s.retriggerPromotionName ?? null,
-        conflictResolvedSourcePromoId: s.conflictResolvedSourcePromoId ?? null };
+        // When separate: create new promo + copy attachments. When re-trigger: re-trigger old promo.
+        retriggerPromotionId:          s.separate ? null : (s.retriggerPromotionId ?? null),
+        retriggerPromotionName:        s.separate ? null : (s.retriggerPromotionName ?? null),
+        conflictResolvedSourcePromoId: s.separate ? (s.conflictResolvedSourcePromoId ?? null) : null };
     }
     groupMap[key].stories.push(s.name);
     groupMap[key].storyIds.push(s.id);
@@ -600,9 +602,6 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       let badgeSpan;
       if (status === 'Completed with errors') {
         badgeSpan = `<span style="color:#f59e0b;font-size:11px">✗ Failed — no fix commit</span>`;
-      } else if (isCRMultiStory) {
-        // Placeholders updated by done handler depending on whether all siblings are present
-        badgeSpan = `<span style="color:#f59e0b;font-size:11px">⚠ Conflicts resolved — <span class="cr-badge-action">re-initiate promotion</span><span class="cr-badge-note"></span></span>`;
       } else {
         badgeSpan = `<span style="color:#f59e0b;font-size:11px">⚠ Conflicts resolved — re-initiate promotion</span>`;
       }
@@ -726,7 +725,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
          </label>
        </td>`
     : isCRMultiStory
-    ? `<td data-cr-separate style="display:none;text-align:center;vertical-align:middle">
+    ? `<td style="text-align:center;vertical-align:middle">
          <label style="display:flex;align-items:center;cursor:pointer;gap:4px">
            <input type="checkbox" class="separate-promo-cb" data-story="${storyName}" checked
              style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0" />
@@ -913,6 +912,10 @@ window.addEventListener('message', (event) => {
           entry.retriggerPromotionId   = msg.lastPromoWarning.id;
           entry.retriggerPromotionName = msg.lastPromoWarning.name;
           entry.siblingStories         = msg.lastPromoWarning.siblingStories ?? [];
+          if ((msg.lastPromoWarning.siblingStories?.length ?? 0) > 0) {
+            // Always set so attachment copy is available whether or not all siblings are verified
+            entry.conflictResolvedSourcePromoId = msg.lastPromoWarning.id;
+          }
         }
         cleanStories.push(entry);
       }
@@ -969,45 +972,9 @@ window.addEventListener('message', (event) => {
       retriggerGroups[s.retriggerPromotionId].push(s);
     }
     for (const [promoId, group] of Object.entries(retriggerGroups)) {
-      // Don't skip group.length === 1: that means only one story from a multi-story CR promo was verified.
-      // siblingNames.length === 0 means a true solo CR → vacuous allSiblingsPresent → re-trigger correctly.
-      const siblingNames = group[0].siblingStories ?? [];
-      const allSiblingsPresent = siblingNames.every(sib => cleanStories.some(s => s.name === sib));
-      if (allSiblingsPresent) {
-        // All siblings present — group them under one shared key for re-trigger
-        for (const s of group) { s.retriggerGroup = promoId; s.separate = false; }
-      } else {
-        // Some siblings missing — create a new separate promotion per story.
-        // Preserve the old promo ID for RESOLVED attachment copy, and set separate=true
-        // so each story gets its own new promotion (ensures attachment copy targets correct record).
-        for (const s of group) {
-          s.conflictResolvedSourcePromoId = s.retriggerPromotionId;
-          delete s.retriggerPromotionId;
-          delete s.retriggerPromotionName;
-          delete s.siblingStories;
-          delete s.retriggerGroup;
-          s.separate = true;
-        }
-        // Update DOM: change badge text and reveal the Separate Promo cell for each story in this group
-        for (const s of group) {
-          const rowId = 'row-' + s.name.replace(/[^a-z0-9]/gi, '_');
-          const row = document.getElementById(rowId);
-          if (!row) continue;
-          const action = row.querySelector('.cr-badge-action');
-          if (action) action.textContent = 'new separate promotion';
-          const note = row.querySelector('.cr-badge-note');
-          if (note) note.textContent = ' — resolutions will be copied';
-          const sepTd = row.querySelector('[data-cr-separate]');
-          if (sepTd) {
-            sepTd.style.display = '';
-            const cb = sepTd.querySelector('.separate-promo-cb');
-            if (cb) cb.addEventListener('change', () => {
-              const entry = cleanStories.find(e => e.name === s.name);
-              if (entry) { entry.separate = cb.checked; updatePromoteCount(); }
-            });
-          }
-        }
-      }
+      // Store retriggerGroup on every story so that when the user UNCHECKS the separate-promo
+      // checkbox, promote() can route it back into the shared re-trigger group key.
+      for (const s of group) s.retriggerGroup = promoId;
     }
 
     // If the culprit story that caused a Merge Conflict is also in the current verify list,
