@@ -748,6 +748,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
              ${lastPromoWarning?.resolutionsStale ? '[resolutions stale — not copied]' : '[resolution attachments will be copied]'}
            </span>
          </label>
+         <div data-cr-sibling-note style="display:none;font-size:8px;color:#f97316;margin-top:4px;max-width:110px;white-space:normal;line-height:1.3;text-align:center"></div>
        </td>`
     : `<td></td>`;
 
@@ -1010,6 +1011,27 @@ window.addEventListener('message', (event) => {
       // Store retriggerGroup on every story so that when the user UNCHECKS the separate-promo
       // checkbox, promote() can route it back into the shared re-trigger group key.
       for (const s of group) s.retriggerGroup = promoId;
+
+      // Detect siblings from this promotion that are NOT in the current verified list.
+      // If any are missing, re-triggering the old promotion would drag them back in — dangerous.
+      // Default to separate promo and show a warning on each row.
+      const groupNames    = new Set(group.map(s => s.name.toUpperCase()));
+      const allSiblings   = [...new Set(group.flatMap(s => s.siblingStories ?? []).map(n => n.toUpperCase()))];
+      const missingSiblings = allSiblings.filter(n => !verifiedStoryNames.has(n) && !groupNames.has(n));
+      if (missingSiblings.length > 0) {
+        const noteText = `${missingSiblings.join(', ')} not in list`;
+        for (const s of group) {
+          s.separate = true; // default to separate — re-trigger would pull missing stories back in
+          const row = document.getElementById('row-' + s.name.replace(/[^a-z0-9]/gi, '_'));
+          if (!row) continue;
+          // Pre-check the checkbox
+          const cb = row.querySelector(`.separate-promo-cb[data-story="${s.name}"]`);
+          if (cb) cb.checked = true;
+          // Show missing siblings note below the checkbox
+          const note = row.querySelector('[data-cr-sibling-note]');
+          if (note) { note.textContent = noteText; note.style.display = ''; }
+        }
+      }
     }
 
     // If the culprit story that caused a Merge Conflict is also in the current verify list,
