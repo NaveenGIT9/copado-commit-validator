@@ -810,28 +810,28 @@ async function main() {
           // Multi-story 'Completed with errors': no warning — can't attribute to one story.
         }
       }
-    } catch (promoErr) { emit({ type: 'debug', message: `promo ERROR ${story.Name}: ${promoErr}` }); }
 
-    // Secondary check: promotion status may stay 'Draft' while Copado runs an SFDX Promote/Deploy
-    // job execution. Query the latest promotion's job executions to catch this case.
-    if (!lastPromoWarning && promo && promo.copado__Status__c === 'Draft') {
-      try {
-        const jeRes = await conn.query(
-          `SELECT Id, CreatedDate FROM copado__JobExecution__c ` +
-          `WHERE copado__Promotion__c = '${promo.Id}' ` +
-          `AND copado__Status__c = 'In Progress' ` +
-          `AND copado__Template__r.Name IN ('SFDX Promote', 'SFDX Deploy') ` +
-          `ORDER BY CreatedDate DESC LIMIT 1`
-        );
-        const je = jeRes.records[0];
-        if (je) {
-          emit({ type: 'debug', message: `${story.Name}: Draft promo ${promo.Name} has active SFDX job (${je.Id}) — treating as In Progress` });
-          lastPromoWarning = { status: 'In Progress', name: promo.Name, id: promo.Id, createdDate: je.CreatedDate };
+      // Secondary check: promotion status may stay 'Draft' while Copado runs an SFDX Promote/Deploy
+      // job execution. Query the latest promotion's job executions to catch this case.
+      if (!lastPromoWarning && promo && promo.copado__Status__c === 'Draft') {
+        try {
+          const jeRes = await conn.query(
+            `SELECT Id, CreatedDate FROM copado__JobExecution__c ` +
+            `WHERE copado__Promotion__c = '${promo.Id}' ` +
+            `AND copado__Status__c = 'In Progress' ` +
+            `AND copado__Template__r.Name IN ('SFDX Promote', 'SFDX Deploy') ` +
+            `ORDER BY CreatedDate DESC LIMIT 1`
+          );
+          const je = jeRes.records[0];
+          if (je) {
+            emit({ type: 'debug', message: `${story.Name}: Draft promo ${promo.Name} has active SFDX job (${je.Id}) — treating as In Progress` });
+            lastPromoWarning = { status: 'In Progress', name: promo.Name, id: promo.Id, createdDate: je.CreatedDate };
+          }
+        } catch (jeErr) {
+          emit({ type: 'debug', message: `JE In Progress check failed (non-fatal): ${jeErr}` });
         }
-      } catch (jeErr) {
-        emit({ type: 'debug', message: `JE In Progress check failed (non-fatal): ${jeErr}` });
       }
-    }
+    } catch (promoErr) { emit({ type: 'debug', message: `promo ERROR ${story.Name}: ${promoErr}` }); }
 
     // Refined verdict — copado auto-commits (sourceApiVersion bumps) are always exempt
     const effectiveUnregistered = unregisteredDetail.filter(d => !d.copadoAuto);
