@@ -538,7 +538,7 @@ async function main() {
       );
     } catch { /* non-fatal — coverage check will be skipped */ }
 
-    // Fetch test records — only care about Failed/Error status
+    // Fetch test records
     let storyTests = [];
     try {
       const testResult = await conn.query(
@@ -551,6 +551,15 @@ async function main() {
         tool: r.copado__Test_Tool__c,
         status: r.copado__Latest_Result_Status__c,
       }));
+    } catch { /* non-fatal */ }
+
+    // Fetch deployment tasks — needed to determine if a no-commits story has anything to deploy
+    let hasDeploymentTasks = false;
+    try {
+      const dtRes = await conn.query(
+        `SELECT COUNT() FROM copado__Deployment_Task__c WHERE copado__User_Story__c = '${story.Id}'`
+      );
+      hasDeploymentTasks = (dtRes.totalSize ?? 0) > 0;
     } catch { /* non-fatal */ }
 
     // Collect authors of registered commits (for author comparison)
@@ -863,7 +872,7 @@ async function main() {
       storyDeveloper: story.copado__Developer__r?.Name ?? null,
       tests: storyTests,
       prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
-      hasApexCode: story.copado__Has_Apex_Code__c,
+      hasApexCode: story.copado__Has_Apex_Code__c, hasDeploymentTasks,
       parentStory, promotionCount, lastPromoWarning,
       latestCommitDate: story.copado__Latest_Commit_Date__c ?? null,
       srcEnvName, dstEnvName,

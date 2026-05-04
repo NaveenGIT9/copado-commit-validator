@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Copado Commit Validator — Overview</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #07131c;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: #cbd5e1;
+  padding: 48px 40px;
+  min-height: 100vh;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+.header h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: #e2e8f0;
+  letter-spacing: .02em;
+  margin-bottom: 8px;
+}
+.header .sub {
+  font-size: 13px;
+  color: #2a6a8a;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.header .purpose {
+  margin-top: 16px;
+  font-size: 13px;
+  color: #7fc9e0;
+  max-width: 680px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.7;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid #0e2a3a;
+  margin: 40px 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.card {
+  background: #0a1a26;
+  border: 1px solid #0e2a3a;
+  border-radius: 10px;
+  padding: 24px 22px;
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.card.blue::before  { background: linear-gradient(90deg, #1ab8e8, #0a7aaa); }
+.card.amber::before { background: linear-gradient(90deg, #f59e0b, #b45309); }
+.card.green::before { background: linear-gradient(90deg, #34d399, #059669); }
+.card.purple::before{ background: linear-gradient(90deg, #a78bfa, #6d28d9); }
+.card.red::before   { background: linear-gradient(90deg, #f87171, #b91c1c); }
+
+.card.full { grid-column: 1 / -1; }
+
+.card-icon {
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+.card-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  margin-bottom: 14px;
+}
+.card.blue  .card-title { color: #1ab8e8; }
+.card.amber .card-title { color: #f59e0b; }
+.card.green .card-title { color: #34d399; }
+.card.purple .card-title { color: #a78bfa; }
+.card.red   .card-title { color: #f87171; }
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-bottom: 11px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #94a3b8;
+}
+.item:last-child { margin-bottom: 0; }
+
+.dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.blue  .dot { background: #1ab8e8; }
+.amber .dot { background: #f59e0b; }
+.green .dot { background: #34d399; }
+.purple .dot { background: #a78bfa; }
+.red   .dot { background: #f87171; }
+
+.item strong { color: #e2e8f0; font-weight: 600; }
+
+.badge {
+  display: inline-block;
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+.badge-blue   { background: rgba(26,184,232,.15); color: #1ab8e8; border: 1px solid rgba(26,184,232,.3); }
+.badge-amber  { background: rgba(245,158,11,.15); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); }
+.badge-red    { background: rgba(239,68,68,.15);  color: #f87171; border: 1px solid rgba(239,68,68,.3); }
+.badge-green  { background: rgba(52,211,153,.15); color: #34d399; border: 1px solid rgba(52,211,153,.3); }
+.badge-purple { background: rgba(167,139,250,.15);color: #a78bfa; border: 1px solid rgba(167,139,250,.3); }
+.badge-yellow { background: rgba(251,191,36,.15); color: #fbbf24; border: 1px solid rgba(251,191,36,.3); }
+
+/* Scenario example boxes */
+.scenario {
+  background: #06111a;
+  border: 1px solid #0e2233;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: 16px;
+}
+.scenario-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #4a7a9a;
+  margin-bottom: 10px;
+}
+.scenario-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.scenario-table th {
+  text-align: left;
+  color: #3a6a8a;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding: 0 8px 6px 0;
+  border-bottom: 1px solid #0e2233;
+}
+.scenario-table td {
+  padding: 5px 8px 5px 0;
+  vertical-align: top;
+  border-bottom: 1px solid #060f16;
+  color: #94a3b8;
+}
+.scenario-table tr:last-child td { border-bottom: none; }
+.story-name { color: #e2e8f0; font-weight: 600; font-size: 11px; }
+.status-red    { color: #f87171; font-size: 10px; }
+.status-yellow { color: #fbbf24; font-size: 10px; }
+.status-green  { color: #34d399; font-size: 10px; }
+.status-blue   { color: #1ab8e8; font-size: 10px; }
+.status-gray   { color: #6b7280; font-size: 10px; font-style: italic; }
+.note-text     { font-size: 10px; color: #64748b; line-height: 1.4; }
+
+.footer {
+  text-align: center;
+  margin-top: 48px;
+  font-size: 11px;
+  color: #1a3a4a;
+  letter-spacing: .05em;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="sub">Rubrik Salesforce DevOps</div>
+  <h1>Copado Commit Validator</h1>
+  <div class="purpose">
+    A VSCode extension that gives developers complete pre-promote visibility before triggering a Copado promotion —
+    catching commit issues, test failures, and promotion conflicts before they cause pipeline failures.
+  </div>
+</div>
+
+<hr class="divider">
+
+<div class="grid">
+
+  <!-- COMMIT INTELLIGENCE -->
+  <div class="card blue">
+    <div class="card-icon">🔍</div>
+    <div class="card-title">Commit Intelligence</div>
+
+    <div class="item">
+      <span class="dot"></span>
+      <span>Every commit on the feature branch not registered in Copado is surfaced with <strong>full detail</strong> — which metadata components it touches, coverage against the story's metadata list, and author validation</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>Amended commit detection</strong> — when a commit is amended by a different developer, author vs committer mismatch is flagged <span class="badge badge-blue">✎ amended</span></span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span>Copado auto-commits (sourceApiVersion bumps, PMD rule updates) are <strong>automatically identified and exempted</strong> from all checks</span>
+    </div>
+
+    <div class="item" style="flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:flex-start;gap:9px">
+        <span class="dot" style="margin-top:5px"></span>
+        <span>Verdict calculated per story:</span>
+      </div>
+      <div style="padding-left:14px;display:flex;flex-direction:column;gap:4px">
+        <div><span class="badge badge-green">✓ Clean</span> <span style="font-size:11px;color:#94a3b8;margin-left:4px">All commits registered in Copado</span></div>
+        <div><span class="badge badge-blue">✓ Covered</span> <span style="font-size:11px;color:#94a3b8;margin-left:4px">Unregistered commits, but metadata scope covers them &amp; same author — <strong style="color:#e2e8f0">still eligible to promote</strong></span></div>
+        <div><span class="badge badge-yellow">⚠ Needs Verify</span> <span style="font-size:11px;color:#94a3b8;margin-left:4px">Covered by metadata scope but committed by a <strong style="color:#e2e8f0">different author</strong> — manual review required</span></div>
+        <div><span class="badge badge-red">✗ Unregistered</span> <span style="font-size:11px;color:#94a3b8;margin-left:4px">Commits touch metadata outside the story's scope — blocked</span></div>
+      </div>
+    </div>
+
+    <div class="scenario">
+      <div class="scenario-title">Example — Covered vs Needs Verify</div>
+      <table class="scenario-table">
+        <thead><tr><th>Story</th><th>Situation</th><th>Verdict</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="story-name">US-101</span></td>
+            <td><span class="note-text">Dev committed directly to branch (not via Copado UI). Files are in story metadata list. Same dev.</span></td>
+            <td><span class="badge badge-blue" style="font-size:9px">✓ Covered</span></td>
+          </tr>
+          <tr>
+            <td><span class="story-name">US-102</span></td>
+            <td><span class="note-text">Peer dev amended the commit — different committer. Metadata scope matches but author differs.</span></td>
+            <td><span class="badge badge-yellow" style="font-size:9px">⚠ Needs Verify</span></td>
+          </tr>
+          <tr>
+            <td><span class="story-name">US-103</span></td>
+            <td><span class="note-text">Commit touches a class not listed in story metadata scope — outside coverage.</span></td>
+            <td><span class="badge badge-red" style="font-size:9px">✗ Unregistered</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- QUALITY GATES -->
+  <div class="card green">
+    <div class="card-icon">✅</div>
+    <div class="card-title">Quality Gates</div>
+
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>PR approval</strong> — pulled directly from the User Story record in Copado. Blocked stories cannot be promoted</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>Apex test results</strong> — Success / Failed / Not Started — fetched live from Copado test execution records at verify time</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>Missing test class warning</strong> — story has Apex code but no test registered in Copado</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>Parent story dependency</strong> — detects when a story's base branch is another story's feature branch and warns if the parent hasn't been promoted yet</span>
+    </div>
+  </div>
+
+  <!-- PROMOTION SAFETY -->
+  <div class="card amber">
+    <div class="card-icon">🛡️</div>
+    <div class="card-title">Promotion Safety</div>
+
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>Completed with errors</strong> — flags when the last promotion failed and no new fix commit has been made on the story since. Developer must commit a fix first</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>In Progress detection</strong> — covers both promotion status = In Progress AND when status stays Draft while Copado runs an active SFDX Promote / Deploy job execution</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>Stuck indicator at 60 min</strong> — spinner badge turns red <span class="badge badge-red">Stuck?</span> so team knows to investigate</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>Merge conflict</strong> — identifies the culprit story vs innocent stories. Innocent stories can still promote separately without being blocked</span>
+    </div>
+
+    <div class="scenario">
+      <div class="scenario-title">Example — Merge Conflict · Promotion P11001 (3 stories)</div>
+      <table class="scenario-table">
+        <thead><tr><th>Story</th><th>In Verify List?</th><th>Result shown</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="story-name">US-201</span></td>
+            <td><span class="status-green">✓ Yes — eligible</span></td>
+            <td><span class="note-text">Innocent — <span style="color:#1ab8e8">Not yet merged in P11001 — conflict caused by US-202 <em>(also in this list — not eligible)</em></span>. Separate promo checkbox shown.</span></td>
+          </tr>
+          <tr>
+            <td><span class="story-name">US-202</span></td>
+            <td><span class="status-yellow">✓ Yes — but failed tests</span></td>
+            <td><span class="note-text">Culprit — <span style="color:#f87171">⚠ Merge Conflict — P11001</span>. Not eligible. Innocent rows updated: "also in this list — not eligible".</span></td>
+          </tr>
+          <tr>
+            <td><span class="story-name">US-203</span></td>
+            <td><span class="status-red">✗ Not in list</span></td>
+            <td><span class="status-gray">Not verifying — developer might be reworking</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:8px;font-size:10px;color:#4a7a9a">US-201 can promote separately. US-203 is not in scope — no action needed until that developer is ready.</div>
+    </div>
+  </div>
+
+  <!-- CONFLICTS RESOLVED -->
+  <div class="card purple">
+    <div class="card-icon">⚔️</div>
+    <div class="card-title">Conflicts Resolved — Smart Handling</div>
+
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>All siblings in list</strong> — safe to re-trigger old promotion together. Default behavior, no extra steps</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>Missing siblings detected</strong> — warning shown on every story row. Separate promo checkbox is <strong>pre-checked</strong> so re-trigger is blocked by default</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>RESOLVED attachment copy</strong> — when promoting separately, Copado stores conflict resolution files as attachments named <em>RESOLVED &lt;StoryName&gt; &lt;filepath&gt;</em> on the old promotion. These are automatically copied to the new promotion so Copado skips re-resolution for already-resolved files</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>Stale resolution guard</strong> — attachments are copied only when:<br>
+        <code style="font-size:10px;color:#a78bfa;background:#0e1a2a;padding:2px 6px;border-radius:3px;display:inline-block;margin:4px 0">
+          copado__User_Story__c.copado__Latest_Commit_Date__c &lt; copado__Promotion__c.LastModifiedDate
+        </code><br>
+        i.e., the developer made no new commits after the conflict was resolved on the promotion.
+        If either date is missing, or the commit date is on or after the promotion's last modified date, the old resolutions may no longer apply — copy is skipped and the checkbox shows: <span class="badge badge-red">resolutions stale — not copied</span></span>
+    </div>
+
+    <div class="scenario">
+      <div class="scenario-title">Example — Conflicts Resolved · Promotion P22002 (3 stories)</div>
+      <table class="scenario-table">
+        <thead><tr><th>Story</th><th>In Verify List?</th><th>Sibling note shown</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="story-name">US-301</span></td>
+            <td><span class="status-green">✓ Yes — eligible</span></td>
+            <td>
+              <span class="status-red">US-302 not in list</span><br>
+              <span class="status-yellow">US-303 in list but not eligible to promote</span><br>
+              <span class="note-text" style="margin-top:3px;display:block">Separate promo pre-checked. Latest commit (May 1) is before P22002 last modified (May 3) → <span style="color:#34d399">resolutions will be copied</span>.</span>
+            </td>
+          </tr>
+          <tr>
+            <td><span class="story-name">US-302</span></td>
+            <td><span class="status-red">✗ Not in list</span></td>
+            <td><span class="status-gray">Not verifying — developer might be reworking</span></td>
+          </tr>
+          <tr>
+            <td><span class="story-name">US-303</span></td>
+            <td><span class="status-yellow">✓ Yes — PR not approved</span></td>
+            <td>
+              <span class="status-red">US-302 not in list</span><br>
+              <span class="note-text" style="margin-top:3px;display:block">Not eligible itself (PR blocked). Latest commit (May 4) is after P22002 last modified (May 3) → <span style="color:#f87171">resolutions stale — not copied</span>.</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:8px;font-size:10px;color:#4a7a9a">Re-trigger of P22002 is blocked by default. US-301 promotes alone with resolutions copied. US-303 must get PR approved first; if it then promotes, Copado re-resolves fresh (no stale copy).</div>
+    </div>
+  </div>
+
+  <!-- PROMOTE WORKFLOW -->
+  <div class="card blue">
+    <div class="card-icon">🚀</div>
+    <div class="card-title">Promote Workflow</div>
+
+    <div class="item">
+      <span class="dot"></span>
+      <span>Stories from the <strong>same project and source credential</strong> are automatically grouped into a single promotion — no manual effort</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span>Different source credentials → <strong>separate promotions</strong> created automatically. No silent failures, no cross-environment mixing</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>Separate promo checkbox</strong> per story — override grouping when a story needs its own promotion</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span>Promote list shows <strong>story name and developer</strong> in aligned columns before confirming</span>
+    </div>
+  </div>
+
+  <!-- RELEASE ENGINEER EXPERIENCE -->
+  <div class="card green">
+    <div class="card-icon">⚡</div>
+    <div class="card-title">Release Engineer Experience</div>
+
+    <div class="item">
+      <span class="dot"></span>
+      <span><strong>Fetch ready stories</strong> — pulls eligible stories directly from the Copado list view into the input box with one click</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span>Source → Target environment displayed on each story row so the release engineer always knows which pipeline step each story is on</span>
+    </div>
+    <div class="item">
+      <span class="dot"></span>
+      <span>All checks run in <strong>parallel per story</strong> — git, Salesforce, and Copado queries happen simultaneously for fast results</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- BENEFITS -->
+<div style="max-width:1100px;margin:40px auto 0">
+  <hr class="divider">
+  <div style="background:#0a1a26;border:1px solid #0e2a3a;border-radius:10px;padding:28px 28px 24px;position:relative;overflow:hidden">
+    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#34d399,#1ab8e8)"></div>
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#34d399;margin-bottom:16px">Before vs After — What This Replaces</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Before (Manual)</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;gap:8px;font-size:12px;color:#94a3b8;line-height:1.5">
+            <span style="color:#f87171;flex-shrink:0">✗</span>
+            <span>Opened each feature branch in Git and manually scrolled through commits — comparing them one by one against the User Story's metadata list in Copado</span>
+          </div>
+          <div style="display:flex;gap:8px;font-size:12px;color:#94a3b8;line-height:1.5">
+            <span style="color:#f87171;flex-shrink:0">✗</span>
+            <span>Checked PR approval status by navigating to each User Story record in Salesforce individually</span>
+          </div>
+          <div style="display:flex;gap:8px;font-size:12px;color:#94a3b8;line-height:1.5">
+            <span style="color:#f87171;flex-shrink:0">✗</span>
+            <span>Manually checked Copado test execution records to find out if Apex tests passed and whether test classes were even added to the test record — no single view across multiple stories</span>
+          </div>
+          <div style="display:flex;gap:8px;font-size:12px;color:#94a3b8;line-height:1.5">
+            <span style="color:#f87171;flex-shrink:0">✗</span>
+            <span>Discovered merge conflicts and In Progress promotions only after triggering — causing pipeline failures and reruns</span>
+          </div>
+          <div style="display:flex;gap:8px;font-size:12px;color:#94a3b8;line-height:1.5">
+            <span style="color:#f87171;flex-shrink:0">✗</span>
+            <span>Re-resolved the same merge conflicts on every new promotion — Copado had no memory of prior resolutions as Smart Conflict Resolution is disabled in our org</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#34d399;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">After (This Tool)</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;gap:8px;font-size:12px;color:#94a3b8;line-height:1.5">
+            <span style="color:#34d399;flex-shrink:0">✓</span>
+            <span>Every unregistered commit surfaced automatically with metadata coverage verdict — no manual Git browsing</span>
+          </div>
+          <div style="display:flex;gap:8px;font-size:12px;color:#94a3b8;line-height:1.5">
+            <span style="color:#34d399;flex-shrink:0">✓</span>
+            <span>PR approval, test results, and parent story status shown inline for all stories in one view</span>
+          </div>
+          <div style="display:flex;gap:8px;font-size:12px;color:#94a3b8;line-height:1.5">
+            <span style="color:#34d399;flex-shrink:0">✓</span>
+            <span>Merge conflicts, In Progress promotions, and stuck jobs caught before triggering — zero surprise failures</span>
+          </div>
+          <div style="display:flex;gap:8px;font-size:12px;color:#94a3b8;line-height:1.5">
+            <span style="color:#34d399;flex-shrink:0">✓</span>
+            <span>RESOLVED attachments automatically copied to new promotions — conflicts resolved once, not repeatedly</span>
+          </div>
+          <div style="display:flex;gap:8px;font-size:12px;color:#94a3b8;line-height:1.5">
+            <span style="color:#34d399;flex-shrink:0">✓</span>
+            <span>All checks run in parallel — full pre-promote picture for a batch of stories in seconds, not minutes</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="footer" style="margin-top:32px">
+  Copado Commit Validator &nbsp;·&nbsp; Rubrik IT Salesforce DevOps &nbsp;·&nbsp; VSCode Extension
+</div>
+
+</body>
+</html>
