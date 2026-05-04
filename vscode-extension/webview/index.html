@@ -808,7 +808,7 @@ window.addEventListener('message', (event) => {
     document.getElementById('verifyBtn').disabled = false;
     document.getElementById('cancelBtn').style.display = 'none';
     if (stories.length === 0) {
-      setStatus('warning', `No ${msg.envType ?? ''} ready stories found — all eligible stories may have failed promotions with no new commits.`);
+      setStatus('info', `No stories available in the ${msg.envType ?? ''} list view to fetch.`);
     } else {
       setStatus('success', `${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} loaded. Click Verify Stories to proceed.`);
     }
