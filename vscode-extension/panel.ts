@@ -104,6 +104,8 @@ export class PromoterPanel {
       this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '');
     } else if (msg.command === 'abort') {
       this.abortRun();
+    } else if (msg.command === 'getDefaultOrg') {
+      this.post({ type: 'default-org', org: this.getDefaultOrg() });
     }
   }
 

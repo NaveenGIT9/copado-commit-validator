@@ -476,10 +476,8 @@ function reset() {
   document.getElementById('verifyBtn').disabled = false;
   document.getElementById('cancelBtn').style.display = 'none';
   document.getElementById('stories').value = '';
-  // Restore org field to the default detected at panel load time
-  if (window.__defaultOrg) {
-    document.getElementById('orgAlias').value = window.__defaultOrg;
-  }
+  // Ask panel.ts for the current default org (re-reads .sf/config.json fresh)
+  vscode.postMessage({ command: 'getDefaultOrg' });
   cleanStories       = [];
   verifiedStoryNames = new Set();
   document.getElementById('promoteList').textContent = '';
@@ -835,6 +833,10 @@ window.addEventListener('message', (event) => {
     runCompleted = true;
     setStatus('error', `sf: ${msg.message}`);
     endRun();
+  }
+
+  else if (msg.type === 'default-org') {
+    document.getElementById('orgAlias').value = msg.org ?? '';
   }
 
   else if (msg.type === 'aborted') {
