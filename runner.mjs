@@ -553,11 +553,11 @@ async function main() {
       }));
     } catch { /* non-fatal */ }
 
-    // Fetch deployment tasks — needed to determine if a no-commits story has anything to deploy
+    // Fetch job steps — covers all deployment task types (Data Set, Manual Task, etc.)
     let hasDeploymentTasks = false;
     try {
       const dtRes = await conn.query(
-        `SELECT COUNT() FROM copado__Deployment_Task__c WHERE copado__User_Story__c = '${story.Id}'`
+        `SELECT COUNT() FROM copado__JobStep__c WHERE copado__UserStory__c = '${story.Id}'`
       );
       hasDeploymentTasks = (dtRes.totalSize ?? 0) > 0;
     } catch { /* non-fatal */ }
