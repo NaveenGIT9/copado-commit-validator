@@ -23,6 +23,15 @@ function parseCopadoError(err) {
   return str;
 }
 
+// Converts SSH git URLs to HTTPS so cloning works without SSH host key setup.
+// git@github.com:org/repo.git  →  https://github.com/org/repo.git
+function toHttpsUrl(url) {
+  if (!url) return url;
+  const match = url.match(/^git@([^:]+):(.+)$/);
+  if (match) return `https://${match[1]}/${match[2]}`;
+  return url; // already https or other — pass through unchanged
+}
+
 const args = Object.fromEntries(
   process.argv.slice(2).reduce((acc, val, i, arr) => {
     if (val.startsWith('--')) acc.push([val.slice(2), arr[i + 1]]);
@@ -381,21 +390,23 @@ async function main() {
     return;
   }
 
-  // Detect the git repo URI from Copado — used for both the repo-name UI event
-  // and auto-cloning to a temp directory if no local path is provided.
+  // Detect the git repo URI, pipeline ID, and pipeline name from the first story's project chain.
   let repoUri = '';
   let detectedRepoName = '';
+  let detectedPipelineId = '';
+  let detectedPipelineName = '';
   try {
     const repoRec = await conn.query(
-      `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.copado__URI__c ` +
+      `SELECT copado__Project__r.copado__Deployment_Flow__c, ` +
+      `copado__Project__r.copado__Deployment_Flow__r.Name, ` +
+      `copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.copado__URI__c ` +
       `FROM copado__User_Story__c WHERE Id = '${stories[0].Id}'`
     );
-    repoUri = repoRec.records[0]
-      ?.copado__Project__r
-      ?.copado__Deployment_Flow__r
-      ?.copado__Git_Repository__r
-      ?.copado__URI__c ?? '';
-    detectedRepoName = repoNameFromUri(repoUri);
+    const rec = repoRec.records[0];
+    repoUri             = rec?.copado__Project__r?.copado__Deployment_Flow__r?.copado__Git_Repository__r?.copado__URI__c ?? '';
+    detectedRepoName    = repoNameFromUri(repoUri);
+    detectedPipelineId  = rec?.copado__Project__r?.copado__Deployment_Flow__c ?? '';
+    detectedPipelineName = rec?.copado__Project__r?.copado__Deployment_Flow__r?.Name ?? '';
   } catch { /* non-fatal */ }
 
   // Resolve which local git path to use.
@@ -426,7 +437,7 @@ async function main() {
       emit({ type: 'git-clone-start', repoName: detectedRepoName });
       mkdirSync(tempBase, { recursive: true });
       try {
-        await simpleGit().clone(repoUri, effectiveRepoPath, ['--no-checkout']);
+        await simpleGit().clone(toHttpsUrl(repoUri), effectiveRepoPath, ['--no-checkout']);
       } catch (err) {
         emit({ type: 'fatal', message: `git clone failed: ${String(err)}` });
         return;
@@ -454,31 +465,23 @@ async function main() {
   const credLevel = new Map(); // credName → numeric level
   let pipelineEdges = []; // { from, to, fromId, toId }[]
   try {
+    const pipelineFilter = detectedPipelineId
+      ? ` WHERE copado__Deployment_Flow__c = '${detectedPipelineId}'`
+      : '';
     const stepsRes = await conn.query(
       `SELECT copado__Source_Environment__c, copado__Source_Environment__r.Name, ` +
       `copado__Destination_Environment__c, copado__Destination_Environment__r.Name ` +
-      `FROM copado__Deployment_Flow_Step__c`
+      `FROM copado__Deployment_Flow_Step__c${pipelineFilter}`
     );
     const edges = stepsRes.records
       .filter(s => s.copado__Source_Environment__r?.Name && s.copado__Destination_Environment__r?.Name)
       .map(s => ({ from: s.copado__Source_Environment__r.Name, to: s.copado__Destination_Environment__r.Name,
                    fromId: s.copado__Source_Environment__c, toId: s.copado__Destination_Environment__c }));
     pipelineEdges = edges;
-    emit({ type: 'debug', message: `pipeline: loaded ${edges.length} edges: ${edges.map(e=>`${e.from}→${e.to}`).join(', ')}` });
+    emit({ type: 'debug', message: `pipeline: id=${detectedPipelineId || 'unknown'} loaded ${edges.length} edges: ${edges.map(e=>`${e.from}→${e.to}`).join(', ')}` });
 
-    // Separate optional query for pipeline names — filter by the current git repo so only
-    // the relevant pipeline(s) are shown, not every pipeline in the org.
-    try {
-      const repoName = repoPath.split(/[\\/]/).filter(Boolean).pop() ?? '';
-      const flowRes = await conn.query(
-        `SELECT Name FROM copado__Deployment_Flow__c ` +
-        `WHERE copado__Git_Repository__r.Name = '${repoName}' ORDER BY Name`
-      );
-      const pipelineNames = flowRes.records.map(r => r.Name).filter(Boolean);
-      emit({ type: 'debug', message: `pipeline name query: repoName=${repoName} found=${pipelineNames.join(', ') || 'none'}` });
-      if (pipelineNames.length > 0) emit({ type: 'pipeline-names', names: pipelineNames });
-    } catch (flowErr) {
-      emit({ type: 'debug', message: `pipeline names query failed (non-fatal): ${flowErr}` });
+    if (detectedPipelineName) {
+      emit({ type: 'pipeline-names', names: [detectedPipelineName] });
     }
 
     // BFS to assign numeric level to each environment (0 = lowest/source)
@@ -705,7 +708,7 @@ async function main() {
           emit({ type: 'debug', message: `promo ${story.Name}: stale — commitDate=${latestCommitDate} > promoLastMod=${promo.LastModifiedDate}, ignoring ${promo.Name}` });
 
         } else if (promoStatus === 'In Progress') {
-          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, createdDate: promo.CreatedDate };
+          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, createdDate: promo.LastModifiedDate };
 
         } else if (promoStatus === 'Merge Conflict') {
           // 1. Find culprit story from job execution error message.
@@ -808,6 +811,27 @@ async function main() {
         }
       }
     } catch (promoErr) { emit({ type: 'debug', message: `promo ERROR ${story.Name}: ${promoErr}` }); }
+
+    // Secondary check: promotion status may stay 'Draft' while Copado runs an SFDX Promote/Deploy
+    // job execution. Query the latest promotion's job executions to catch this case.
+    if (!lastPromoWarning && promo && promo.copado__Status__c === 'Draft') {
+      try {
+        const jeRes = await conn.query(
+          `SELECT Id, CreatedDate FROM copado__JobExecution__c ` +
+          `WHERE copado__Promotion__c = '${promo.Id}' ` +
+          `AND copado__Status__c = 'In Progress' ` +
+          `AND copado__Template__r.Name IN ('SFDX Promote', 'SFDX Deploy') ` +
+          `ORDER BY CreatedDate DESC LIMIT 1`
+        );
+        const je = jeRes.records[0];
+        if (je) {
+          emit({ type: 'debug', message: `${story.Name}: Draft promo ${promo.Name} has active SFDX job (${je.Id}) — treating as In Progress` });
+          lastPromoWarning = { status: 'In Progress', name: promo.Name, id: promo.Id, createdDate: je.CreatedDate };
+        }
+      } catch (jeErr) {
+        emit({ type: 'debug', message: `JE In Progress check failed (non-fatal): ${jeErr}` });
+      }
+    }
 
     // Refined verdict — copado auto-commits (sourceApiVersion bumps) are always exempt
     const effectiveUnregistered = unregisteredDetail.filter(d => !d.copadoAuto);
