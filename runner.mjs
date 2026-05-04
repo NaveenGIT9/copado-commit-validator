@@ -599,11 +599,12 @@ async function main() {
         files = raw.split('\n').map(f => f.trim()).filter(Boolean);
       } catch { /* skip */ }
 
-      let authorEmail = '', authorName = '';
+      let authorEmail = '', authorName = '', committerEmail = '', committerName = '';
       try {
-        const log = await git.raw(['log', '--format=%ae|%an', '-1', sha]);
-        [authorEmail, authorName] = log.trim().split('|');
+        const log = await git.raw(['log', '--format=%ae|%an|%ce|%cn', '-1', sha]);
+        [authorEmail, authorName, committerEmail, committerName] = log.trim().split('|');
       } catch { /* skip */ }
+      const isAmended = !!(authorEmail && committerEmail && authorEmail.toLowerCase() !== committerEmail.toLowerCase());
 
       let commitMessage = '';
       try {
@@ -620,7 +621,7 @@ async function main() {
       const authorMismatch      = authorEmail ? !storyAuthorEmails.has(authorEmail.toLowerCase()) : false;
 
       unregisteredDetail.push({
-        sha: sha.substring(0, 10), authorName, authorEmail, commitMessage,
+        sha: sha.substring(0, 10), authorName, authorEmail, committerName, isAmended, commitMessage,
         components, coveredComponents, uncoveredComponents, authorMismatch, copadoAuto,
       });
     }
