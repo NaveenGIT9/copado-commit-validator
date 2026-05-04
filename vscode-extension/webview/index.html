@@ -337,9 +337,11 @@ function updatePromoteList() {
   if (!el) return;
   const active = cleanStories.filter(s => !s.skipped);
   if (active.length === 0) { el.textContent = ''; return; }
+  const maxLen = Math.max(...active.map(s => s.name.length));
   el.innerHTML = active.map(s => {
-    const dev = s.developer ? `, ${s.developer}` : '';
-    return `<div style="padding:1px 0">${s.name}${dev}</div>`;
+    const namePadded = s.name.padEnd(maxLen);
+    const dev = s.developer ? `    -     ${s.developer}` : '';
+    return `<div style="padding:1px 0;font-family:monospace;font-size:11px;white-space:pre">${namePadded}${dev}</div>`;
   }).join('');
 }
 
