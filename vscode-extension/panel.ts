@@ -26,7 +26,9 @@ export class PromoterPanel {
   private activeProc: ReturnType<typeof spawn> | null = null;
   private activeTimer: ReturnType<typeof setTimeout> | null = null;
 
-  public static createOrShow(extensionUri: vscode.Uri): void {
+  private readonly context: vscode.ExtensionContext;
+
+  public static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext): void {
     if (PromoterPanel.currentPanel) {
       PromoterPanel.currentPanel.panel.reveal(vscode.ViewColumn.One);
       return;
@@ -37,11 +39,12 @@ export class PromoterPanel {
       vscode.ViewColumn.One,
       { enableScripts: true, retainContextWhenHidden: true }
     );
-    PromoterPanel.currentPanel = new PromoterPanel(panel, extensionUri);
+    PromoterPanel.currentPanel = new PromoterPanel(panel, extensionUri, context);
   }
 
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, context: vscode.ExtensionContext) {
     this.panel = panel;
+    this.context = context;
     this.panel.webview.html = this.getHtml();
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage((msg) => this.handleMessage(msg), null, this.disposables);
@@ -87,6 +90,13 @@ export class PromoterPanel {
     return '';
   }
 
+  private saveOrgHistory(alias: string): void {
+    if (!alias) return;
+    const history: string[] = this.context.globalState.get('promoter.orgHistory', []);
+    const deduped = [alias, ...history.filter(h => h !== alias)].slice(0, 5);
+    void this.context.globalState.update('promoter.orgHistory', deduped);
+  }
+
   private handleMessage(msg: {
     command: string;
     stories?: string;
@@ -97,10 +107,13 @@ export class PromoterPanel {
     mergeDeployAfter?: boolean;
   }): void {
     if (msg.command === 'verify') {
+      this.saveOrgHistory(msg.orgAlias ?? '');
       this.runVerify(msg.stories ?? '', msg.orgAlias ?? '', msg.repoPath ?? '');
     } else if (msg.command === 'promote') {
+      this.saveOrgHistory(msg.orgAlias ?? '');
       this.runPromote(msg.groups ?? [], msg.orgAlias ?? '', msg.mergeDeployAfter ?? false);
     } else if (msg.command === 'fetchReady') {
+      this.saveOrgHistory(msg.orgAlias ?? '');
       this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '');
     } else if (msg.command === 'abort') {
       this.abortRun();
@@ -219,9 +232,10 @@ export class PromoterPanel {
     if (fs.existsSync(htmlPath)) {
       let html = fs.readFileSync(htmlPath, 'utf8');
       const defaultOrg = this.getDefaultOrg();
+      const orgHistory: string[] = this.context.globalState.get('promoter.orgHistory', []);
       html = html.replace(
         '<script>',
-        `<script>window.__defaultOrg = ${JSON.stringify(defaultOrg)};\n`,
+        `<script>window.__defaultOrg = ${JSON.stringify(defaultOrg)};\nwindow.__orgHistory = ${JSON.stringify(orgHistory)};\n`,
       );
       return html;
     }

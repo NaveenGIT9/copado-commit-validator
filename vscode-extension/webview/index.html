@@ -364,6 +364,13 @@ function populateDatalist(id, key) {
   loadHistory(key).forEach(v => { const o = document.createElement('option'); o.value = v; dl.appendChild(o); });
 }
 
+// Seed localStorage from globalState-persisted history so aliases survive panel close/reopen.
+if (Array.isArray(window.__orgHistory) && window.__orgHistory.length > 0) {
+  const existing = loadHistory('orgAliasHistory');
+  const merged = [...new Set([...window.__orgHistory, ...existing])].slice(0, MAX_HISTORY);
+  localStorage.setItem('orgAliasHistory', JSON.stringify(merged));
+}
+
 populateDatalist('orgAliasList', 'orgAliasHistory');
 populateDatalist('repoPathList', 'repoPathHistory');
 
