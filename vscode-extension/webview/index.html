@@ -743,11 +743,11 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     : isCRMultiStory
     ? `<td style="text-align:center;vertical-align:middle">
          <label style="display:inline-flex;flex-direction:column;align-items:center;cursor:pointer;gap:3px;
-                       border:1px solid #2a4a5a;border-radius:4px;padding:4px 6px;background:#0a1a26">
+                       border:1px solid ${lastPromoWarning?.resolutionsStale ? '#4a1a1a' : '#2a4a5a'};border-radius:4px;padding:4px 6px;background:#0a1a26">
            <input type="checkbox" class="separate-promo-cb" data-story="${storyName}"
              style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer" />
-           <span style="font-size:8px;color:#5a8a9f;text-align:center;max-width:90px;white-space:normal;line-height:1.2">
-             [resolution attachments will be added if any]
+           <span style="font-size:8px;color:${lastPromoWarning?.resolutionsStale ? '#f87171' : '#5a8a9f'};text-align:center;max-width:90px;white-space:normal;line-height:1.2">
+             ${lastPromoWarning?.resolutionsStale ? '[resolutions stale — not copied]' : '[resolution attachments will be copied]'}
            </span>
          </label>
        </td>`
@@ -897,10 +897,22 @@ window.addEventListener('message', (event) => {
     const hasApexTest     = (msg.tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || ''));
     const noApexTestClass = msg.hasApexCode && !hasApexTest;
     const parentBlocked   = msg.parentStory && !msg.parentStory.promoted;
+    // Compute resolutionsStale for CR multi-story: if developer committed after conflict was resolved,
+    // RESOLVED attachments from old promotion no longer apply to the new code.
+    let lastPromoWarningForRow = msg.lastPromoWarning ?? null;
+    if (lastPromoWarningForRow?.status === 'Conflicts Resolved'
+        && (lastPromoWarningForRow.siblingStories?.length ?? 0) > 0) {
+      const lcd = msg.latestCommitDate;
+      const pmd = lastPromoWarningForRow.lastModifiedDate;
+      lastPromoWarningForRow = {
+        ...lastPromoWarningForRow,
+        resolutionsStale: !lcd || !pmd || new Date(lcd) >= new Date(pmd),
+      };
+    }
     const html = buildRowHtml(
       msg.storyName, msg.branch, msg.copadoCommits, msg.extraCommits,
       msg.unregisteredDetail, msg.verdict, msg.storyCommittedBy, msg.extraCommittedBy,
-      msg.tests, prBlocked, msg.hasApexCode, msg.parentStory ?? null, msg.promotionCount ?? 0, msg.lastPromoWarning ?? null,
+      msg.tests, prBlocked, msg.hasApexCode, msg.parentStory ?? null, msg.promotionCount ?? 0, lastPromoWarningForRow,
       msg.srcEnvName ?? null, msg.dstEnvName ?? null
     );
     ensureProjectSection(msg.projectId, msg.projectName);
