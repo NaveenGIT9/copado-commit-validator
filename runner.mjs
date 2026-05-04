@@ -141,7 +141,7 @@ async function main() {
     }
 
     if (storyIds.length === 0) {
-      emit({ type: 'fetch-done', stories: [], repoName: '' });
+      emit({ type: 'fetch-done', stories: [], repoName: '', envType: fetchEnvType });
       process.exit(0);
     }
 
@@ -185,7 +185,7 @@ async function main() {
       } catch { /* non-fatal */ }
     }
 
-    emit({ type: 'fetch-done', stories: validStories.map(s => s.name), repoName });
+    emit({ type: 'fetch-done', stories: validStories.map(s => s.name), repoName, envType: fetchEnvType });
     process.exit(0);
   }
 
