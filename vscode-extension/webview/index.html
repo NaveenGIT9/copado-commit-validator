@@ -447,9 +447,11 @@ function promote() {
     if (!groupMap[key]) {
       groupMap[key] = { projectId: s.projectId, credentialId: s.credentialId, stories: [], storyIds: [],
         // When separate: create new promo + copy attachments. When re-trigger: re-trigger old promo.
-        retriggerPromotionId:          s.separate ? null : (s.retriggerPromotionId ?? null),
-        retriggerPromotionName:        s.separate ? null : (s.retriggerPromotionName ?? null),
-        conflictResolvedSourcePromoId: s.separate ? (s.conflictResolvedSourcePromoId ?? null) : null };
+        retriggerPromotionId:             s.separate ? null : (s.retriggerPromotionId ?? null),
+        retriggerPromotionName:           s.separate ? null : (s.retriggerPromotionName ?? null),
+        conflictResolvedSourcePromoId:    s.separate ? (s.conflictResolvedSourcePromoId ?? null) : null,
+        conflictResolvedLatestCommit:     s.separate ? (s.latestCommitDate ?? null) : null,
+        conflictResolvedPromoLastMod:     s.separate ? (s.promoLastModifiedDate ?? null) : null };
     }
     groupMap[key].stories.push(s.name);
     groupMap[key].storyIds.push(s.id);
@@ -932,6 +934,8 @@ window.addEventListener('message', (event) => {
           if ((msg.lastPromoWarning.siblingStories?.length ?? 0) > 0) {
             // Always set so attachment copy is available whether or not all siblings are verified
             entry.conflictResolvedSourcePromoId = msg.lastPromoWarning.id;
+            entry.latestCommitDate              = msg.latestCommitDate ?? null;
+            entry.promoLastModifiedDate         = msg.lastPromoWarning.lastModifiedDate ?? null;
           }
         }
         cleanStories.push(entry);

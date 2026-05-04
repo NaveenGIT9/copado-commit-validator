@@ -293,31 +293,37 @@ async function main() {
 
       // Copy RESOLVED attachments from old Conflicts Resolved promotion to this new one.
       // Copado reads "RESOLVED <storyName> <filepath>" attachments during merge to skip re-resolution.
+      // Only copy if story has no new commits after the conflict was resolved — otherwise resolutions are stale.
       if (group.conflictResolvedSourcePromoId) {
-        try {
-          const storyName = groupStories[0];
-          const attRes = await conn.query(
-            `SELECT Id, Name, ContentType FROM Attachment ` +
-            `WHERE ParentId = '${group.conflictResolvedSourcePromoId}' ` +
-            `AND Name LIKE 'RESOLVED ${storyName}%'`
-          );
-          emit({ type: 'debug', message: `attachment copy: found ${attRes.records.length} RESOLVED attachment(s) for ${storyName} on ${group.conflictResolvedSourcePromoId}` });
-          for (const att of attRes.records) {
-            // jsforce REST SOQL returns Body as a download URL — must fetch separately
-            const bodyBase64 = await conn.request({
-              url: `/services/data/v${conn.version}/sobjects/Attachment/${att.Id}/Body`,
-              encoding: 'base64',
-            });
-            await conn.sobject('Attachment').create({
-              ParentId:    promotionId,
-              Name:        att.Name,
-              Body:        bodyBase64,
-              ContentType: att.ContentType ?? 'application/octet-stream',
-            });
+        const lcd = group.conflictResolvedLatestCommit;
+        const pmd = group.conflictResolvedPromoLastMod;
+        if (!lcd || !pmd || new Date(lcd) >= new Date(pmd)) {
+          emit({ type: 'debug', message: `attachment copy: skipped — latestCommitDate (${lcd ?? 'null'}) not before promoLastModified (${pmd ?? 'null'})` });
+        } else {
+          try {
+            const storyName = groupStories[0];
+            const attRes = await conn.query(
+              `SELECT Id, Name, ContentType FROM Attachment ` +
+              `WHERE ParentId = '${group.conflictResolvedSourcePromoId}' ` +
+              `AND Name LIKE 'RESOLVED ${storyName}%'`
+            );
+            emit({ type: 'debug', message: `attachment copy: found ${attRes.records.length} RESOLVED attachment(s) for ${storyName}` });
+            for (const att of attRes.records) {
+              const bodyBase64 = await conn.request({
+                url: `/services/data/v${conn.version}/sobjects/Attachment/${att.Id}/Body`,
+                encoding: 'base64',
+              });
+              await conn.sobject('Attachment').create({
+                ParentId:    promotionId,
+                Name:        att.Name,
+                Body:        bodyBase64,
+                ContentType: att.ContentType ?? 'application/octet-stream',
+              });
+            }
+            emit({ type: 'debug', message: `attachment copy: copied ${attRes.records.length} attachment(s) to ${promotionId}` });
+          } catch (attErr) {
+            emit({ type: 'debug', message: `attachment copy failed (non-fatal): ${attErr}` });
           }
-          emit({ type: 'debug', message: `attachment copy: copied ${attRes.records.length} attachment(s) to ${promotionId}` });
-        } catch (attErr) {
-          emit({ type: 'debug', message: `attachment copy failed (non-fatal): ${attErr}` });
         }
       }
 
@@ -806,7 +812,7 @@ async function main() {
               .map(r => r.copado__User_Story__r?.Name)
               .filter(Boolean)
               .filter(n => n.toUpperCase() !== story.Name.toUpperCase());
-            lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, siblingStories };
+            lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, siblingStories, lastModifiedDate: promo.LastModifiedDate };
           }
           // Multi-story 'Completed with errors': no warning — can't attribute to one story.
         }
@@ -859,6 +865,7 @@ async function main() {
       prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
       hasApexCode: story.copado__Has_Apex_Code__c,
       parentStory, promotionCount, lastPromoWarning,
+      latestCommitDate: story.copado__Latest_Commit_Date__c ?? null,
       srcEnvName, dstEnvName,
       verdict,
     });
