@@ -811,9 +811,10 @@ async function main() {
           const storyCount = storyCountRes.totalSize ?? 0;
           emit({ type: 'debug', message: `promo ${story.Name}: story count in ${promo.Name} = ${storyCount}` });
 
-          if (storyCount === 1) {
+          if (storyCount === 1 || promoStatus === 'Completed with errors') {
             // Stale gate already passed — no new commit since this promotion.
             // Conflicts Resolved always warns (needs re-trigger); Completed with errors always warns (no fix commit).
+            // Multi-story 'Completed with errors' warns each story individually — stale gate ensures no fix was made.
             lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
 
           } else if (promoStatus === 'Conflicts Resolved') {
@@ -834,7 +835,6 @@ async function main() {
               .filter(s => s.name.toUpperCase() !== story.Name.toUpperCase());
             lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, siblingStories, lastModifiedDate: promo.LastModifiedDate };
           }
-          // Multi-story 'Completed with errors': no warning — can't attribute to one story.
         }
       }
 
