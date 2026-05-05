@@ -775,14 +775,17 @@ async function main() {
       if (promo) {
         try {
           const liveJeRes = await conn.query(
-            `SELECT Id, copado__Status__c, CreatedDate FROM copado__JobExecution__c ` +
+            `SELECT Id, copado__Status__c, copado__Template__r.Name, CreatedDate FROM copado__JobExecution__c ` +
             `WHERE copado__Promotion__c = '${promo.Id}' ` +
             `AND copado__Status__c IN ('Queued', 'In Progress') ` +
-            `AND copado__Template__r.Name IN ('SFDX Promote', 'SFDX Deploy') ` +
-            `ORDER BY CreatedDate DESC LIMIT 1`
+            `AND copado__Template__r.Name IN ('SFDX Promote', 'SFDX Deploy')`
           );
-          liveJe = liveJeRes.records[0] ?? null;
-          emit({ type: 'debug', message: `${story.Name}: live JE for ${promo?.Name} = ${liveJe ? liveJe.copado__Status__c : 'none'}` });
+          // Prefer SFDX Deploy JE (final step) over SFDX Promote (intermediate step).
+          // Both can be active simultaneously — Deploy Queued while Promote is still In Progress.
+          const deployJe  = liveJeRes.records.find(r => r.copado__Template__r?.Name === 'SFDX Deploy');
+          const promoteJe = liveJeRes.records.find(r => r.copado__Template__r?.Name === 'SFDX Promote');
+          liveJe = deployJe ?? promoteJe ?? null;
+          emit({ type: 'debug', message: `${story.Name}: live JE for ${promo?.Name} = deploy:${deployJe?.copado__Status__c ?? 'none'} promote:${promoteJe?.copado__Status__c ?? 'none'} → using:${liveJe?.copado__Status__c ?? 'none'}` });
         } catch { /* non-fatal */ }
       }
 
