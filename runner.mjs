@@ -755,7 +755,18 @@ async function main() {
           emit({ type: 'debug', message: `promo ${story.Name}: stale — commitDate=${latestCommitDate} > promoLastMod=${promo.LastModifiedDate}, ignoring ${promo.Name}` });
 
         } else if (promoStatus === 'In Progress') {
-          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, createdDate: promo.LastModifiedDate };
+          let jeStatus = null;
+          try {
+            const jeStatusRes = await conn.query(
+              `SELECT copado__Status__c FROM copado__JobExecution__c ` +
+              `WHERE copado__Promotion__c = '${promo.Id}' ` +
+              `AND copado__Template__r.Name IN ('SFDX Promote', 'SFDX Deploy') ` +
+              `ORDER BY CreatedDate DESC LIMIT 1`
+            );
+            jeStatus = jeStatusRes.records[0]?.copado__Status__c ?? null;
+            emit({ type: 'debug', message: `${story.Name}: In Progress promo ${promo.Name} — JE status=${jeStatus ?? 'not found'}` });
+          } catch { /* non-fatal */ }
+          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, createdDate: promo.LastModifiedDate, jeStatus };
 
         } else if (promoStatus === 'Merge Conflict') {
           // 1. Find culprit story from job execution error message.
@@ -876,7 +887,7 @@ async function main() {
           const je = jeRes.records[0];
           if (je) {
             emit({ type: 'debug', message: `${story.Name}: Draft promo ${promo.Name} has active SFDX job (${je.Id}) — treating as In Progress` });
-            lastPromoWarning = { status: 'In Progress', name: promo.Name, id: promo.Id, createdDate: je.CreatedDate };
+            lastPromoWarning = { status: 'In Progress', name: promo.Name, id: promo.Id, createdDate: je.CreatedDate, jeStatus: je.copado__Status__c };
           }
         } catch (jeErr) {
           emit({ type: 'debug', message: `JE In Progress check failed (non-fatal): ${jeErr}` });
