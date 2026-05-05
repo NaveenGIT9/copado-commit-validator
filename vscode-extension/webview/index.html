@@ -557,7 +557,7 @@ function upsertRow(storyName, branch, copadoCommits, extraCommits, unregisteredD
 
 function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null) {
   const failedTests      = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
-  const hasApexTest      = (tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || ''));
+  const hasApexTest      = (tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || '') || /apex/i.test(t.name || ''));
   const noApexTestClass  = hasApexCode && !hasApexTest;
   const noCommits           = verdict === 'skip-no-commits';
   const noCommitsNoTasks    = noCommits && !hasDeploymentTasks;
@@ -606,10 +606,10 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       rows.push(kv('Apex Tests:', `<span style="${ERR}">✗ No test record found</span>`));
     }
     (tests || []).forEach(t => {
-      const isApex = /apex/i.test(t.type || '') || /apex/i.test(t.tool || '');
-      const ok  = t.status === 'Success';
-      const col = ok ? OK : (t.status === 'Failed' || t.status === 'Error' ? ERR : WARN);
-      rows.push(kv('Apex Tests:', `<span style="${col}">${ok ? '✓' : '✗'} ${t.status || '—'}</span>`));
+      const ok    = t.status === 'Success';
+      const col   = ok ? OK : (t.status === 'Failed' || t.status === 'Error' ? ERR : WARN);
+      const label = t.tool || t.type || (t.name || '').replace(/\s*-\s*US-\d+.*/i, '').trim() || 'Apex Tests';
+      rows.push(kv(`${label}:`, `<span style="${col}">${ok ? '✓' : '✗'} ${t.status || '—'}</span>`));
     });
     if (lastPromoWarning && !isMergeConflict && !isAlreadyInProg) {
       const { status, name } = lastPromoWarning;
@@ -698,7 +698,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         return [
           `<span class="hash-list" style="color:#2a6a8a">${d.sha}</span>`,
           `<span style="color:#1ab8e8;font-size:10px">⚡ Copado auto-commit (exempt)</span>`,
-          `<span style="color:#2a6a8a;font-size:10px">${d.commitMessage}</span>`,
+          `<span style="color:#2a6a8a;font-size:10px;display:block;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.commitMessage}">${d.commitMessage}</span>`,
         ].join('<br>');
       }
       const lines = [`<span class="hash-list" style="color:#2a6a8a">${d.sha}</span>`];
@@ -750,7 +750,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
              style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer" />
          </label>
        </td>`
-    : isCRMultiStory
+    : (isCRMultiStory && isPromotable)
     ? `<td style="text-align:center;vertical-align:middle">
          <label style="display:inline-flex;flex-direction:column;align-items:center;cursor:pointer;gap:3px;
                        border:1px solid ${lastPromoWarning?.resolutionsStale ? '#4a1a1a' : '#2a4a5a'};border-radius:4px;padding:4px 6px;background:#0a1a26">
@@ -765,7 +765,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     : `<td></td>`;
 
   const envLabel = srcEnvName
-    ? (dstEnvName ? `${srcEnvName} → ${dstEnvName}` : srcEnvName)
+    ? (dstEnvName ? `${srcEnvName.toUpperCase()} → ${dstEnvName.toUpperCase()}` : srcEnvName.toUpperCase())
     : '—';
 
   return `
@@ -909,7 +909,7 @@ window.addEventListener('message', (event) => {
   else if (msg.type === 'story-verified') {
     const failedTests     = (msg.tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
     const prBlocked       = msg.hasMetadata && !msg.prApproved;
-    const hasApexTest     = (msg.tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || ''));
+    const hasApexTest     = (msg.tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || '') || /apex/i.test(t.name || ''));
     const noApexTestClass = msg.hasApexCode && !hasApexTest;
     const parentBlocked       = msg.parentStory && !msg.parentStory.promoted;
     const noCommitsNoTasks    = msg.verdict === 'skip-no-commits' && !msg.hasDeploymentTasks;
@@ -1030,13 +1030,14 @@ window.addEventListener('message', (event) => {
       // Detect siblings from this promotion that are absent or ineligible.
       // If any are not safe to re-trigger with, default to separate promo and warn on each row.
       const groupNames         = new Set(group.map(s => s.name.toUpperCase()));
+      const eligibleStoryNames = new Set(cleanStories.map(s => s.name.toUpperCase()));
       const allSiblings        = [...new Set(group.flatMap(s => s.siblingStories ?? []).map(n => n.toUpperCase()))];
       const absentSiblings     = allSiblings.filter(n => !verifiedStoryNames.has(n) && !groupNames.has(n));
-      const ineligibleSiblings = allSiblings.filter(n => verifiedStoryNames.has(n) && !groupNames.has(n));
+      const ineligibleSiblings = allSiblings.filter(n => verifiedStoryNames.has(n) && !eligibleStoryNames.has(n));
       if (absentSiblings.length > 0 || ineligibleSiblings.length > 0) {
         const noteLines = [
           ...absentSiblings.map(n =>
-            `<span style="color:#f87171;display:block">${n} not in list</span>`),
+            `<span style="color:#f87171;display:block">${n} missing from current list</span>`),
           ...ineligibleSiblings.map(n =>
             `<span style="color:#fbbf24;display:block">${n} in list but not eligible to promote</span>`),
         ];

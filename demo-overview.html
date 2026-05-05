@@ -275,10 +275,6 @@ body {
     </div>
     <div class="item">
       <span class="dot"></span>
-      <span><strong>Missing test class warning</strong> — story has Apex code but no test registered in Copado</span>
-    </div>
-    <div class="item">
-      <span class="dot"></span>
       <span><strong>Parent story dependency</strong> — detects when a story's base branch is another story's feature branch and warns if the parent hasn't been promoted yet</span>
     </div>
   </div>
@@ -317,7 +313,7 @@ body {
           </tr>
           <tr>
             <td><span class="story-name">US-202</span></td>
-            <td><span class="status-yellow">✓ Yes — but failed tests</span></td>
+            <td><span class="status-red">✗ Yes — not eligible (failed tests)</span></td>
             <td><span class="note-text">Culprit — <span style="color:#f87171">⚠ Merge Conflict — P11001</span>. Not eligible. Innocent rows updated: "also in this list — not eligible".</span></td>
           </tr>
           <tr>
@@ -379,7 +375,7 @@ body {
           </tr>
           <tr>
             <td><span class="story-name">US-303</span></td>
-            <td><span class="status-yellow">✓ Yes — PR not approved</span></td>
+            <td><span class="status-red">✗ Yes — not eligible (PR not approved)</span></td>
             <td>
               <span class="status-red">US-302 not in list</span><br>
               <span class="note-text" style="margin-top:3px;display:block">Not eligible itself (PR blocked). Latest commit (May 4) is after P22002 last modified (May 3) → <span style="color:#f87171">resolutions stale — not copied</span>.</span>

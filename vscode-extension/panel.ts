@@ -228,7 +228,7 @@ export class PromoterPanel {
   }
 
   private getHtml(): string {
-    const htmlPath = path.join(__dirname, '..', 'webview', 'index.html');
+    const htmlPath = path.join('D:', 'plugin-promoter', 'vscode-extension', 'webview', 'index.html');
     if (fs.existsSync(htmlPath)) {
       let html = fs.readFileSync(htmlPath, 'utf8');
       const defaultOrg = this.getDefaultOrg();

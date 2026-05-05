@@ -481,7 +481,7 @@ async function main() {
     );
     const edges = stepsRes.records
       .filter(s => s.copado__Source_Environment__r?.Name && s.copado__Destination_Environment__r?.Name)
-      .map(s => ({ from: s.copado__Source_Environment__r.Name, to: s.copado__Destination_Environment__r.Name,
+      .map(s => ({ from: s.copado__Source_Environment__r.Name.toLowerCase(), to: s.copado__Destination_Environment__r.Name.toLowerCase(),
                    fromId: s.copado__Source_Environment__c, toId: s.copado__Destination_Environment__c }));
     pipelineEdges = edges;
     emit({ type: 'debug', message: `pipeline: id=${detectedPipelineId || 'unknown'} loaded ${edges.length} edges: ${edges.map(e=>`${e.from}→${e.to}`).join(', ')}` });
@@ -596,7 +596,7 @@ async function main() {
                hasApexCode: story.copado__Has_Apex_Code__c,
                parentStory: null, promotionCount: 0, lastPromotionFailed: false,
                srcEnvName: story.copado__Org_Credential__r?.Name ?? null,
-               dstEnvName: (() => { const s = story.copado__Org_Credential__r?.Name ?? null; return s ? (pipelineEdges.find(e => e.from === s)?.to ?? null) : null; })(),
+               dstEnvName: (() => { const s = story.copado__Org_Credential__r?.Name ?? null; return s ? (pipelineEdges.find(e => e.from === s.toLowerCase())?.to ?? null) : null; })(),
                verdict: 'error', message: `Branch ${remoteBranch} not found. Check that the correct repo is cloned locally and the path is set correctly.` });
         continue;
       }
@@ -660,8 +660,8 @@ async function main() {
         );
         const parentCredName  = parentRes.records[0]?.copado__Org_Credential__r?.Name ?? null;
         const currentCredName = story.copado__Org_Credential__r?.Name ?? null;
-        const currentLevel = currentCredName ? (credLevel.get(currentCredName) ?? -1) : -1;
-        const parentLevel  = parentCredName  ? (credLevel.get(parentCredName)  ?? -1) : -1;
+        const currentLevel = currentCredName ? (credLevel.get(currentCredName.toLowerCase()) ?? -1) : -1;
+        const parentLevel  = parentCredName  ? (credLevel.get(parentCredName.toLowerCase())  ?? -1) : -1;
 
         let parentPromoted;
         if (parentCredName && currentCredName && parentCredName === currentCredName) {
@@ -694,7 +694,7 @@ async function main() {
     // pipeline step's Org__c record may be different objects pointing to the same environment.
     const srcEnvName = story.copado__Org_Credential__r?.Name ?? null;
     const dstEnvName = srcEnvName
-      ? (pipelineEdges.find(e => e.from === srcEnvName)?.to ?? null)
+      ? (pipelineEdges.find(e => e.from === srcEnvName.toLowerCase())?.to ?? null)
       : null;
     emit({ type: 'debug', message: `env ${story.Name}: credName=${srcEnvName} → dst=${dstEnvName ?? 'NOT FOUND'}` });
 
