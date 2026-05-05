@@ -745,6 +745,26 @@ async function main() {
       const promo = promoRes.records[0];
       emit({ type: 'debug', message: `promo ${story.Name}: latest = ${promo ? `${promo.Name} | status=${promo.copado__Status__c} | created=${promo.CreatedDate}` : 'none'}` });
       const promoStatus = promo?.copado__Status__c;
+      // Always check for a live (Queued or In Progress) SFDX JE — irrespective of promotion status.
+      // A live JE is the authoritative current state and takes priority over copado__Status__c.
+      let liveJe = null;
+      if (promo) {
+        try {
+          const liveJeRes = await conn.query(
+            `SELECT Id, copado__Status__c, CreatedDate FROM copado__JobExecution__c ` +
+            `WHERE copado__Promotion__c = '${promo.Id}' ` +
+            `AND copado__Status__c IN ('Queued', 'In Progress') ` +
+            `AND copado__Template__r.Name IN ('SFDX Promote', 'SFDX Deploy') ` +
+            `ORDER BY CreatedDate DESC LIMIT 1`
+          );
+          liveJe = liveJeRes.records[0] ?? null;
+          emit({ type: 'debug', message: `${story.Name}: live JE for ${promo?.Name} = ${liveJe ? liveJe.copado__Status__c : 'none'}` });
+        } catch { /* non-fatal */ }
+      }
+
+      if (liveJe) {
+        lastPromoWarning = { status: 'In Progress', name: promo.Name, id: promo.Id, createdDate: liveJe.CreatedDate, jeStatus: liveJe.copado__Status__c };
+      } else {
       const warningStatuses = ['Completed with errors', 'Merge Conflict', 'Conflicts Resolved', 'In Progress'];
       if (promo && warningStatuses.includes(promoStatus)) {
         // Stale promotion check: if a new commit was registered AFTER the promotion was last modified,
@@ -755,18 +775,7 @@ async function main() {
           emit({ type: 'debug', message: `promo ${story.Name}: stale — commitDate=${latestCommitDate} > promoLastMod=${promo.LastModifiedDate}, ignoring ${promo.Name}` });
 
         } else if (promoStatus === 'In Progress') {
-          let jeStatus = null;
-          try {
-            const jeStatusRes = await conn.query(
-              `SELECT copado__Status__c FROM copado__JobExecution__c ` +
-              `WHERE copado__Promotion__c = '${promo.Id}' ` +
-              `AND copado__Template__r.Name IN ('SFDX Promote', 'SFDX Deploy') ` +
-              `ORDER BY CreatedDate DESC LIMIT 1`
-            );
-            jeStatus = jeStatusRes.records[0]?.copado__Status__c ?? null;
-            emit({ type: 'debug', message: `${story.Name}: In Progress promo ${promo.Name} — JE status=${jeStatus ?? 'not found'}` });
-          } catch { /* non-fatal */ }
-          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, createdDate: promo.LastModifiedDate, jeStatus };
+          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, createdDate: promo.LastModifiedDate, jeStatus: null };
 
         } else if (promoStatus === 'Merge Conflict') {
           // 1. Find culprit story from job execution error message.
@@ -872,27 +881,7 @@ async function main() {
           }
         }
       }
-
-      // Secondary check: promotion status may stay 'Draft' while Copado runs an SFDX Promote/Deploy
-      // job execution. Query the latest promotion's job executions to catch this case.
-      if (!lastPromoWarning && promo && promo.copado__Status__c === 'Draft') {
-        try {
-          const jeRes = await conn.query(
-            `SELECT Id, CreatedDate FROM copado__JobExecution__c ` +
-            `WHERE copado__Promotion__c = '${promo.Id}' ` +
-            `AND copado__Status__c = 'In Progress' ` +
-            `AND copado__Template__r.Name IN ('SFDX Promote', 'SFDX Deploy') ` +
-            `ORDER BY CreatedDate DESC LIMIT 1`
-          );
-          const je = jeRes.records[0];
-          if (je) {
-            emit({ type: 'debug', message: `${story.Name}: Draft promo ${promo.Name} has active SFDX job (${je.Id}) — treating as In Progress` });
-            lastPromoWarning = { status: 'In Progress', name: promo.Name, id: promo.Id, createdDate: je.CreatedDate, jeStatus: je.copado__Status__c };
-          }
-        } catch (jeErr) {
-          emit({ type: 'debug', message: `JE In Progress check failed (non-fatal): ${jeErr}` });
-        }
-      }
+      } // closes else { (no live SFDX JE)
     } catch (promoErr) { emit({ type: 'debug', message: `promo ERROR ${story.Name}: ${promoErr}` }); }
 
     // Refined verdict — copado auto-commits (sourceApiVersion bumps) are always exempt
