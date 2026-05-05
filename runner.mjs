@@ -774,17 +774,19 @@ async function main() {
       let liveJe = null;
       if (promo) {
         try {
-          // Query any active JE for this promotion — no template filter to avoid
-          // SOQL relationship filter issues with copado__Template__r.Name.
+          // copado__JobTemplate__c is a lookup — traverse via copado__JobTemplate__r.Name (not copado__Template__r).
           const liveJeRes = await conn.query(
-            `SELECT Id, copado__Status__c, CreatedDate FROM copado__JobExecution__c ` +
+            `SELECT Id, copado__Status__c, CreatedDate, copado__JobTemplate__r.Name FROM copado__JobExecution__c ` +
             `WHERE copado__Promotion__c = '${promo.Id}' ` +
             `AND copado__Status__c IN ('Queued', 'In Progress') ` +
+            `AND copado__JobTemplate__r.Name IN ('SFDX Promote', 'SFDX Deploy') ` +
             `ORDER BY CreatedDate DESC LIMIT 1`
           );
           liveJe = liveJeRes.records[0] ?? null;
-          emit({ type: 'debug', message: `${story.Name}: live JE for ${promo?.Name} = ${liveJe ? liveJe.copado__Status__c : 'none'}` });
-        } catch { /* non-fatal */ }
+          emit({ type: 'debug', message: `${story.Name}: live JE for ${promo?.Name} = ${liveJe ? liveJe.copado__Status__c + ' (' + (liveJe.copado__JobTemplate__r?.Name ?? '?') + ')' : 'none'}` });
+        } catch (jeErr) {
+          emit({ type: 'debug', message: `${story.Name}: liveJe query error: ${jeErr.message}` });
+        }
       }
 
       if (liveJe) {
