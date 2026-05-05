@@ -358,6 +358,30 @@ async function main() {
           } else {
             const jobExecId = result0?.outputValues?.jobExecution?.Id ?? null;
             emit({ type: 'merge-deploy-started', promotionId: pid, jobExecutionId: jobExecId });
+
+            // Update promotion status to 'In Progress' once Copado creates the queued JE.
+            // JE creation is async — retry up to 3x with 2s gap before giving up (non-fatal).
+            try {
+              let jeFound = false;
+              for (let attempt = 0; attempt < 3 && !jeFound; attempt++) {
+                if (attempt > 0) await new Promise(r => setTimeout(r, 2000));
+                const jeCheck = await conn.query(
+                  `SELECT Id FROM copado__JobExecution__c ` +
+                  `WHERE copado__Promotion__c = '${pid}' ` +
+                  `AND copado__Status__c = 'Queued' ` +
+                  `AND copado__Template__r.Name IN ('SFDX Promote', 'SFDX Deploy') ` +
+                  `LIMIT 1`
+                );
+                if (jeCheck.records.length > 0) {
+                  jeFound = true;
+                  await conn.sobject('copado__Promotion__c').update({ Id: pid, copado__Status__c: 'In Progress' });
+                  emit({ type: 'debug', message: `Promotion ${pid}: status set to In Progress (JE confirmed queued)` });
+                }
+              }
+              if (!jeFound) emit({ type: 'debug', message: `Promotion ${pid}: no queued JE found after 3 attempts — status not updated` });
+            } catch (statusErr) {
+              emit({ type: 'debug', message: `Promotion ${pid}: status update failed (non-fatal): ${statusErr}` });
+            }
           }
         } catch (err) {
           emit({ type: 'merge-deploy-error', promotionId: pid, error: parseCopadoError(err) });
