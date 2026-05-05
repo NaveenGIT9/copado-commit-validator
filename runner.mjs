@@ -804,7 +804,10 @@ async function main() {
       if (liveJe) {
         lastPromoWarning = { status: 'In Progress', name: promo.Name, id: promo.Id, createdDate: liveJe.CreatedDate, jeStatus: liveJe.copado__Status__c };
       } else {
-      const warningStatuses = ['Completed with errors', 'Merge Conflict', 'Conflicts Resolved', 'In Progress'];
+      // 'In Progress' is handled exclusively via the liveJe block above (JE status is authoritative).
+      // Promotion copado__Status__c = 'In Progress' was set by us after PromoteAction — not reliable
+      // as a standalone signal because the JE may have already completed by the time verify runs.
+      const warningStatuses = ['Completed with errors', 'Merge Conflict', 'Conflicts Resolved'];
       if (promo && warningStatuses.includes(promoStatus)) {
         // Stale promotion check: if a new commit was registered AFTER the promotion was last modified,
         // the promotion is no longer relevant — ignore it entirely, lastPromoWarning stays null.
@@ -812,9 +815,6 @@ async function main() {
         const isStalePromo = latestCommitDate && new Date(latestCommitDate) > new Date(promo.LastModifiedDate);
         if (isStalePromo) {
           emit({ type: 'debug', message: `promo ${story.Name}: stale — commitDate=${latestCommitDate} > promoLastMod=${promo.LastModifiedDate}, ignoring ${promo.Name}` });
-
-        } else if (promoStatus === 'In Progress') {
-          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, createdDate: promo.LastModifiedDate, jeStatus: null };
 
         } else if (promoStatus === 'Merge Conflict') {
           // 1. Find culprit story from job execution error message.
