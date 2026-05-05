@@ -774,25 +774,37 @@ async function main() {
       let liveJe = null;
       if (promo) {
         try {
-          // copado__Template__c is the lookup field — traversal is copado__Template__r.Name.
-          const liveJeRes = await conn.query(
-            `SELECT Id, copado__Status__c, CreatedDate, copado__Template__r.Name FROM copado__JobExecution__c ` +
-            `WHERE copado__Promotion__c = '${promo.Id}' ` +
-            `AND copado__Status__c IN ('Queued', 'In Progress') ` +
-            `AND copado__Template__r.Name IN ('SFDX Promote', 'SFDX Deploy') ` +
-            `ORDER BY CreatedDate DESC LIMIT 1`
-          );
-          liveJe = liveJeRes.records[0] ?? null;
-          if (!liveJe) {
-            // Diagnostic: dump ALL JEs for this promotion so we can see what names/statuses exist.
-            const allJeRes = await conn.query(
-              `SELECT Id, copado__Status__c, copado__Template__r.Name, CreatedDate FROM copado__JobExecution__c ` +
-              `WHERE copado__Promotion__c = '${promo.Id}' ORDER BY CreatedDate DESC LIMIT 5`
+          // SFDX Promote JE links directly via copado__Promotion__c.
+          // SFDX Deploy JE links via a Deployment record — use copado__Deployment__r.copado__Promotion__c.
+          // Check Deploy first (it runs after Promote, so if it exists Promote is already done).
+          let deployJe = null;
+          try {
+            const deployRes = await conn.query(
+              `SELECT Id, copado__Status__c, CreatedDate, copado__Template__r.Name FROM copado__JobExecution__c ` +
+              `WHERE copado__Deployment__r.copado__Promotion__c = '${promo.Id}' ` +
+              `AND copado__Status__c IN ('Queued', 'In Progress') ` +
+              `AND copado__Template__r.Name = 'SFDX Deploy' ` +
+              `ORDER BY CreatedDate DESC LIMIT 1`
             );
-            emit({ type: 'debug', message: `${story.Name}: all JEs for ${promo?.Name} (${allJeRes.totalSize}): ` +
-              (allJeRes.records.map(r => `${r.copado__Status__c}/${r.copado__Template__r?.Name ?? 'noTemplate'}`).join(', ') || 'NONE') });
+            deployJe = deployRes.records[0] ?? null;
+          } catch (e) {
+            emit({ type: 'debug', message: `${story.Name}: deployJe query error: ${e.message}` });
           }
-          emit({ type: 'debug', message: `${story.Name}: live JE for ${promo?.Name} = ${liveJe ? liveJe.copado__Status__c + ' (' + (liveJe.copado__Template__r?.Name ?? '?') + ')' : 'none'}` });
+
+          let promoteJe = null;
+          if (!deployJe) {
+            const promoteRes = await conn.query(
+              `SELECT Id, copado__Status__c, CreatedDate, copado__Template__r.Name FROM copado__JobExecution__c ` +
+              `WHERE copado__Promotion__c = '${promo.Id}' ` +
+              `AND copado__Status__c IN ('Queued', 'In Progress') ` +
+              `AND copado__Template__r.Name = 'SFDX Promote' ` +
+              `ORDER BY CreatedDate DESC LIMIT 1`
+            );
+            promoteJe = promoteRes.records[0] ?? null;
+          }
+
+          liveJe = deployJe ?? promoteJe ?? null;
+          emit({ type: 'debug', message: `${story.Name}: live JE for ${promo?.Name} → deploy:${deployJe?.copado__Status__c ?? 'none'} promote:${promoteJe?.copado__Status__c ?? 'none'} using:${liveJe?.copado__Status__c ?? 'none'}` });
         } catch (jeErr) {
           emit({ type: 'debug', message: `${story.Name}: liveJe query error: ${jeErr.message}` });
         }
