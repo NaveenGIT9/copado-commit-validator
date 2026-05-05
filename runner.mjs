@@ -774,30 +774,16 @@ async function main() {
       let liveJe = null;
       if (promo) {
         try {
-          // Two separate queries — WHERE filter on template name is reliable;
-          // reading copado__Template__r.Name from SELECT results is not.
-          // Prefer SFDX Deploy (final step) — it can be Queued while Promote is still In Progress.
-          const deployJeRes = await conn.query(
+          // Query any active JE for this promotion — no template filter to avoid
+          // SOQL relationship filter issues with copado__Template__r.Name.
+          const liveJeRes = await conn.query(
             `SELECT Id, copado__Status__c, CreatedDate FROM copado__JobExecution__c ` +
             `WHERE copado__Promotion__c = '${promo.Id}' ` +
             `AND copado__Status__c IN ('Queued', 'In Progress') ` +
-            `AND copado__Template__r.Name = 'SFDX Deploy' ` +
             `ORDER BY CreatedDate DESC LIMIT 1`
           );
-          const deployJe = deployJeRes.records[0] ?? null;
-          let promoteJe  = null;
-          if (!deployJe) {
-            const promoteJeRes = await conn.query(
-              `SELECT Id, copado__Status__c, CreatedDate FROM copado__JobExecution__c ` +
-              `WHERE copado__Promotion__c = '${promo.Id}' ` +
-              `AND copado__Status__c IN ('Queued', 'In Progress') ` +
-              `AND copado__Template__r.Name = 'SFDX Promote' ` +
-              `ORDER BY CreatedDate DESC LIMIT 1`
-            );
-            promoteJe = promoteJeRes.records[0] ?? null;
-          }
-          liveJe = deployJe ?? promoteJe ?? null;
-          emit({ type: 'debug', message: `${story.Name}: live JE for ${promo?.Name} → deploy:${deployJe?.copado__Status__c ?? 'none'} promote:${promoteJe?.copado__Status__c ?? 'none'} using:${liveJe?.copado__Status__c ?? 'none'}` });
+          liveJe = liveJeRes.records[0] ?? null;
+          emit({ type: 'debug', message: `${story.Name}: live JE for ${promo?.Name} = ${liveJe ? liveJe.copado__Status__c : 'none'}` });
         } catch { /* non-fatal */ }
       }
 
