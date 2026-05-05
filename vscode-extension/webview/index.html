@@ -337,11 +337,30 @@ function updatePromoteList() {
   if (!el) return;
   const active = cleanStories.filter(s => !s.skipped);
   if (active.length === 0) { el.textContent = ''; return; }
+
+  // Group by projectId preserving order of first appearance
+  const groupOrder = [];
+  const groups = {};
+  for (const s of active) {
+    if (!groups[s.projectId]) {
+      groups[s.projectId] = { name: s.projectName || s.projectId, stories: [] };
+      groupOrder.push(s.projectId);
+    }
+    groups[s.projectId].stories.push(s);
+  }
+
   const maxLen = Math.max(...active.map(s => s.name.length));
-  el.innerHTML = active.map(s => {
-    const namePadded = s.name.padEnd(maxLen);
-    const dev = s.developer ? `    -     ${s.developer}` : '';
-    return `<div style="padding:1px 0;font-family:monospace;font-size:11px;white-space:pre">${namePadded}${dev}</div>`;
+  el.innerHTML = groupOrder.map(pid => {
+    const g = groups[pid];
+    const storiesHtml = g.stories.map(s => {
+      const namePadded = s.name.padEnd(maxLen);
+      const dev = s.developer ? `    ·    ${s.developer}` : '';
+      return `<div style="padding:1px 0 1px 10px;font-family:monospace;font-size:11px;white-space:pre;color:#7fc9e0">${namePadded}${dev}</div>`;
+    }).join('');
+    return `<div style="margin-bottom:8px">
+      <div style="font-size:10px;font-weight:700;color:#1ab8e8;text-transform:uppercase;letter-spacing:0.6px;padding:2px 0;border-bottom:1px solid rgba(26,184,232,0.15);margin-bottom:3px">${g.name}</div>
+      ${storiesHtml}
+    </div>`;
   }).join('');
 }
 
@@ -954,6 +973,7 @@ window.addEventListener('message', (event) => {
         const entry = {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,
+          projectName: msg.projectName ?? '',
           // Innocent Merge Conflict always separate. CR multi-story defaults unchecked (re-trigger).
           separate: isInnocentConflict,
           skipped: false,
