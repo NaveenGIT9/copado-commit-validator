@@ -5,6 +5,7 @@
   "version": "2.0.0",
   "publisher": "NaveenBonthu9",
   "engines": { "vscode": "^1.85.0" },
+  "icon": "media/copado-logo.png",
   "categories": ["Other"],
   "activationEvents": [],
   "main": "./dist/extension.js",

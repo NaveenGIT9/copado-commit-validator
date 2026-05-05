@@ -39,6 +39,7 @@ export class PromoterPanel {
       vscode.ViewColumn.One,
       { enableScripts: true, retainContextWhenHidden: true }
     );
+    panel.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'copado-logo.png');
     PromoterPanel.currentPanel = new PromoterPanel(panel, extensionUri, context);
   }
 

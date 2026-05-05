@@ -757,7 +757,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
            <input type="checkbox" class="separate-promo-cb" data-story="${storyName}"
              style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer" />
            <span style="font-size:8px;color:${lastPromoWarning?.resolutionsStale ? '#f87171' : '#5a8a9f'};text-align:center;max-width:90px;white-space:normal;line-height:1.2">
-             ${lastPromoWarning?.resolutionsStale ? '[resolutions stale — not copied]' : '[resolution attachments will be copied]'}
+             ${lastPromoWarning?.resolutionsStale ? '[resolutions stale — not copied]' : '[resolution attachments will be copied for this US if any]'}
            </span>
          </label>
          <div data-cr-sibling-note style="display:none;font-size:8px;color:#f97316;margin-top:4px;max-width:110px;white-space:normal;line-height:1.3;text-align:center"></div>
@@ -918,11 +918,18 @@ window.addEventListener('message', (event) => {
     let lastPromoWarningForRow = msg.lastPromoWarning ?? null;
     if (lastPromoWarningForRow?.status === 'Conflicts Resolved'
         && (lastPromoWarningForRow.siblingStories?.length ?? 0) > 0) {
-      const lcd = msg.latestCommitDate;
+      const lcd  = msg.latestCommitDate ?? null;
+      const lucd = msg.latestUnregisteredCommitDate ?? null;
+      // Use the later of Copado-registered commit date and the latest unregistered commit's date.
+      // lucd catches commits pushed to git but missed by Copado — those make resolutions stale too.
+      const effectiveLcd = (!lcd && !lucd) ? null
+        : !lcd  ? lucd
+        : !lucd ? lcd
+        : new Date(lcd) >= new Date(lucd) ? lcd : lucd;
       const pmd = lastPromoWarningForRow.lastModifiedDate;
       lastPromoWarningForRow = {
         ...lastPromoWarningForRow,
-        resolutionsStale: !lcd || !pmd || new Date(lcd) >= new Date(pmd),
+        resolutionsStale: !effectiveLcd || !pmd || new Date(effectiveLcd) >= new Date(pmd),
       };
     }
     const html = buildRowHtml(
@@ -962,9 +969,16 @@ window.addEventListener('message', (event) => {
           entry.retriggerPromotionName = msg.lastPromoWarning.name;
           entry.siblingStories         = msg.lastPromoWarning.siblingStories ?? [];
           if ((msg.lastPromoWarning.siblingStories?.length ?? 0) > 0) {
-            // Always set so attachment copy is available whether or not all siblings are verified
+            // Always set so attachment copy is available whether or not all siblings are verified.
+            // Use max of Copado-registered and git branch commit date for the stale guard in runner.
+            const _lcd  = msg.latestCommitDate ?? null;
+            const _lucd = msg.latestUnregisteredCommitDate ?? null;
+            const _eff  = (!_lcd && !_lucd) ? null
+              : !_lcd  ? _lucd
+              : !_lucd ? _lcd
+              : new Date(_lcd) >= new Date(_lucd) ? _lcd : _lucd;
             entry.conflictResolvedSourcePromoId = msg.lastPromoWarning.id;
-            entry.latestCommitDate              = msg.latestCommitDate ?? null;
+            entry.latestCommitDate              = _eff;
             entry.promoLastModifiedDate         = msg.lastPromoWarning.lastModifiedDate ?? null;
           }
         }
@@ -1031,23 +1045,29 @@ window.addEventListener('message', (event) => {
       // If any are not safe to re-trigger with, default to separate promo and warn on each row.
       const groupNames         = new Set(group.map(s => s.name.toUpperCase()));
       const eligibleStoryNames = new Set(cleanStories.map(s => s.name.toUpperCase()));
-      const allSiblings        = [...new Set(group.flatMap(s => s.siblingStories ?? []).map(n => n.toUpperCase()))];
-      const absentSiblings     = allSiblings.filter(n => !verifiedStoryNames.has(n) && !groupNames.has(n));
-      const ineligibleSiblings = allSiblings.filter(n => verifiedStoryNames.has(n) && !eligibleStoryNames.has(n));
+      // Build dedup map: upperName → { name, credential } from all sibling arrays in this group
+      const siblingMap = new Map();
+      for (const s of group) {
+        for (const sib of (s.siblingStories ?? [])) {
+          const key = sib.name.toUpperCase();
+          if (!siblingMap.has(key)) siblingMap.set(key, sib);
+        }
+      }
+      const absentSiblings     = [...siblingMap.values()].filter(sib =>
+        !verifiedStoryNames.has(sib.name.toUpperCase()) && !groupNames.has(sib.name.toUpperCase()));
+      const ineligibleSiblings = [...siblingMap.values()].filter(sib =>
+        verifiedStoryNames.has(sib.name.toUpperCase()) && !eligibleStoryNames.has(sib.name.toUpperCase()));
       if (absentSiblings.length > 0 || ineligibleSiblings.length > 0) {
-        const noteLines = [
-          ...absentSiblings.map(n =>
-            `<span style="color:#f87171;display:block">${n} missing from current list</span>`),
-          ...ineligibleSiblings.map(n =>
-            `<span style="color:#fbbf24;display:block">${n} in list but not eligible to promote</span>`),
-        ];
+        const fmt = sib => `${sib.name}${sib.credential ? ` (${sib.credential.toUpperCase()})` : ''}`;
+        const noteLines = [];
+        if (absentSiblings.length > 0)
+          noteLines.push(`<span style="color:#f87171;display:block">Missing from current list — ${absentSiblings.map(fmt).join(', ')}</span>`);
+        if (ineligibleSiblings.length > 0)
+          noteLines.push(`<span style="color:#fbbf24;display:block">In list, but not eligible to promote — ${ineligibleSiblings.map(fmt).join(', ')}</span>`);
         const noteHtml = noteLines.join('');
         for (const s of group) {
-          s.separate = true; // default to separate — re-trigger would pull problematic stories back in
           const row = document.getElementById('row-' + s.name.replace(/[^a-z0-9]/gi, '_'));
           if (!row) continue;
-          const cb = row.querySelector(`.separate-promo-cb[data-story="${s.name}"]`);
-          if (cb) cb.checked = true;
           const note = row.querySelector('[data-cr-sibling-note]');
           if (note) { note.innerHTML = noteHtml; note.style.display = ''; }
         }

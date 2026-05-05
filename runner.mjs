@@ -605,7 +605,11 @@ async function main() {
     const copadoSet    = new Set(copadoCommits);
     const unregistered = extraCommits.filter(h => !copadoSet.has(h));
 
-    // Deep analysis of each unregistered commit
+    // Deep analysis of each unregistered commit.
+    // Also track the latest committer date across all unregistered commits — used for the
+    // CR stale-resolution check (more accurate than copado__Latest_Commit_Date__c which
+    // only reflects Copado-registered commits; unregistered commits may be newer).
+    let latestUnregisteredCommitDate = null;
     const unregisteredDetail = [];
     for (const sha of unregistered) {
       let files = [];
@@ -614,11 +618,14 @@ async function main() {
         files = raw.split('\n').map(f => f.trim()).filter(Boolean);
       } catch { /* skip */ }
 
-      let authorEmail = '', authorName = '', committerEmail = '', committerName = '';
+      let authorEmail = '', authorName = '', committerEmail = '', committerName = '', commitDate = '';
       try {
-        const log = await git.raw(['log', '--format=%ae|%an|%ce|%cn', '-1', sha]);
-        [authorEmail, authorName, committerEmail, committerName] = log.trim().split('|');
+        const log = await git.raw(['log', '--format=%ae|%an|%ce|%cn|%cI', '-1', sha]);
+        [authorEmail, authorName, committerEmail, committerName, commitDate] = log.trim().split('|');
       } catch { /* skip */ }
+      if (commitDate && (!latestUnregisteredCommitDate || new Date(commitDate) > new Date(latestUnregisteredCommitDate))) {
+        latestUnregisteredCommitDate = commitDate;
+      }
       const isAmended = !!(authorEmail && committerEmail && authorEmail.toLowerCase() !== committerEmail.toLowerCase());
 
       let commitMessage = '';
@@ -814,13 +821,17 @@ async function main() {
             // whether all siblings are present in the current verify list (safe to re-trigger together)
             // or some are missing (fall back to separate new promotion).
             const sibRes = await conn.query(
-              `SELECT copado__User_Story__r.Name FROM copado__Promoted_User_Story__c ` +
+              `SELECT copado__User_Story__r.Name, copado__User_Story__r.copado__Org_Credential__r.Name ` +
+              `FROM copado__Promoted_User_Story__c ` +
               `WHERE copado__Promotion__c = '${promo.Id}'`
             );
             const siblingStories = sibRes.records
-              .map(r => r.copado__User_Story__r?.Name)
-              .filter(Boolean)
-              .filter(n => n.toUpperCase() !== story.Name.toUpperCase());
+              .map(r => ({
+                name:       r.copado__User_Story__r?.Name,
+                credential: r.copado__User_Story__r?.copado__Org_Credential__r?.Name ?? null,
+              }))
+              .filter(s => s.name)
+              .filter(s => s.name.toUpperCase() !== story.Name.toUpperCase());
             lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, siblingStories, lastModifiedDate: promo.LastModifiedDate };
           }
           // Multi-story 'Completed with errors': no warning — can't attribute to one story.
@@ -875,6 +886,7 @@ async function main() {
       hasApexCode: story.copado__Has_Apex_Code__c, hasDeploymentTasks,
       parentStory, promotionCount, lastPromoWarning,
       latestCommitDate: story.copado__Latest_Commit_Date__c ?? null,
+      latestUnregisteredCommitDate,
       srcEnvName, dstEnvName,
       verdict,
     });
