@@ -636,7 +636,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       const spinTop    = isQueued ? '#f59e0b' : '#10b981';
       const spinWidth  = isQueued ? '1.5px' : '2.5px';
       const label      = isQueued ? 'In Queue' : 'In Progress';
-      const weight     = isQueued ? '600' : '800';
+      const weight     = isQueued ? '600' : '400';
       notEligibleBadge =
         `<span style="display:inline-flex;align-items:center;gap:6px;background:#18181b;border:1px solid ${borderCol};border-radius:6px;padding:3px 10px;font-size:11px;white-space:nowrap;margin-top:4px">` +
         `<span style="width:10px;height:10px;border:${spinWidth} solid ${spinBorder};border-top-color:${spinTop};border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0;display:inline-block"></span>` +
