@@ -698,9 +698,9 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       }
       const lines = [`<span class="hash-list" style="color:#2a6a8a">${d.sha}</span>`];
       if (d.coveredComponents && d.coveredComponents.length > 0)
-        lines.push(`<span style="color:#e3b341;font-size:10px">In metadata: ${d.coveredComponents.join(', ')}</span>`);
+        lines.push(`<span style="color:#e3b341;font-size:10px">In metadata:<br>${d.coveredComponents.join('<br>')}</span>`);
       if (d.uncoveredComponents && d.uncoveredComponents.length > 0)
-        lines.push(`<span style="color:#f85149;font-size:10px">Not in metadata: ${d.uncoveredComponents.join(', ')}</span>`);
+        lines.push(`<span style="color:#f85149;font-size:10px">Not in metadata:<br>${d.uncoveredComponents.join('<br>')}</span>`);
       if (d.authorMismatch)
         lines.push(`<span style="color:#f85149;font-size:10px">⚠ Different author: ${d.authorName || d.authorEmail}</span>`);
       if (d.isAmended)
