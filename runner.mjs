@@ -550,6 +550,23 @@ async function main() {
       continue;
     }
 
+    // Fetch non-Complete commit records for this story (e.g. 'Commit not in branch').
+    // If an unregistered branch commit matches one of these SHAs the developer pushed
+    // old commits back to the branch that were never properly registered — must block.
+    let nonCompleteCommitShas = new Set();
+    try {
+      const ncRes = await conn.query(
+        `SELECT copado__Snapshot_Commit__r.copado__Commit_Id__c FROM copado__User_Story_Commit__c ` +
+        `WHERE copado__User_Story__c = '${story.Id}' AND copado__Status__c != 'Complete'`
+      );
+      for (const r of ncRes.records) {
+        const sha = r.copado__Snapshot_Commit__r?.copado__Commit_Id__c?.trim().toLowerCase();
+        if (sha) nonCompleteCommitShas.add(sha);
+      }
+      if (nonCompleteCommitShas.size > 0)
+        emit({ type: 'debug', message: `${story.Name}: ${nonCompleteCommitShas.size} non-Complete commit SHA(s) found` });
+    } catch { /* non-fatal */ }
+
     // Fetch story metadata component names (for coverage check)
     let storyMetadataNames = new Set();
     try {
@@ -666,9 +683,16 @@ async function main() {
       const uncoveredComponents = components.filter(c => !storyMetadataNames.has(c.toLowerCase()));
       const authorMismatch      = authorEmail ? !storyAuthorEmails.has(authorEmail.toLowerCase()) : false;
 
+      // Check if this unregistered SHA matches a Copado commit record with non-Complete status.
+      // Copado may store abbreviated SHAs — compare both directions.
+      const shaLower = sha.toLowerCase();
+      const commitNotInBranch = nonCompleteCommitShas.size > 0 && [...nonCompleteCommitShas].some(
+        nc => shaLower.startsWith(nc) || nc.startsWith(shaLower)
+      );
+
       unregisteredDetail.push({
         sha: sha.substring(0, 10), authorName, authorEmail, committerName, isAmended, commitMessage,
-        components, coveredComponents, uncoveredComponents, authorMismatch, copadoAuto,
+        components, coveredComponents, uncoveredComponents, authorMismatch, copadoAuto, commitNotInBranch,
       });
     }
 
@@ -888,10 +912,14 @@ async function main() {
     const effectiveUnregistered = unregisteredDetail.filter(d => !d.copadoAuto);
     const allCovered    = effectiveUnregistered.length === 0 || effectiveUnregistered.every(d => d.uncoveredComponents.length === 0);
     const allSameAuthor = effectiveUnregistered.every(d => !d.authorMismatch);
+    // Block if any unregistered commit matches a Copado record with non-Complete status —
+    // developer pushed old commits back to the branch that were never properly registered.
+    const hasCommitNotInBranch = unregisteredDetail.some(d => d.commitNotInBranch);
 
     const verdict = extraCommits.length === 0        ? 'skip-no-commits'
       : unregistered.length === 0                    ? 'clean'
       : effectiveUnregistered.length === 0           ? 'clean'
+      : hasCommitNotInBranch                         ? 'skip-unregistered'
       : !allCovered                                  ? 'skip-unregistered'
       : !allSameAuthor                               ? 'skip-needs-verify'
       : 'skip-covered-same-author';
