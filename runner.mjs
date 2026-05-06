@@ -763,7 +763,7 @@ async function main() {
         `SELECT Id, Name, copado__Status__c, CreatedDate, LastModifiedDate ` +
         `FROM copado__Promotion__c ` +
         `WHERE Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}') ` +
-        `AND copado__Source_Org_Credential__c = '${story.copado__Org_Credential__c}' ` +
+        `AND copado__Source_Org_Credential__r.Name = '${story.copado__Org_Credential__r.Name}' ` +
         `ORDER BY CreatedDate DESC LIMIT 1`;
       const promoRes = await conn.query(soql);
       const promo = promoRes.records[0];
