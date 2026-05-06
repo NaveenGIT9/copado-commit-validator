@@ -784,13 +784,27 @@ async function main() {
           );
           liveJe = liveJeRes.records[0] ?? null;
           if (!liveJe) {
-            // Dump ALL JEs for this promotion regardless of status — to verify ID linkage.
+            // Dump all JEs linked to this promotion (any status) — verify the ID linkage is correct.
             const allJeRes = await conn.query(
               `SELECT Id, Name, copado__Status__c, copado__Template__r.Name FROM copado__JobExecution__c ` +
               `WHERE copado__Promotion__c = '${promo.Id}' ORDER BY CreatedDate DESC LIMIT 5`
             );
-            emit({ type: 'debug', message: `${story.Name}: all JEs for ${promo.Name} (${allJeRes.totalSize}): ` +
+            emit({ type: 'debug', message: `${story.Name}: all JEs via copado__Promotion__c (${allJeRes.totalSize}): ` +
               (allJeRes.records.map(r => `${r.Name}/${r.copado__Status__c}/${r.copado__Template__r?.Name ?? '?'}`).join(', ') || 'NONE') });
+
+            // Also query any active SFDX Deploy JEs org-wide and show their copado__Promotion__c value.
+            // This tells us what field value the Deploy JE actually carries vs what we expect.
+            try {
+              const deployOrgRes = await conn.query(
+                `SELECT Id, Name, copado__Status__c, copado__Promotion__c, copado__Template__r.Name FROM copado__JobExecution__c ` +
+                `WHERE copado__Template__r.Name = 'SFDX Deploy' AND copado__Status__c IN ('Queued', 'In Progress') ` +
+                `ORDER BY CreatedDate DESC LIMIT 3`
+              );
+              emit({ type: 'debug', message: `${story.Name}: active SFDX Deploy JEs org-wide (${deployOrgRes.totalSize}): ` +
+                (deployOrgRes.records.map(r => `${r.Name} promoField=${r.copado__Promotion__c ?? 'null'}`).join(', ') || 'NONE') });
+            } catch (e2) {
+              emit({ type: 'debug', message: `${story.Name}: org-wide deploy JE query error: ${e2.message}` });
+            }
           }
           emit({ type: 'debug', message: `${story.Name}: live JE = ${liveJe ? liveJe.Name + ' ' + liveJe.copado__Status__c + ' (' + (liveJe.copado__Template__r?.Name ?? '?') + ')' : 'none'}` });
         } catch (jeErr) {
