@@ -575,7 +575,7 @@ function upsertRow(storyName, branch, copadoCommits, extraCommits, unregisteredD
   row.innerHTML = html;
 }
 
-function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null) {
+function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null, stalePromoInfo = null, baseBranch = null) {
   const failedTests      = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
   const hasApexTest      = (tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || '') || /apex/i.test(t.name || ''));
   const noApexTestClass  = hasApexCode && !hasApexTest;
@@ -593,6 +593,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   const isCRMultiStory       = isConflictsResolved && (lastPromoWarning?.siblingStories?.length ?? 0) > 0;
   const isValidatedPromo     = lastPromoWarning?.status === 'Validated';
   const isValidatedMultiStory = isValidatedPromo && (lastPromoWarning?.siblingStories?.length ?? 0) > 0;
+  const isFailedPromo        = lastPromoWarning?.status === 'Completed with errors' || lastPromoWarning?.status === 'Validation failed';
 
   const LBL  = 'color:#5a8a9f;font-size:10px;white-space:nowrap;flex-shrink:0';
   const ROW  = 'display:flex;align-items:baseline;gap:5px;margin-top:2px';
@@ -613,6 +614,12 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       : `<span class="tag tag-error" style="font-size:11px">✗ No</span>`;
 
     const rows = [];
+    if (baseBranch) {
+      const parentCred = parentStory?.credential
+        ? `<span style="color:#7dd3fc;font-size:10px"> · ${parentStory.credential}</span>`
+        : '';
+      rows.push(kv('Base branch:', `<span style="color:#fbbf24;font-size:10px">${baseBranch}</span>${parentCred}`));
+    }
     if (parentBlocked) {
       rows.push(kv('Parent:', `<span style="${ERR}">⛔ ${parentStory.name} not yet deployed</span>`));
     }
@@ -646,6 +653,32 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         badgeSpan = `<span style="color:#f59e0b;font-size:11px">⚠ Conflicts resolved — re-initiate promotion</span>`;
       }
       rows.push(kv('Last promo:', `${badgeSpan}<br><span style="color:#94a3b8;font-size:10px">${name}</span>`));
+      const sibs = lastPromoWarning.siblingStories ?? [];
+      if (sibs.length > 0) {
+        const sibLines = sibs.map(s => {
+          const inList   = verifiedStoryNames.has((s.name ?? '').toUpperCase());
+          const eligible = inList && cleanStories.some(c => c.name.toUpperCase() === (s.name ?? '').toUpperCase());
+          const statusTag = inList
+            ? (eligible
+                ? `<span style="color:#34d399;font-size:9px;font-weight:600;margin-left:8px">● eligible</span>`
+                : `<span style="color:#f87171;font-size:9px;font-weight:600;margin-left:8px">● not eligible</span>`)
+            : `<span style="color:#475569;font-size:9px;margin-left:8px">● not in list</span>`;
+          return `<div style="margin-top:4px;display:flex;align-items:baseline;gap:0;flex-wrap:wrap">` +
+            `<span style="color:#f8fafc;font-size:11px;font-weight:600">${s.name ?? ''}</span>` +
+            (s.credential ? `<span style="color:#7dd3fc;font-size:10px"> · ${s.credential}</span>` : '') +
+            (s.developer  ? `<span style="color:#94a3b8;font-size:10px"> · ${s.developer}</span>`  : '') +
+            statusTag +
+            `</div>`;
+        }).join('');
+        rows.push(`<div style="margin-top:6px;padding:8px 12px;background:rgba(217,119,6,0.07);border-left:2px solid #b45309;border-radius:0 4px 4px 0">` +
+          `<div style="color:#d97706;font-size:10px;font-weight:700;letter-spacing:0.4px;margin-bottom:2px">Also in promotion — ${name}</div>` +
+          sibLines +
+          `</div>`);
+      }
+    }
+    if (stalePromoInfo) {
+      const { status: staleStatus, name: staleName } = stalePromoInfo;
+      rows.push(kv('Last promo:', `<span style="color:#34d399;font-size:11px">✓ Fix committed after last ${staleStatus}</span><br><span style="color:#94a3b8;font-size:10px">${staleName}</span>`));
     }
 
     // Not-eligible badge: culprit Merge Conflict or In Progress
@@ -755,7 +788,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 
   // A story is "will be promoted" only if it passes the same gate as the cleanStories eligibility check:
   // no warning, OR Conflicts Resolved, OR innocent Merge Conflict. Only these get interactive checkboxes.
-  const willBePromoted = isPromotable && (!lastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo);
+  const willBePromoted = isPromotable && (!lastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo || isFailedPromo);
 
   // Skip: only for stories that will actually be promoted
   const showSkip = willBePromoted;
@@ -965,7 +998,7 @@ window.addEventListener('message', (event) => {
       msg.unregisteredDetail, msg.verdict, msg.storyCommittedBy, msg.extraCommittedBy,
       msg.tests, prBlocked, msg.hasApexCode, msg.hasDeploymentTasks ?? false,
       msg.parentStory ?? null, msg.promotionCount ?? 0, lastPromoWarningForRow,
-      msg.srcEnvName ?? null, msg.dstEnvName ?? null
+      msg.srcEnvName ?? null, msg.dstEnvName ?? null, msg.stalePromoInfo ?? null, msg.baseBranch ?? null
     );
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
@@ -975,6 +1008,7 @@ window.addEventListener('message', (event) => {
     const isLastPromoWarning  = !!msg.lastPromoWarning;
     const isConflictsResolved = msg.lastPromoWarning?.status === 'Conflicts Resolved';
     const isValidatedPromo    = msg.lastPromoWarning?.status === 'Validated';
+    const isFailedPromo       = msg.lastPromoWarning?.status === 'Completed with errors' || msg.lastPromoWarning?.status === 'Validation failed';
     // Innocent Merge Conflict: another story caused the conflict; current story still eligible but needs separate promo.
     const isInnocentConflict  = msg.lastPromoWarning?.status === 'Merge Conflict'
                                 && msg.lastPromoWarning?.isConflictOnCurrentStory === false;
@@ -984,7 +1018,7 @@ window.addEventListener('message', (event) => {
         && failedTests.length === 0 && !(noCommits ? false : prBlocked) && !(noCommits ? false : noApexTestClass) && !parentBlocked;
 
     if (isEligible) {
-      if (!isLastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo) {
+      if (!isLastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo || isFailedPromo) {
         const entry = {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,

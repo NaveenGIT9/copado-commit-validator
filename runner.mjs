@@ -402,7 +402,7 @@ async function main() {
   let stories = [];
   try {
     const result = await conn.query(
-      `SELECT Id, Name, copado__Org_Credential__c, copado__Org_Credential__r.Name, copado__Latest_Commit_Date__c, copado__Project__c, copado__Project__r.Name, copado__Status__c, copado__Pull_Requests_Approved__c, copado__Has_Apex_Code__c, copado__Developer__r.Name ` +
+      `SELECT Id, Name, copado__Org_Credential__c, copado__Org_Credential__r.Name, copado__Latest_Commit_Date__c, copado__Project__c, copado__Project__r.Name, copado__Status__c, copado__Pull_Requests_Approved__c, copado__Has_Apex_Code__c, copado__Developer__r.Name, copado__Base_Branch__c ` +
       `FROM copado__User_Story__c WHERE Name IN (${nameList})`
     );
     stories = result.records;
@@ -615,12 +615,22 @@ async function main() {
       } catch { /* skip */ }
     }
 
-    // Get all commits on feature branch ahead of master
+    // Get all commits on feature branch ahead of the story's base branch (falls back to master).
+    const storyBaseBranch = (story.copado__Base_Branch__c ?? '').trim();
+    const diffBase        = storyBaseBranch ? `origin/${storyBaseBranch}` : 'origin/master';
     let extraCommits = [];
     try {
-      const raw = await git.raw(['log', '--format=%H', `origin/master..${remoteBranch}`]);
+      const raw = await git.raw(['log', '--format=%H', `${diffBase}..${remoteBranch}`]);
       extraCommits = raw.split('\n').map(h => h.trim()).filter(Boolean);
     } catch {
+      if (diffBase !== 'origin/master') {
+        // Base branch may not exist on remote — fall back to master
+        try {
+          const raw = await git.raw(['log', '--format=%H', `origin/master..${remoteBranch}`]);
+          extraCommits = raw.split('\n').map(h => h.trim()).filter(Boolean);
+          emit({ type: 'debug', message: `${story.Name}: base branch '${storyBaseBranch}' not on remote, fell back to master` });
+        } catch { /* handled below */ }
+      }
       if (copadoCommits.length === 0) {
         // No Copado commits and branch doesn't exist — treat as no-commit story.
         // Fall through to normal verdict flow so parent/lastPromoWarning are still checked.
@@ -703,10 +713,7 @@ async function main() {
     // Source: copado__Base_Branch__c field (e.g. "feature/US-0004674") — no git needed.
     let parentStory = null; // { name: string, promoted: boolean } | null
     try {
-      const baseBranchRes = await conn.query(
-        `SELECT copado__Base_Branch__c FROM copado__User_Story__c WHERE Id = '${story.Id}'`
-      );
-      const baseBranch = baseBranchRes.records[0]?.copado__Base_Branch__c ?? '';
+      const baseBranch  = story.copado__Base_Branch__c ?? '';
       const parentMatch = baseBranch.match(/US-\d+/);
       if (parentMatch) {
         const parentName = parentMatch[0];
@@ -729,7 +736,7 @@ async function main() {
           // Different credentials but pipeline map unavailable → skip (no false blocks)
           parentPromoted = true;
         }
-        parentStory = { name: parentName, promoted: parentPromoted };
+        parentStory = { name: parentName, promoted: parentPromoted, credential: parentCredName };
       }
     } catch { /* non-fatal */ }
 
@@ -755,6 +762,7 @@ async function main() {
 
     // Check if the story's latest promotion (same source+target) is in a warning state.
     let lastPromoWarning = null; // { status, name, id } | null
+    let stalePromoInfo = null;   // { status, name } — last promo was a failure but a fix commit was made after
     try {
       const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
       // Fetch the single most recent promotion this story is in (no SOQL env filter to avoid
@@ -831,6 +839,7 @@ async function main() {
         // copado__Latest_Commit_Date__c is a DateTime field — comparison is precise to the minute.
         const isStalePromo = latestCommitDate && new Date(latestCommitDate) > new Date(promo.LastModifiedDate);
         if (isStalePromo) {
+          stalePromoInfo = { status: promoStatus, name: promo.Name };
           emit({ type: 'debug', message: `promo ${story.Name}: stale — commitDate=${latestCommitDate} > promoLastMod=${promo.LastModifiedDate}, ignoring ${promo.Name}` });
 
         } else if (promoStatus === 'Merge Conflict') {
@@ -901,7 +910,25 @@ async function main() {
             }
           }
 
-          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, conflictCulprit, isConflictOnCurrentStory, mergedIntoPromotion };
+          let mcSiblingStories = [];
+          try {
+            const mcSibRes = await conn.query(
+              `SELECT copado__User_Story__r.Name, copado__User_Story__r.copado__Org_Credential__r.Name, ` +
+              `copado__User_Story__r.copado__Developer__r.Name ` +
+              `FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
+            );
+            mcSiblingStories = mcSibRes.records
+              .map(r => ({
+                name:       r.copado__User_Story__r?.Name,
+                credential: r.copado__User_Story__r?.copado__Org_Credential__r?.Name ?? null,
+                developer:  r.copado__User_Story__r?.copado__Developer__r?.Name ?? null,
+              }))
+              .filter(s => s.name)
+              .filter(s => s.name.toUpperCase() !== story.Name.toUpperCase());
+          } catch (e) {
+            emit({ type: 'debug', message: `conflict ${story.Name}: sibling fetch error: ${e.message}` });
+          }
+          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, conflictCulprit, isConflictOnCurrentStory, mergedIntoPromotion, siblingStories: mcSiblingStories };
 
         } else {
           // 'Completed with errors' or 'Conflicts Resolved'
@@ -911,16 +938,37 @@ async function main() {
           const storyCount = storyCountRes.totalSize ?? 0;
           emit({ type: 'debug', message: `promo ${story.Name}: story count in ${promo.Name} = ${storyCount}` });
 
-          if (storyCount === 1 || promoStatus === 'Completed with errors' || promoStatus === 'Validation failed') {
-            // Stale gate already passed — no new commit since this promotion.
-            lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
+          if (promoStatus === 'Completed with errors' || promoStatus === 'Validation failed') {
+            // Fetch siblings so the UI can list who else was in this failed promotion.
+            let siblingStories = [];
+            if (storyCount > 1) {
+              try {
+                const sibRes = await conn.query(
+                  `SELECT copado__User_Story__r.Name, copado__User_Story__r.copado__Org_Credential__r.Name, ` +
+                  `copado__User_Story__r.copado__Developer__r.Name ` +
+                  `FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
+                );
+                siblingStories = sibRes.records
+                  .map(r => ({
+                    name:       r.copado__User_Story__r?.Name,
+                    credential: r.copado__User_Story__r?.copado__Org_Credential__r?.Name ?? null,
+                    developer:  r.copado__User_Story__r?.copado__Developer__r?.Name ?? null,
+                  }))
+                  .filter(s => s.name)
+                  .filter(s => s.name.toUpperCase() !== story.Name.toUpperCase());
+              } catch (e) {
+                emit({ type: 'debug', message: `promo ${story.Name}: sibling fetch error: ${e.message}` });
+              }
+            }
+            lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, siblingStories };
 
           } else if (promoStatus === 'Conflicts Resolved' || promoStatus === 'Validated') {
             // Multi-story Conflicts Resolved — emit sibling story names so the UI can decide
             // whether all siblings are present in the current verify list (safe to re-trigger together)
             // or some are missing (fall back to separate new promotion).
             const sibRes = await conn.query(
-              `SELECT copado__User_Story__r.Name, copado__User_Story__r.copado__Org_Credential__r.Name ` +
+              `SELECT copado__User_Story__r.Name, copado__User_Story__r.copado__Org_Credential__r.Name, ` +
+              `copado__User_Story__r.copado__Developer__r.Name ` +
               `FROM copado__Promoted_User_Story__c ` +
               `WHERE copado__Promotion__c = '${promo.Id}'`
             );
@@ -928,6 +976,7 @@ async function main() {
               .map(r => ({
                 name:       r.copado__User_Story__r?.Name,
                 credential: r.copado__User_Story__r?.copado__Org_Credential__r?.Name ?? null,
+                developer:  r.copado__User_Story__r?.copado__Developer__r?.Name ?? null,
               }))
               .filter(s => s.name)
               .filter(s => s.name.toUpperCase() !== story.Name.toUpperCase());
@@ -966,10 +1015,11 @@ async function main() {
       tests: storyTests,
       prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
       hasApexCode: story.copado__Has_Apex_Code__c, hasDeploymentTasks,
-      parentStory, promotionCount, lastPromoWarning,
+      parentStory, promotionCount, lastPromoWarning, stalePromoInfo,
       latestCommitDate: story.copado__Latest_Commit_Date__c ?? null,
       latestUnregisteredCommitDate,
       srcEnvName, dstEnvName,
+      baseBranch: (story.copado__Base_Branch__c ?? '').trim() || null,
       verdict,
     });
   }

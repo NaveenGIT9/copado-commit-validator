@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>In Progress Badge Designs</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1f2d; font-family: 'Segoe UI', system-ui, sans-serif; padding: 40px 32px; color: #cbd5e1; }
+  h1 { font-size: 15px; color: #5a8a9f; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 32px; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; max-width: 900px; }
+  .card { background: #0a1a26; border: 1px solid #162636; border-radius: 8px; padding: 24px 20px 16px; }
+  .card-num { font-size: 10px; color: #2a5070; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .1em; }
+  .card-label { font-size: 10px; color: #3a6a8a; margin-top: 12px; font-style: italic; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  /* ── DESIGN 1 — Pill + animated pulse dot ─────────────── */
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+  .d1 {
+    display:inline-flex; align-items:center; gap:7px;
+    border:1px solid #f97316; border-radius:999px;
+    padding:3px 12px; color:#fb923c; font-size:11px; white-space:nowrap;
+  }
+  .d1 .dot { width:7px;height:7px;border-radius:50%;background:#f97316;animation:pulse 1.4s ease-in-out infinite;flex-shrink:0; }
+
+  /* ── DESIGN 2 — Left accent bar ───────────────────────── */
+  .d2 {
+    display:inline-flex; align-items:center; gap:6px;
+    border-left:3px solid #f97316; background:rgba(249,115,22,.1);
+    padding:4px 10px; color:#fdba74; font-size:11px; border-radius:0 4px 4px 0; white-space:nowrap;
+  }
+
+  /* ── DESIGN 3 — Gradient chip ─────────────────────────── */
+  .d3 {
+    display:inline-block;
+    background:linear-gradient(90deg,#7c2d00,#92400e);
+    padding:3px 12px; border-radius:3px;
+    color:#fde68a; font-size:11px; white-space:nowrap;
+  }
+
+  /* ── DESIGN 4 — Ghost dashed outline ──────────────────── */
+  .d4 {
+    display:inline-block;
+    border:1.5px dashed #f97316; border-radius:5px;
+    padding:3px 10px; color:#fdba74; font-size:11px; white-space:nowrap;
+    background:transparent;
+  }
+
+  /* ── DESIGN 5 — Neon glow ─────────────────────────────── */
+  .d5 {
+    display:inline-block;
+    background:#0a0a0a; border:1px solid #f97316;
+    border-radius:4px; padding:3px 11px;
+    color:#fb923c; font-size:11px; white-space:nowrap;
+    box-shadow:0 0 8px rgba(249,115,22,.5), inset 0 0 6px rgba(249,115,22,.08);
+    text-shadow:0 0 6px rgba(251,146,60,.7);
+  }
+
+  /* ── DESIGN 6 — Split badge (status | promo | time) ────── */
+  .d6 {
+    display:inline-flex; align-items:stretch;
+    border-radius:4px; overflow:hidden; font-size:11px; white-space:nowrap;
+  }
+  .d6 .seg-a { background:#92400e; color:#fef3c7; padding:3px 9px; font-weight:600; }
+  .d6 .seg-b { background:#1c1c1c; color:#fbbf24; padding:3px 9px; border:1px solid #92400e; border-left:none; }
+  .d6 .seg-c { background:#1c1c1c; color:#6b7280; padding:3px 9px; border:1px solid #92400e; border-left:none; }
+
+  /* ── DESIGN 7 — Frosted glass card ───────────────────── */
+  .d7 {
+    display:inline-flex; align-items:center; gap:8px;
+    background:rgba(249,115,22,.12);
+    backdrop-filter:blur(4px);
+    border:1px solid rgba(249,115,22,.3); border-radius:6px;
+    padding:4px 12px; font-size:11px; white-space:nowrap;
+  }
+  .d7 .icon { color:#f97316; font-size:13px; }
+  .d7 .txt  { color:#fed7aa; }
+  .d7 .sub  { color:#9a6438; font-size:10px; }
+
+  /* ── DESIGN 8 — Toast / banner strip ─────────────────── */
+  .d8 {
+    display:inline-flex; align-items:center; gap:8px;
+    background:#1a0f00; border-top:2px solid #f97316;
+    padding:5px 12px; border-radius:0 0 5px 5px;
+    font-size:11px; white-space:nowrap;
+  }
+  .d8 .ic { color:#f97316; font-size:13px; }
+  .d8 .lbl { color:#fbbf24; font-weight:600; }
+  .d8 .meta { color:#78716c; }
+
+  /* ── DESIGN 9 — Compact status chip with spinner ──────── */
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .d9 {
+    display:inline-flex; align-items:center; gap:6px;
+    background:#18181b; border:1px solid #f59e0b;
+    border-radius:6px; padding:3px 10px; font-size:11px; white-space:nowrap;
+  }
+  .d9 .spinner {
+    width:10px;height:10px;border:1.5px solid #92400e;
+    border-top-color:#f59e0b; border-radius:50%;
+    animation:spin .8s linear infinite; flex-shrink:0;
+  }
+  .d9 .lbl { color:#fbbf24; }
+  .d9 .name { color:#a16207; }
+  .d9 .time { color:#78716c; }
+
+  /* ── DESIGN 10 — Rounded pill double-tone ────────────── */
+  .d10 {
+    display:inline-flex; align-items:center; gap:0;
+    border-radius:999px; overflow:hidden; font-size:11px; white-space:nowrap;
+    border:1px solid #c2410c;
+  }
+  .d10 .left  { background:#c2410c; color:#fff0e6; padding:3px 10px; font-weight:600; font-size:10px; }
+  .d10 .right { background:#0f1a25; color:#fdba74; padding:3px 11px; }
+
+  /* ─── STUCK variants ──────────────────────────────────── */
+  .stuck.d1 { border-color:#ef4444; color:#fca5a5; }
+  .stuck.d1 .dot { background:#ef4444; }
+  .stuck.d2 { border-left-color:#ef4444; background:rgba(239,68,68,.1); color:#fca5a5; }
+  .stuck.d5 { border-color:#ef4444; color:#fca5a5; box-shadow:0 0 8px rgba(239,68,68,.5); text-shadow:0 0 6px rgba(252,165,165,.6); }
+  .stuck.d9 { border-color:#ef4444; }
+  .stuck.d9 .spinner { border-color:#7f1d1d; border-top-color:#ef4444; }
+  .stuck.d9 .lbl { color:#fca5a5; }
+  .stuck.d10 .left { background:#991b1b; }
+  .stuck.d10 { border-color:#991b1b; }
+  .stuck.d10 .right { color:#fca5a5; }
+</style>
+</head>
+<body>
+<h1>In Progress Badge — 10 Designs &nbsp;(normal left, stuck right)</h1>
+<div class="grid">
+
+  <!-- 1 -->
+  <div class="card">
+    <div class="card-num">Design 1 &mdash; Pill + Pulse Dot</div>
+    <div class="row">
+      <span class="d1"><span class="dot"></span> In Progress &mdash; P27067 (8 min)</span>
+      <span class="d1 stuck"><span class="dot"></span> In Progress &mdash; P27067 (52 min) &mdash; possibly stuck</span>
+    </div>
+    <div class="card-label">Animated pulsing dot, pill border, no fill</div>
+  </div>
+
+  <!-- 2 -->
+  <div class="card">
+    <div class="card-num">Design 2 &mdash; Left Accent Bar</div>
+    <div class="row">
+      <span class="d2">&#9646; In Progress &mdash; P27067 (8 min)</span>
+      <span class="d2 stuck">&#9646; In Progress &mdash; P27067 (52 min) &mdash; possibly stuck</span>
+    </div>
+    <div class="card-label">VS Code style, subtle tinted fill, left border only</div>
+  </div>
+
+  <!-- 3 -->
+  <div class="card">
+    <div class="card-num">Design 3 &mdash; Gradient Chip</div>
+    <div class="row">
+      <span class="d3">&#9888; In Progress &mdash; P27067 (8 min)</span>
+      <span class="d3" style="background:linear-gradient(90deg,#7f1d1d,#991b1b);color:#fecaca">&#9888; Stuck &mdash; P27067 (52 min)</span>
+    </div>
+    <div class="card-label">Horizontal gradient, no border, cream-yellow text</div>
+  </div>
+
+  <!-- 4 -->
+  <div class="card">
+    <div class="card-num">Design 4 &mdash; Ghost Dashed Outline</div>
+    <div class="row">
+      <span class="d4">&#9888; In Progress &mdash; P27067 (8 min)</span>
+      <span class="d4" style="border-color:#ef4444;color:#fca5a5">&#9888; Stuck &mdash; P27067 (52 min)</span>
+    </div>
+    <div class="card-label">No fill, dashed border, transparent background</div>
+  </div>
+
+  <!-- 5 -->
+  <div class="card">
+    <div class="card-num">Design 5 &mdash; Neon Glow</div>
+    <div class="row">
+      <span class="d5">&#9888; In Progress &mdash; P27067 (8 min)</span>
+      <span class="d5 stuck">&#9888; Stuck &mdash; P27067 (52 min)</span>
+    </div>
+    <div class="card-label">Dark bg, glowing border &amp; text-shadow</div>
+  </div>
+
+  <!-- 6 -->
+  <div class="card">
+    <div class="card-num">Design 6 &mdash; Split Segments</div>
+    <div class="row">
+      <span class="d6">
+        <span class="seg-a">In Progress</span>
+        <span class="seg-b">P27067</span>
+        <span class="seg-c">8 min</span>
+      </span>
+      <span class="d6" style="border-radius:4px">
+        <span class="seg-a" style="background:#991b1b">Stuck</span>
+        <span class="seg-b" style="border-color:#991b1b;color:#fca5a5">P27067</span>
+        <span class="seg-c" style="border-color:#991b1b">52 min</span>
+      </span>
+    </div>
+    <div class="card-label">Three-segment pill — status / promo / time separated</div>
+  </div>
+
+  <!-- 7 -->
+  <div class="card">
+    <div class="card-num">Design 7 &mdash; Frosted Glass Card</div>
+    <div class="row">
+      <span class="d7">
+        <span class="icon">&#128336;</span>
+        <span><span class="txt">In Progress &mdash; P27067</span><br><span class="sub">Running for 8 min</span></span>
+      </span>
+      <span class="d7" style="border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.1)">
+        <span class="icon" style="color:#ef4444">&#9888;</span>
+        <span><span class="txt" style="color:#fca5a5">Stuck &mdash; P27067</span><br><span class="sub">Running for 52 min</span></span>
+      </span>
+    </div>
+    <div class="card-label">Two-line layout — title + sub-label, glass tint</div>
+  </div>
+
+  <!-- 8 -->
+  <div class="card">
+    <div class="card-num">Design 8 &mdash; Top-border Toast</div>
+    <div class="row">
+      <span class="d8">
+        <span class="ic">&#9719;</span>
+        <span class="lbl">In Progress</span>
+        <span class="meta">P27067 &middot; 8 min</span>
+      </span>
+      <span class="d8" style="border-top-color:#ef4444">
+        <span class="ic" style="color:#ef4444">&#9888;</span>
+        <span class="lbl" style="color:#fca5a5">Possibly Stuck</span>
+        <span class="meta">P27067 &middot; 52 min</span>
+      </span>
+    </div>
+    <div class="card-label">Top accent border, bottom-rounded, dark bg strip</div>
+  </div>
+
+  <!-- 9 -->
+  <div class="card">
+    <div class="card-num">Design 9 &mdash; Spinner Chip</div>
+    <div class="row">
+      <span class="d9">
+        <span class="spinner"></span>
+        <span class="lbl">In Progress</span>
+        <span class="name">P27067</span>
+        <span class="time">&middot; 8 min</span>
+      </span>
+      <span class="d9 stuck">
+        <span class="spinner"></span>
+        <span class="lbl">Stuck?</span>
+        <span class="name" style="color:#fca5a5">P27067</span>
+        <span class="time">&middot; 52 min</span>
+      </span>
+    </div>
+    <div class="card-label">Animated CSS spinner, compact tokens, zinc bg</div>
+  </div>
+
+  <!-- 10 -->
+  <div class="card">
+    <div class="card-num">Design 10 &mdash; Double-tone Pill</div>
+    <div class="row">
+      <span class="d10">
+        <span class="left">IN PROGRESS</span>
+        <span class="right">P27067 &middot; 8 min</span>
+      </span>
+      <span class="d10 stuck">
+        <span class="left">STUCK?</span>
+        <span class="right">P27067 &middot; 52 min</span>
+      </span>
+    </div>
+    <div class="card-label">GitHub Actions style — solid left cap, dark right</div>
+  </div>
+
+</div>
+</body>
+</html>

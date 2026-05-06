@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CR Multi-Story Grouping — UI Design</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0d1f2d; font-family: 'Segoe UI', system-ui, sans-serif; padding: 32px; color: #cbd5e1; }
+
+h2 { font-size: 11px; color: #2a6a8a; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 20px; }
+
+.section { margin-bottom: 48px; }
+.section-title {
+  font-size: 10px; color: #1ab8e8; letter-spacing: .1em; text-transform: uppercase;
+  margin-bottom: 14px; padding-bottom: 6px; border-bottom: 1px solid #0e2a3a;
+}
+
+/* ── shared table shell ─────────────────────────────────────────── */
+table { width: 100%; border-collapse: collapse; font-size: 11px; }
+th { color: #2a6a8a; font-size: 10px; font-weight: 500; text-align: left;
+     padding: 5px 10px; border-bottom: 1px solid #0e2a3a; white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid #081828; vertical-align: middle; }
+tr:hover td { background: rgba(26,184,232,.04); }
+
+.tag { display:inline-block; font-size:10px; padding:2px 7px; border-radius:3px; white-space:nowrap; }
+.tag-clean  { background:#064e3b; color:#34d399; }
+.tag-yes    { background:#0c2a1f; color:#34d399; }
+
+.cr-badge {
+  display:inline-flex; align-items:center; gap:5px;
+  background: rgba(217,119,6,.12); border:1px solid rgba(217,119,6,.4);
+  border-radius:4px; padding:2px 8px; color:#fbbf24; font-size:10px; white-space:nowrap;
+}
+
+/* ── DESIGN A ─── Highlight rows + live group preview ─────────── */
+.design-a .story-row { transition: background .15s; }
+.design-a .story-row.checked-row td { background: rgba(26,184,232,.07); }
+.design-a .story-row.checked-row td:first-child { border-left: 2px solid #1ab8e8; }
+
+.design-a .cb-cell { text-align:center; }
+.design-a .cb-label {
+  display:inline-flex; flex-direction:column; align-items:center; gap:3px; cursor:pointer;
+  border:1px solid #1a3a4a; border-radius:4px; padding:4px 8px;
+  transition: border-color .15s, background .15s;
+}
+.design-a .cb-label:hover { border-color: #1ab8e8; background: rgba(26,184,232,.06); }
+.design-a .cb-label.active { border-color: #1ab8e8; background: rgba(26,184,232,.1); }
+.design-a .cb-label input { width:13px; height:13px; accent-color:#1ab8e8; cursor:pointer; }
+.design-a .cb-hint { font-size:8px; color:#2a6a8a; }
+
+.group-preview-a {
+  margin-top: 12px; padding: 10px 14px;
+  background: #081828; border: 1px solid #0e2a3a; border-radius:6px;
+  font-size:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+}
+.group-preview-a .gp-label { color:#2a6a8a; white-space:nowrap; }
+.group-preview-a .gp-chip {
+  display:inline-flex; align-items:center; gap:5px;
+  background:#0a2030; border:1px solid #1ab8e8; border-radius:4px;
+  padding:3px 10px; color:#7fc9e0; font-size:10px;
+}
+.group-preview-a .gp-chip .stories { color:#1ab8e8; font-weight:600; }
+.group-preview-a .gp-retrigger {
+  display:inline-flex; align-items:center; gap:5px;
+  background:#1a0f00; border:1px solid #d97706; border-radius:4px;
+  padding:3px 10px; color:#fbbf24; font-size:10px;
+}
+.group-preview-a .gp-none { color:#3a5a6a; font-style:italic; }
+
+
+/* ── DESIGN B ─── Side bracket grouping ───────────────────────── */
+.design-b { display:flex; gap:0; align-items:stretch; }
+.design-b-table { flex:1; }
+.design-b-sidebar {
+  width: 180px; padding-left:12px; display:flex; flex-direction:column; justify-content:center; gap:8px;
+}
+.bracket-group {
+  position:relative; padding:8px 8px 8px 16px;
+  border:1px solid #0e3a5a; border-left:3px solid #1ab8e8;
+  border-radius:0 6px 6px 0; background:#060f18;
+  font-size:10px; transition: all .2s;
+}
+.bracket-group .bg-label { color:#2a6a8a; margin-bottom:4px; }
+.bracket-group .bg-stories { color:#1ab8e8; font-weight:600; line-height:1.6; }
+.bracket-group .bg-action { color:#5a8a9f; font-size:9px; margin-top:3px; }
+.bracket-empty { color:#1a3a4a; font-size:10px; font-style:italic; padding:6px 8px; }
+
+.design-b .cb2 {
+  display:inline-flex; align-items:center; gap:5px; cursor:pointer;
+  padding:3px 8px; border-radius:4px; border:1px solid transparent;
+  transition: all .15s;
+}
+.design-b .cb2 input { width:13px; height:13px; accent-color:#1ab8e8; cursor:pointer; }
+.design-b .cb2 span { font-size:9px; color:#2a6a8a; }
+.design-b .cb2.active { border-color:#1ab8e8; background:rgba(26,184,232,.08); }
+.design-b .cb2.active span { color:#7fc9e0; }
+
+
+/* ── DESIGN C ─── Inline tag chips (compact) ──────────────────── */
+.design-c .cb3-wrap {
+  display:inline-flex; align-items:center; gap:6px;
+}
+.design-c .promo-tag {
+  display:inline-block; font-size:9px; padding:2px 6px;
+  border-radius:999px; white-space:nowrap; font-weight:600;
+  transition: all .15s;
+}
+.design-c .cb3 { width:13px; height:13px; accent-color:#1ab8e8; cursor:pointer; }
+
+.design-c .summary-bar {
+  margin-top:12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:8px 12px; background:#060f18; border-radius:5px; border:1px solid #0e2a3a;
+  font-size:10px;
+}
+.design-c .sum-label { color:#2a6a8a; }
+.design-c .sum-chip {
+  background:#0a2030; border:1px solid #1ab8e8; border-radius:4px;
+  padding:2px 9px; color:#1ab8e8; font-size:10px;
+}
+.design-c .sum-sep { color:#1a3a4a; }
+.design-c .sum-retrigger {
+  background:#1a0f00; border:1px solid #d97706; border-radius:4px;
+  padding:2px 9px; color:#fbbf24; font-size:10px;
+}
+
+/* shared promo tag colors */
+.pt-new  { background:#0a3040; color:#1ab8e8; border:1px solid #1a5070; }
+.pt-retrigger { background:#1a0f00; color:#fbbf24; border:1px solid #92400e; }
+.pt-none { background:#0a1a26; color:#2a5070; border:1px solid #0e2a3a; }
+
+.promo-label { font-size:9px; color:#3a6a8a; margin-top:2px; }
+
+/* ── promote button ─────────────────────────────────────────────── */
+.promote-btn {
+  margin-top:16px; padding:6px 20px; font-size:11px; font-weight:600;
+  background:#0a3a5a; border:1px solid #1ab8e8; color:#1ab8e8;
+  border-radius:5px; cursor:pointer; transition: all .15s;
+}
+.promote-btn:hover { background:#1ab8e8; color:#0a1a26; }
+</style>
+</head>
+<body>
+
+<!-- ================================================================== -->
+<!-- DESIGN A — Row highlight + live "will promote as" preview          -->
+<!-- ================================================================== -->
+<div class="section">
+  <div class="section-title">Design A — Row highlight + live group preview</div>
+  <div class="design-a">
+    <table>
+      <thead>
+        <tr>
+          <th>Story</th>
+          <th>Commits</th>
+          <th>Promotable</th>
+          <th>Last Promo</th>
+          <th style="text-align:center">Include in<br>new promo?</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-a">
+        <tr class="story-row" id="row-a-1">
+          <td><strong style="color:#e2e8f0">US-0021790</strong><br><span style="color:#2a6a8a;font-size:9px">Sales · Dev Sandbox</span></td>
+          <td>3 commits</td>
+          <td><span class="tag tag-yes">✓ Yes</span></td>
+          <td><span class="cr-badge">⚠ Conflicts Resolved — P27029</span></td>
+          <td class="cb-cell">
+            <label class="cb-label" id="lbl-a-1">
+              <input type="checkbox" class="cb-a" data-story="US-0021790" onchange="updateA()">
+              <span class="cb-hint">new promo</span>
+            </label>
+          </td>
+        </tr>
+        <tr class="story-row" id="row-a-2">
+          <td><strong style="color:#e2e8f0">US-0021891</strong><br><span style="color:#2a6a8a;font-size:9px">Sales · Dev Sandbox</span></td>
+          <td>2 commits</td>
+          <td><span class="tag tag-yes">✓ Yes</span></td>
+          <td><span class="cr-badge">⚠ Conflicts Resolved — P27029</span></td>
+          <td class="cb-cell">
+            <label class="cb-label" id="lbl-a-2">
+              <input type="checkbox" class="cb-a" data-story="US-0021891" onchange="updateA()">
+              <span class="cb-hint">new promo</span>
+            </label>
+          </td>
+        </tr>
+        <tr class="story-row" id="row-a-3">
+          <td><strong style="color:#e2e8f0">US-0022004</strong><br><span style="color:#2a6a8a;font-size:9px">Sales · Dev Sandbox</span></td>
+          <td>5 commits</td>
+          <td><span class="tag tag-yes">✓ Yes</span></td>
+          <td><span class="cr-badge">⚠ Conflicts Resolved — P27029</span></td>
+          <td class="cb-cell">
+            <label class="cb-label" id="lbl-a-3">
+              <input type="checkbox" class="cb-a" data-story="US-0022004" onchange="updateA()">
+              <span class="cb-hint">new promo</span>
+            </label>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="group-preview-a" id="preview-a">
+      <span class="gp-label">Will promote as:</span>
+      <span class="gp-retrigger">↩ Re-trigger P27029 (all 3 stories)</span>
+    </div>
+    <button class="promote-btn">Promote</button>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!-- DESIGN B — Bracket sidebar showing groups live                     -->
+<!-- ================================================================== -->
+<div class="section">
+  <div class="section-title">Design B — Sidebar bracket grouping</div>
+  <div class="design-b">
+    <div class="design-b-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Story</th>
+            <th>Promotable</th>
+            <th>Last Promo</th>
+            <th style="text-align:center">New promo?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr id="row-b-1">
+            <td><strong style="color:#e2e8f0">US-0021790</strong></td>
+            <td><span class="tag tag-yes">✓ Yes</span></td>
+            <td><span class="cr-badge">⚠ Conflicts Resolved — P27029</span></td>
+            <td style="text-align:center">
+              <label class="cb2" id="lbl-b-1">
+                <input type="checkbox" class="cb-b" data-story="US-0021790" onchange="updateB()">
+                <span>separate</span>
+              </label>
+            </td>
+          </tr>
+          <tr id="row-b-2">
+            <td><strong style="color:#e2e8f0">US-0021891</strong></td>
+            <td><span class="tag tag-yes">✓ Yes</span></td>
+            <td><span class="cr-badge">⚠ Conflicts Resolved — P27029</span></td>
+            <td style="text-align:center">
+              <label class="cb2" id="lbl-b-2">
+                <input type="checkbox" class="cb-b" data-story="US-0021891" onchange="updateB()">
+                <span>separate</span>
+              </label>
+            </td>
+          </tr>
+          <tr id="row-b-3">
+            <td><strong style="color:#e2e8f0">US-0022004</strong></td>
+            <td><span class="tag tag-yes">✓ Yes</span></td>
+            <td><span class="cr-badge">⚠ Conflicts Resolved — P27029</span></td>
+            <td style="text-align:center">
+              <label class="cb2" id="lbl-b-3">
+                <input type="checkbox" class="cb-b" data-story="US-0022004" onchange="updateB()">
+                <span>separate</span>
+              </label>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="design-b-sidebar" id="sidebar-b">
+      <div class="bracket-group">
+        <div class="bg-label">↩ Re-trigger</div>
+        <div class="bg-stories" id="b-retrigger-list">US-0021790<br>US-0021891<br>US-0022004</div>
+        <div class="bg-action">P27029 (resolutions copied)</div>
+      </div>
+    </div>
+  </div>
+  <button class="promote-btn" style="margin-top:14px">Promote</button>
+</div>
+
+<!-- ================================================================== -->
+<!-- DESIGN C — Inline tag chips per row, compact summary bar           -->
+<!-- ================================================================== -->
+<div class="section">
+  <div class="section-title">Design C — Inline chips + compact summary bar</div>
+  <div class="design-c">
+    <table>
+      <thead>
+        <tr>
+          <th>Story</th>
+          <th>Promotable</th>
+          <th>Last Promo</th>
+          <th style="text-align:center">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong style="color:#e2e8f0">US-0021790</strong></td>
+          <td><span class="tag tag-yes">✓ Yes</span></td>
+          <td><span class="cr-badge">⚠ Conflicts Resolved — P27029</span></td>
+          <td style="text-align:center">
+            <div class="cb3-wrap">
+              <input type="checkbox" class="cb3 cb-c" data-story="US-0021790" onchange="updateC()">
+              <span class="promo-tag pt-retrigger" id="tag-c-1">↩ re-trigger</span>
+            </div>
+            <div class="promo-label" id="sub-c-1">will re-trigger P27029</div>
+          </td>
+        </tr>
+        <tr>
+          <td><strong style="color:#e2e8f0">US-0021891</strong></td>
+          <td><span class="tag tag-yes">✓ Yes</span></td>
+          <td><span class="cr-badge">⚠ Conflicts Resolved — P27029</span></td>
+          <td style="text-align:center">
+            <div class="cb3-wrap">
+              <input type="checkbox" class="cb3 cb-c" data-story="US-0021891" onchange="updateC()">
+              <span class="promo-tag pt-retrigger" id="tag-c-2">↩ re-trigger</span>
+            </div>
+            <div class="promo-label" id="sub-c-2">will re-trigger P27029</div>
+          </td>
+        </tr>
+        <tr>
+          <td><strong style="color:#e2e8f0">US-0022004</strong></td>
+          <td><span class="tag tag-yes">✓ Yes</span></td>
+          <td><span class="cr-badge">⚠ Conflicts Resolved — P27029</span></td>
+          <td style="text-align:center">
+            <div class="cb3-wrap">
+              <input type="checkbox" class="cb3 cb-c" data-story="US-0022004" onchange="updateC()">
+              <span class="promo-tag pt-retrigger" id="tag-c-3">↩ re-trigger</span>
+            </div>
+            <div class="promo-label" id="sub-c-3">will re-trigger P27029</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="summary-bar" id="summary-c">
+      <span class="sum-label">Will create:</span>
+      <span class="sum-retrigger" id="sc-retrigger">↩ Re-trigger P27029 — US-0021790, US-0021891, US-0022004</span>
+    </div>
+    <button class="promote-btn">Promote</button>
+  </div>
+</div>
+
+<script>
+/* ── Design A logic ─────────────────────────────────────────────── */
+function updateA() {
+  const cbs  = [...document.querySelectorAll('.cb-a')];
+  const checked = cbs.filter(c => c.checked).map(c => c.dataset.story);
+  const unchecked = cbs.filter(c => !c.checked).map(c => c.dataset.story);
+
+  cbs.forEach((cb, i) => {
+    const row = document.getElementById(`row-a-${i+1}`);
+    const lbl = document.getElementById(`lbl-a-${i+1}`);
+    if (cb.checked) {
+      row.classList.add('checked-row');
+      lbl.classList.add('active');
+    } else {
+      row.classList.remove('checked-row');
+      lbl.classList.remove('active');
+    }
+  });
+
+  const preview = document.getElementById('preview-a');
+  let html = '<span class="gp-label">Will promote as:</span>';
+
+  if (checked.length === 0) {
+    html += `<span class="gp-retrigger">↩ Re-trigger P27029 (all 3 stories, resolutions copied)</span>`;
+  } else {
+    html += `<span class="gp-chip">✦ New promotion · <span class="stories">${checked.join(', ')}</span> &nbsp;<span style="color:#2a6a8a;font-size:9px">(resolutions copied)</span></span>`;
+    if (unchecked.length > 0) {
+      html += `<span style="color:#1a3a4a;font-size:10px">·</span>`;
+      html += `<span class="gp-retrigger">↩ Re-trigger P27029 · ${unchecked.join(', ')}</span>`;
+    }
+  }
+
+  preview.innerHTML = html;
+}
+
+/* ── Design B logic ─────────────────────────────────────────────── */
+function updateB() {
+  const cbs = [...document.querySelectorAll('.cb-b')];
+  const checked   = cbs.filter(c => c.checked).map(c => c.dataset.story);
+  const unchecked = cbs.filter(c => !c.checked).map(c => c.dataset.story);
+
+  cbs.forEach((cb, i) => {
+    const lbl = document.getElementById(`lbl-b-${i+1}`);
+    lbl.classList.toggle('active', cb.checked);
+  });
+
+  const sidebar = document.getElementById('sidebar-b');
+  let html = '';
+
+  if (checked.length > 0) {
+    html += `<div class="bracket-group" style="border-left-color:#1ab8e8">
+      <div class="bg-label" style="color:#1ab8e8">✦ New promotion</div>
+      <div class="bg-stories">${checked.join('<br>')}</div>
+      <div class="bg-action">resolutions auto-copied</div>
+    </div>`;
+  }
+
+  if (unchecked.length > 0) {
+    html += `<div class="bracket-group" style="border-left-color:#d97706">
+      <div class="bg-label" style="color:#fbbf24">↩ Re-trigger P27029</div>
+      <div class="bg-stories" style="color:#fbbf24">${unchecked.join('<br>')}</div>
+      <div class="bg-action">resolutions copied</div>
+    </div>`;
+  } else if (checked.length === 0) {
+    html += `<div class="bracket-group" style="border-left-color:#d97706">
+      <div class="bg-label" style="color:#fbbf24">↩ Re-trigger P27029</div>
+      <div class="bg-stories" style="color:#fbbf24">US-0021790<br>US-0021891<br>US-0022004</div>
+      <div class="bg-action">resolutions copied</div>
+    </div>`;
+  }
+
+  sidebar.innerHTML = html;
+}
+
+/* ── Design C logic ─────────────────────────────────────────────── */
+function updateC() {
+  const cbs = [...document.querySelectorAll('.cb-c')];
+  const checked   = cbs.filter(c => c.checked).map(c => c.dataset.story);
+  const unchecked = cbs.filter(c => !c.checked).map(c => c.dataset.story);
+
+  cbs.forEach((cb, i) => {
+    const tag = document.getElementById(`tag-c-${i+1}`);
+    const sub = document.getElementById(`sub-c-${i+1}`);
+    if (cb.checked) {
+      tag.className = 'promo-tag pt-new';
+      tag.textContent = '✦ new promo';
+      sub.textContent = 'will join new promotion';
+      sub.style.color = '#1a5070';
+    } else {
+      tag.className = 'promo-tag pt-retrigger';
+      tag.textContent = '↩ re-trigger';
+      sub.textContent = 'will re-trigger P27029';
+      sub.style.color = '';
+    }
+  });
+
+  const sc = document.getElementById('summary-c');
+  let html = '<span class="sum-label">Will create:</span>';
+
+  if (checked.length > 0) {
+    html += `<span class="sum-chip">✦ New promo · ${checked.join(', ')} <span style="color:#2a6a8a;font-size:9px">(resolutions copied)</span></span>`;
+  }
+  if (unchecked.length > 0) {
+    html += `<span class="sum-sep">+</span><span class="sum-retrigger">↩ Re-trigger P27029 · ${unchecked.join(', ')}</span>`;
+  }
+  if (checked.length === 0 && unchecked.length === 0) {
+    html += `<span style="color:#2a5070;font-style:italic">nothing selected</span>`;
+  }
+
+  sc.innerHTML = html;
+}
+</script>
+</body>
+</html>
