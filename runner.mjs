@@ -753,20 +753,24 @@ async function main() {
       : null;
     emit({ type: 'debug', message: `env ${story.Name}: credName=${srcEnvName} → dst=${dstEnvName ?? 'NOT FOUND'}` });
 
-    // Check if the story's latest promotion (same source credential) is in a warning state.
-    // Filtering by copado__Source_Org_Credential__c ensures we only consider promotions from
-    // the same pipeline step as the story — important for attachment copy correctness.
+    // Check if the story's latest promotion (same source env) is in a warning state.
     let lastPromoWarning = null; // { status, name, id } | null
     try {
       const latestCommitDate = story.copado__Latest_Commit_Date__c ?? null;
+      // Fetch recent promotions for this story without a credential filter in SOQL —
+      // credential name or ID mismatches (e.g. story manually added to an existing promotion)
+      // cause the filter to silently return nothing. Filter in JS instead.
       const soql =
-        `SELECT Id, Name, copado__Status__c, CreatedDate, LastModifiedDate ` +
+        `SELECT Id, Name, copado__Status__c, CreatedDate, LastModifiedDate, ` +
+        `copado__Source_Org_Credential__r.Name ` +
         `FROM copado__Promotion__c ` +
         `WHERE Id IN (SELECT copado__Promotion__c FROM copado__Promoted_User_Story__c WHERE copado__User_Story__c = '${story.Id}') ` +
-        `AND copado__Source_Org_Credential__r.Name = '${story.copado__Org_Credential__r.Name}' ` +
-        `ORDER BY CreatedDate DESC LIMIT 1`;
+        `ORDER BY CreatedDate DESC LIMIT 5`;
       const promoRes = await conn.query(soql);
-      const promo = promoRes.records[0];
+      const storyCredName = (story.copado__Org_Credential__r?.Name ?? '').toLowerCase();
+      const promo = promoRes.records.find(r =>
+        !storyCredName || (r.copado__Source_Org_Credential__r?.Name ?? '').toLowerCase() === storyCredName
+      ) ?? null;
       emit({ type: 'debug', message: `promo ${story.Name}: latest = ${promo ? `${promo.Name} | status=${promo.copado__Status__c} | created=${promo.CreatedDate}` : 'none'}` });
       const promoStatus = promo?.copado__Status__c;
       // Always check for a live (Queued or In Progress) SFDX JE — irrespective of promotion status.
