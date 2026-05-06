@@ -792,18 +792,18 @@ async function main() {
             emit({ type: 'debug', message: `${story.Name}: all JEs via copado__Promotion__c (${allJeRes.totalSize}): ` +
               (allJeRes.records.map(r => `${r.Name}/${r.copado__Status__c}/${r.copado__Template__r?.Name ?? '?'}`).join(', ') || 'NONE') });
 
-            // Also query any active SFDX Deploy JEs org-wide and show their copado__Promotion__c value.
-            // This tells us what field value the Deploy JE actually carries vs what we expect.
+            // copado__Promotion__c is null on Deploy JEs — check if they link via copado__Deployment__c → Promotion.
             try {
-              const deployOrgRes = await conn.query(
-                `SELECT Id, Name, copado__Status__c, copado__Promotion__c, copado__Template__r.Name FROM copado__JobExecution__c ` +
+              const deployLinkRes = await conn.query(
+                `SELECT Id, Name, copado__Status__c, copado__Deployment__r.Name, copado__Deployment__r.copado__Promotion__c ` +
+                `FROM copado__JobExecution__c ` +
                 `WHERE copado__Template__r.Name = 'SFDX Deploy' AND copado__Status__c IN ('Queued', 'In Progress') ` +
-                `ORDER BY CreatedDate DESC LIMIT 3`
+                `ORDER BY CreatedDate DESC LIMIT 1`
               );
-              emit({ type: 'debug', message: `${story.Name}: active SFDX Deploy JEs org-wide (${deployOrgRes.totalSize}): ` +
-                (deployOrgRes.records.map(r => `${r.Name} promoField=${r.copado__Promotion__c ?? 'null'}`).join(', ') || 'NONE') });
+              const djr = deployLinkRes.records[0];
+              emit({ type: 'debug', message: `${story.Name}: Deploy JE linkage: ${djr ? djr.Name + ' → deployment=' + (djr.copado__Deployment__r?.Name ?? 'null') + ' deployPromo=' + (djr.copado__Deployment__r?.copado__Promotion__c ?? 'null') : 'no active deploy JE'}` });
             } catch (e2) {
-              emit({ type: 'debug', message: `${story.Name}: org-wide deploy JE query error: ${e2.message}` });
+              emit({ type: 'debug', message: `${story.Name}: deploy linkage query error: ${e2.message}` });
             }
           }
           emit({ type: 'debug', message: `${story.Name}: live JE = ${liveJe ? liveJe.Name + ' ' + liveJe.copado__Status__c + ' (' + (liveJe.copado__Template__r?.Name ?? '?') + ')' : 'none'}` });
