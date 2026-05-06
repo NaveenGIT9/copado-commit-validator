@@ -771,12 +771,11 @@ async function main() {
       const storyDst = dstEnvName?.toLowerCase() ?? '';
       const promoSrc = (latest?.copado__Source_Org_Credential__r?.Name ?? '').toLowerCase();
       const promoDst = (latest?.copado__Destination_Environment__r?.Name ?? '').toLowerCase();
-      const srcMatch = !storySrc || promoSrc === storySrc;
-      const dstMatch = !storyDst || promoDst === storyDst;
+      // Only reject if both sides are non-empty and they differ — null/empty on the promotion side means field not populated, not a mismatch.
+      const srcMatch = !storySrc || !promoSrc || promoSrc === storySrc;
+      const dstMatch = !storyDst || !promoDst || promoDst === storyDst;
       const promo = (latest && srcMatch && dstMatch) ? latest : null;
-      if (latest && (!srcMatch || !dstMatch)) {
-        emit({ type: 'debug', message: `promo ${story.Name}: last promo ${latest.Name} skipped — src:${promoSrc}≠${storySrc} or dst:${promoDst}≠${storyDst}` });
-      }
+      emit({ type: 'debug', message: `promo ${story.Name}: last promo ${latest?.Name ?? 'none'} src:${promoSrc}→${storySrc}(${srcMatch?'ok':'MISMATCH'}) dst:${promoDst}→${storyDst}(${dstMatch?'ok':'MISMATCH'})` });
       emit({ type: 'debug', message: `promo ${story.Name}: latest = ${promo ? `${promo.Name} | status=${promo.copado__Status__c} | created=${promo.CreatedDate}` : 'none'}` });
       const promoStatus = promo?.copado__Status__c;
       // Always check for a live (Queued or In Progress) SFDX JE — irrespective of promotion status.
