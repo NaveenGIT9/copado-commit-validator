@@ -818,7 +818,7 @@ async function main() {
       // 'In Progress' is handled exclusively via the liveJe block above (JE status is authoritative).
       // Promotion copado__Status__c = 'In Progress' was set by us after PromoteAction — not reliable
       // as a standalone signal because the JE may have already completed by the time verify runs.
-      const warningStatuses = ['Completed with errors', 'Merge Conflict', 'Conflicts Resolved'];
+      const warningStatuses = ['Completed with errors', 'Merge Conflict', 'Conflicts Resolved', 'Validated', 'Validation failed'];
       if (promo && warningStatuses.includes(promoStatus)) {
         // Stale promotion check: if a new commit was registered AFTER the promotion was last modified,
         // the promotion is no longer relevant — ignore it entirely, lastPromoWarning stays null.
@@ -905,10 +905,9 @@ async function main() {
           const storyCount = storyCountRes.totalSize ?? 0;
           emit({ type: 'debug', message: `promo ${story.Name}: story count in ${promo.Name} = ${storyCount}` });
 
-          if (storyCount === 1 || promoStatus === 'Completed with errors') {
+          if (storyCount === 1 || promoStatus === 'Completed with errors'
+              || promoStatus === 'Validated' || promoStatus === 'Validation failed') {
             // Stale gate already passed — no new commit since this promotion.
-            // Conflicts Resolved always warns (needs re-trigger); Completed with errors always warns (no fix commit).
-            // Multi-story 'Completed with errors' warns each story individually — stale gate ensures no fix was made.
             lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
 
           } else if (promoStatus === 'Conflicts Resolved') {

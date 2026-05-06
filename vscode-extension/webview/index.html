@@ -635,6 +635,10 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       let badgeSpan;
       if (status === 'Completed with errors') {
         badgeSpan = `<span style="color:#f59e0b;font-size:11px">✗ Failed — no fix commit</span>`;
+      } else if (status === 'Validation failed') {
+        badgeSpan = `<span style="color:#f59e0b;font-size:11px">✗ Validation failed — no fix commit</span>`;
+      } else if (status === 'Validated') {
+        badgeSpan = `<span style="color:#f59e0b;font-size:11px">⚠ Validated only — not deployed</span>`;
       } else {
         badgeSpan = `<span style="color:#f59e0b;font-size:11px">⚠ Conflicts resolved — re-initiate promotion</span>`;
       }
