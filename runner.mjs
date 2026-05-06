@@ -208,7 +208,7 @@ async function main() {
         for (const name of groupStories) {
           emit({ type: 'promote-result', storyName: name, success: true, promotionId: pid });
         }
-        mergeDeployQueue.push(pid);
+        mergeDeployQueue.push({ pid, deployOnly: group.deployOnly ?? false });
         continue;
       }
 
@@ -328,7 +328,7 @@ async function main() {
       }
 
       // Collect for bulk Merge & Deploy after all promotions are created
-      if (doMergeDeploy) mergeDeployQueue.push(promotionId);
+      if (doMergeDeploy) mergeDeployQueue.push({ pid: promotionId, deployOnly: false });
     }
 
     // Step 5: Sequential PromoteAction calls — one per promotion with a delay between each.
@@ -337,7 +337,7 @@ async function main() {
     // Solution: one call at a time, 5-second gap to let Copado register the previous job.
     if (doMergeDeploy && mergeDeployQueue.length > 0) {
       for (let i = 0; i < mergeDeployQueue.length; i++) {
-        const pid = mergeDeployQueue[i];
+        const { pid, deployOnly } = mergeDeployQueue[i];
         if (i > 0) await new Promise(r => setTimeout(r, 5000));
         try {
           const actionRes = await conn.request({
@@ -345,7 +345,7 @@ async function main() {
             url: `/services/data/v${conn.version}/actions/custom/apex/copado__PromoteAction`,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              inputs: [{ promotionId: pid, executePromotion: true, executeDeployment: true }],
+              inputs: [{ promotionId: pid, executePromotion: !deployOnly, executeDeployment: true }],
             }),
           });
           emit({ type: 'stderr', message: `PromoteAction [${pid}]: ${JSON.stringify(actionRes)}` });
@@ -902,12 +902,11 @@ async function main() {
           const storyCount = storyCountRes.totalSize ?? 0;
           emit({ type: 'debug', message: `promo ${story.Name}: story count in ${promo.Name} = ${storyCount}` });
 
-          if (storyCount === 1 || promoStatus === 'Completed with errors'
-              || promoStatus === 'Validated' || promoStatus === 'Validation failed') {
+          if (storyCount === 1 || promoStatus === 'Completed with errors' || promoStatus === 'Validation failed') {
             // Stale gate already passed — no new commit since this promotion.
             lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id };
 
-          } else if (promoStatus === 'Conflicts Resolved') {
+          } else if (promoStatus === 'Conflicts Resolved' || promoStatus === 'Validated') {
             // Multi-story Conflicts Resolved — emit sibling story names so the UI can decide
             // whether all siblings are present in the current verify list (safe to re-trigger together)
             // or some are missing (fall back to separate new promotion).

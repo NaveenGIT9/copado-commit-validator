@@ -475,6 +475,7 @@ function promote() {
         // When separate: create new promo + copy attachments. When re-trigger: re-trigger old promo.
         retriggerPromotionId:             s.separate ? null : (s.retriggerPromotionId ?? null),
         retriggerPromotionName:           s.separate ? null : (s.retriggerPromotionName ?? null),
+        deployOnly:                       s.separate ? false : (s.deployOnly ?? false),
         conflictResolvedSourcePromoId:    s.separate ? (s.conflictResolvedSourcePromoId ?? null) : null,
         conflictResolvedLatestCommit:     s.separate ? (s.latestCommitDate ?? null) : null,
         conflictResolvedPromoLastMod:     s.separate ? (s.promoLastModifiedDate ?? null) : null };
@@ -590,6 +591,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   const isAlreadyInProg      = lastPromoWarning?.status === 'In Progress';
   const isConflictsResolved  = lastPromoWarning?.status === 'Conflicts Resolved';
   const isCRMultiStory       = isConflictsResolved && (lastPromoWarning?.siblingStories?.length ?? 0) > 0;
+  const isValidatedPromo     = lastPromoWarning?.status === 'Validated';
+  const isValidatedMultiStory = isValidatedPromo && (lastPromoWarning?.siblingStories?.length ?? 0) > 0;
 
   const LBL  = 'color:#5a8a9f;font-size:10px;white-space:nowrap;flex-shrink:0';
   const ROW  = 'display:flex;align-items:baseline;gap:5px;margin-top:2px';
@@ -752,7 +755,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 
   // A story is "will be promoted" only if it passes the same gate as the cleanStories eligibility check:
   // no warning, OR Conflicts Resolved, OR innocent Merge Conflict. Only these get interactive checkboxes.
-  const willBePromoted = isPromotable && (!lastPromoWarning || isConflictsResolved || isInnocentConflict);
+  const willBePromoted = isPromotable && (!lastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo);
 
   // Skip: only for stories that will actually be promoted
   const showSkip = willBePromoted;
@@ -971,6 +974,7 @@ window.addEventListener('message', (event) => {
 
     const isLastPromoWarning  = !!msg.lastPromoWarning;
     const isConflictsResolved = msg.lastPromoWarning?.status === 'Conflicts Resolved';
+    const isValidatedPromo    = msg.lastPromoWarning?.status === 'Validated';
     // Innocent Merge Conflict: another story caused the conflict; current story still eligible but needs separate promo.
     const isInnocentConflict  = msg.lastPromoWarning?.status === 'Merge Conflict'
                                 && msg.lastPromoWarning?.isConflictOnCurrentStory === false;
@@ -980,7 +984,7 @@ window.addEventListener('message', (event) => {
         && failedTests.length === 0 && !(noCommits ? false : prBlocked) && !(noCommits ? false : noApexTestClass) && !parentBlocked;
 
     if (isEligible) {
-      if (!isLastPromoWarning || isConflictsResolved || isInnocentConflict) {
+      if (!isLastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo) {
         const entry = {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,
@@ -990,13 +994,13 @@ window.addEventListener('message', (event) => {
           skipped: false,
           developer: msg.storyDeveloper ?? '',
         };
-        if (isConflictsResolved) {
+        if (isConflictsResolved || isValidatedPromo) {
           entry.retriggerPromotionId   = msg.lastPromoWarning.id;
           entry.retriggerPromotionName = msg.lastPromoWarning.name;
           entry.siblingStories         = msg.lastPromoWarning.siblingStories ?? [];
-          if ((msg.lastPromoWarning.siblingStories?.length ?? 0) > 0) {
-            // Always set so attachment copy is available whether or not all siblings are verified.
-            // Use max of Copado-registered and git branch commit date for the stale guard in runner.
+          if (isValidatedPromo) entry.deployOnly = true;
+          if (isConflictsResolved && (msg.lastPromoWarning.siblingStories?.length ?? 0) > 0) {
+            // Attachment copy only applies to Conflicts Resolved re-triggers.
             const _lcd  = msg.latestCommitDate ?? null;
             const _lucd = msg.latestUnregisteredCommitDate ?? null;
             const _eff  = (!_lcd && !_lucd) ? null
