@@ -367,7 +367,7 @@ function updatePromoteList() {
       const included = !s.skipped;
       const nameCol  = included ? '#e2f4fb' : '#2a4455';
       const devCol   = included ? '#4a8aaa' : '#1e3448';
-      const strike   = included ? '' : 'text-decoration:line-through;';
+      const strike   = '';
       const rowBg    = included ? 'transparent' : 'rgba(0,0,0,0.15)';
       const dev      = s.developer ? `<span style="color:${devCol};font-size:10px;margin-left:5px">·  ${s.developer}</span>` : '';
       const sepActive = s.separate;
