@@ -337,7 +337,10 @@ function updatePromoteList() {
   if (!el) return;
   if (cleanStories.length === 0) { el.innerHTML = ''; return; }
 
-  // Group ALL eligible stories (including skipped) by project
+  const allIncluded  = cleanStories.every(s => !s.skipped);
+  const noneIncluded = cleanStories.every(s => s.skipped);
+
+  // Group all eligible stories (including skipped) by project
   const groupOrder = [];
   const groups = {};
   for (const s of cleanStories) {
@@ -348,98 +351,99 @@ function updatePromoteList() {
     groups[s.projectId].stories.push(s);
   }
 
-  const allSkipped  = cleanStories.every(s => s.skipped);
-  const noneSkipped = cleanStories.every(s => !s.skipped);
-
   const headerHtml = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:7px;padding-bottom:6px;border-bottom:1px solid rgba(26,184,232,0.2)">
-      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;color:#f87171;white-space:nowrap">
-        <input type="checkbox" id="skipAllCb" ${allSkipped ? 'checked' : ''} ${!allSkipped && !noneSkipped ? 'data-indeterminate="true"' : ''}
-               style="width:13px;height:13px;accent-color:#f87171;cursor:pointer" />
-        Skip All
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:5px 8px;background:rgba(26,184,232,0.05);border-radius:5px;border:1px solid rgba(26,184,232,0.12)">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="selectAllCb" ${allIncluded ? 'checked' : ''}
+               style="width:14px;height:14px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0" />
+        <span style="font-size:11px;font-weight:600;color:#7fc9e0">Select All</span>
       </label>
-      <span style="font-size:10px;color:#334155;margin:0 2px">|</span>
-      <span style="font-size:9px;color:#475569;text-transform:uppercase;letter-spacing:0.5px">Skip</span>
-      <span style="font-size:9px;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-left:4px">Sep. Promo</span>
+      <span style="font-size:10px;color:#334155;margin-left:4px">— uncheck to exclude from promotion</span>
     </div>`;
 
   const storiesHtml = groupOrder.map(pid => {
     const g = groups[pid];
     const rowsHtml = g.stories.map(s => {
-      const dev = s.developer ? `<span style="color:#475569;margin-left:6px">·  ${s.developer}</span>` : '';
-      const nameColor = s.skipped ? '#334155' : '#7fc9e0';
-      const strikeStyle = s.skipped ? 'text-decoration:line-through;opacity:0.5;' : '';
-      return `<div style="display:flex;align-items:center;gap:0;padding:2px 0 2px 6px">
-        <input type="checkbox" class="pl-skip-cb" data-story="${s.name}" ${s.skipped ? 'checked' : ''}
-               style="width:12px;height:12px;accent-color:#f87171;cursor:pointer;flex-shrink:0;margin-right:8px" />
-        <input type="checkbox" class="pl-sep-cb" data-story="${s.name}" ${s.separate ? 'checked' : ''}
-               style="width:12px;height:12px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0;margin-right:10px" />
-        <span style="font-family:monospace;font-size:11px;color:${nameColor};${strikeStyle}">${s.name}</span>
+      const included = !s.skipped;
+      const nameCol  = included ? '#e2f4fb' : '#2a4455';
+      const devCol   = included ? '#4a8aaa' : '#1e3448';
+      const strike   = included ? '' : 'text-decoration:line-through;';
+      const rowBg    = included ? 'transparent' : 'rgba(0,0,0,0.15)';
+      const dev      = s.developer ? `<span style="color:${devCol};font-size:10px;margin-left:5px">·  ${s.developer}</span>` : '';
+      const sepActive = s.separate;
+      const sepBtn   = `<button class="pl-sep-btn" data-story="${s.name}"
+          style="margin-left:auto;padding:2px 8px;font-size:9px;font-weight:600;border-radius:3px;cursor:pointer;white-space:nowrap;outline:none;letter-spacing:0.3px;transition:all 0.15s;
+                 border:1px solid ${sepActive ? '#1ab8e8' : '#1e3a4a'};
+                 background:${sepActive ? 'rgba(26,184,232,0.18)' : 'transparent'};
+                 color:${sepActive ? '#1ab8e8' : '#2a4a60'}">
+          ⟶ Separate
+        </button>`;
+      return `<div style="display:flex;align-items:center;gap:0;padding:4px 6px;border-radius:4px;background:${rowBg};margin-bottom:1px">
+        <input type="checkbox" class="pl-include-cb" data-story="${s.name}" ${included ? 'checked' : ''}
+               style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0;margin-right:9px" />
+        <span style="font-family:monospace;font-size:11px;font-weight:500;color:${nameCol};${strike}">${s.name}</span>
         ${dev}
+        ${sepBtn}
       </div>`;
     }).join('');
-    return `<div style="margin-bottom:8px">
-      <div style="font-size:10px;font-weight:700;color:#1ab8e8;text-transform:uppercase;letter-spacing:0.6px;padding:2px 0;border-bottom:1px solid rgba(26,184,232,0.15);margin-bottom:3px">${g.name}</div>
+    return `<div style="margin-bottom:10px">
+      <div style="font-size:9px;font-weight:700;color:#1ab8e8;text-transform:uppercase;letter-spacing:0.9px;padding:3px 0 4px;border-bottom:1px solid rgba(26,184,232,0.15);margin-bottom:4px">${g.name}</div>
       ${rowsHtml}
     </div>`;
   }).join('');
 
   el.innerHTML = headerHtml + storiesHtml;
 
-  // Set indeterminate state on Skip All if mixed
-  const skipAllCb = document.getElementById('skipAllCb');
-  if (skipAllCb && !allSkipped && !noneSkipped) skipAllCb.indeterminate = true;
+  const selectAllCb = document.getElementById('selectAllCb');
+  if (selectAllCb && !allIncluded && !noneIncluded) selectAllCb.indeterminate = true;
 
-  // Skip All toggle
-  skipAllCb?.addEventListener('change', () => {
-    const checked = skipAllCb.checked;
+  // Select All / Deselect All
+  selectAllCb?.addEventListener('change', () => {
+    const include = selectAllCb.checked;
     for (const s of cleanStories) {
-      s.skipped = checked;
-      if (checked) s.separate = false;
+      s.skipped = !include;
+      if (!include) s.separate = false;
     }
-    // Sync main table checkboxes
     for (const s of cleanStories) {
       const row = document.getElementById('row-' + s.name.replace(/[^a-z0-9]/gi, '_'));
       const skipCb = row?.querySelector(`.skip-story-cb[data-story="${s.name}"]`);
       const sepCb  = row?.querySelector(`.separate-promo-cb[data-story="${s.name}"]`);
-      if (skipCb) skipCb.checked = checked;
-      if (sepCb && checked) sepCb.checked = false;
+      if (skipCb) skipCb.checked = !include;
+      if (sepCb && !include) sepCb.checked = false;
     }
     updatePromoteCount();
   });
 
-  // Per-story skip
-  el.querySelectorAll('.pl-skip-cb').forEach(cb => {
+  // Per-story include checkbox
+  el.querySelectorAll('.pl-include-cb').forEach(cb => {
     cb.addEventListener('change', () => {
       const name = cb.dataset.story;
       const s = cleanStories.find(s => s.name === name);
       if (!s) return;
-      s.skipped = cb.checked;
-      if (cb.checked) s.separate = false;
-      // Sync main table
+      s.skipped = !cb.checked;
+      if (!cb.checked) s.separate = false;
       const row = document.getElementById('row-' + name.replace(/[^a-z0-9]/gi, '_'));
       const mainSkip = row?.querySelector(`.skip-story-cb[data-story="${name}"]`);
       const mainSep  = row?.querySelector(`.separate-promo-cb[data-story="${name}"]`);
-      if (mainSkip) mainSkip.checked = cb.checked;
-      if (mainSep && cb.checked) mainSep.checked = false;
+      if (mainSkip) mainSkip.checked = !cb.checked;
+      if (mainSep && !cb.checked) mainSep.checked = false;
       updatePromoteCount();
     });
   });
 
-  // Per-story separate promo
-  el.querySelectorAll('.pl-sep-cb').forEach(cb => {
-    cb.addEventListener('change', () => {
-      const name = cb.dataset.story;
+  // Per-story Separate Promo pill button
+  el.querySelectorAll('.pl-sep-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = btn.dataset.story;
       const s = cleanStories.find(s => s.name === name);
       if (!s) return;
-      s.separate = cb.checked;
-      if (cb.checked && s.skipped) { s.skipped = false; }
-      // Sync main table
+      s.separate = !s.separate;
+      if (s.separate && s.skipped) { s.skipped = false; }
       const row = document.getElementById('row-' + name.replace(/[^a-z0-9]/gi, '_'));
       const mainSep  = row?.querySelector(`.separate-promo-cb[data-story="${name}"]`);
       const mainSkip = row?.querySelector(`.skip-story-cb[data-story="${name}"]`);
-      if (mainSep) mainSep.checked = cb.checked;
-      if (mainSkip && cb.checked) mainSkip.checked = false;
+      if (mainSep) mainSep.checked = s.separate;
+      if (mainSkip && s.separate) mainSkip.checked = false;
       updatePromoteCount();
     });
   });
