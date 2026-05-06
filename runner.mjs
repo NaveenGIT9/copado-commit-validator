@@ -775,14 +775,14 @@ async function main() {
       if (promo) {
         try {
           // SFDX Promote JE: links via copado__Promotion__c (direct lookup to Promotion).
-          // SFDX Deploy JE:  links via copado__Deployment__c (also a direct lookup to the Promotion record —
-          //                  confirmed: copado__Deployment__r.Name returns the Promotion Name e.g. P27095).
+          // SFDX Deploy JE:  links via copado__Deployment__c → Deployment object → copado__Promotion__c.
+          //                  i.e. copado__Deployment__r.copado__Promotion__c = promo.Id
           // Check Deploy first (created after Promote completes); fall back to Promote if Deploy not yet created.
           let deployJe = null;
           try {
             const deployRes = await conn.query(
               `SELECT Id, Name, copado__Status__c, CreatedDate, copado__Template__r.Name FROM copado__JobExecution__c ` +
-              `WHERE copado__Deployment__c = '${promo.Id}' ` +
+              `WHERE copado__Deployment__r.copado__Promotion__c = '${promo.Id}' ` +
               `AND copado__Status__c IN ('Queued', 'In Progress') ` +
               `ORDER BY CreatedDate DESC LIMIT 1`
             );
