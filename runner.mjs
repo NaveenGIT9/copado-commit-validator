@@ -774,39 +774,36 @@ async function main() {
       let liveJe = null;
       if (promo) {
         try {
-          // Both SFDX Promote and SFDX Deploy JEs link directly to the promotion via copado__Promotion__c.
-          emit({ type: 'debug', message: `${story.Name}: querying JEs for promoId=${promo.Id} (${promo.Name})` });
-          const liveJeRes = await conn.query(
-            `SELECT Id, Name, copado__Status__c, CreatedDate, copado__Template__r.Name FROM copado__JobExecution__c ` +
-            `WHERE copado__Promotion__c = '${promo.Id}' ` +
-            `AND copado__Status__c IN ('Queued', 'In Progress') ` +
-            `ORDER BY CreatedDate DESC LIMIT 1`
-          );
-          liveJe = liveJeRes.records[0] ?? null;
-          if (!liveJe) {
-            // Dump all JEs linked to this promotion (any status) — verify the ID linkage is correct.
-            const allJeRes = await conn.query(
-              `SELECT Id, Name, copado__Status__c, copado__Template__r.Name FROM copado__JobExecution__c ` +
-              `WHERE copado__Promotion__c = '${promo.Id}' ORDER BY CreatedDate DESC LIMIT 5`
+          // SFDX Promote JE: links via copado__Promotion__c (direct lookup to Promotion).
+          // SFDX Deploy JE:  links via copado__Deployment__c (also a direct lookup to the Promotion record —
+          //                  confirmed: copado__Deployment__r.Name returns the Promotion Name e.g. P27095).
+          // Check Deploy first (created after Promote completes); fall back to Promote if Deploy not yet created.
+          let deployJe = null;
+          try {
+            const deployRes = await conn.query(
+              `SELECT Id, Name, copado__Status__c, CreatedDate, copado__Template__r.Name FROM copado__JobExecution__c ` +
+              `WHERE copado__Deployment__c = '${promo.Id}' ` +
+              `AND copado__Status__c IN ('Queued', 'In Progress') ` +
+              `ORDER BY CreatedDate DESC LIMIT 1`
             );
-            emit({ type: 'debug', message: `${story.Name}: all JEs via copado__Promotion__c (${allJeRes.totalSize}): ` +
-              (allJeRes.records.map(r => `${r.Name}/${r.copado__Status__c}/${r.copado__Template__r?.Name ?? '?'}`).join(', ') || 'NONE') });
-
-            // copado__Promotion__c is null on Deploy JEs — check if they link via copado__Deployment__c → Promotion.
-            try {
-              const deployLinkRes = await conn.query(
-                `SELECT Id, Name, copado__Status__c, copado__Deployment__r.Name, copado__Deployment__r.copado__Promotion__c ` +
-                `FROM copado__JobExecution__c ` +
-                `WHERE copado__Template__r.Name = 'SFDX Deploy' AND copado__Status__c IN ('Queued', 'In Progress') ` +
-                `ORDER BY CreatedDate DESC LIMIT 1`
-              );
-              const djr = deployLinkRes.records[0];
-              emit({ type: 'debug', message: `${story.Name}: Deploy JE linkage: ${djr ? djr.Name + ' → deployment=' + (djr.copado__Deployment__r?.Name ?? 'null') + ' deployPromo=' + (djr.copado__Deployment__r?.copado__Promotion__c ?? 'null') : 'no active deploy JE'}` });
-            } catch (e2) {
-              emit({ type: 'debug', message: `${story.Name}: deploy linkage query error: ${e2.message}` });
-            }
+            deployJe = deployRes.records[0] ?? null;
+          } catch (e) {
+            emit({ type: 'debug', message: `${story.Name}: deployJe query error: ${e.message}` });
           }
-          emit({ type: 'debug', message: `${story.Name}: live JE = ${liveJe ? liveJe.Name + ' ' + liveJe.copado__Status__c + ' (' + (liveJe.copado__Template__r?.Name ?? '?') + ')' : 'none'}` });
+
+          let promoteJe = null;
+          if (!deployJe) {
+            const promoteRes = await conn.query(
+              `SELECT Id, Name, copado__Status__c, CreatedDate, copado__Template__r.Name FROM copado__JobExecution__c ` +
+              `WHERE copado__Promotion__c = '${promo.Id}' ` +
+              `AND copado__Status__c IN ('Queued', 'In Progress') ` +
+              `ORDER BY CreatedDate DESC LIMIT 1`
+            );
+            promoteJe = promoteRes.records[0] ?? null;
+          }
+
+          liveJe = deployJe ?? promoteJe ?? null;
+          emit({ type: 'debug', message: `${story.Name}: live JE for ${promo.Name} → deploy:${deployJe?.copado__Status__c ?? 'none'} promote:${promoteJe?.copado__Status__c ?? 'none'} using:${liveJe?.copado__Status__c ?? 'none'}` });
         } catch (jeErr) {
           emit({ type: 'debug', message: `${story.Name}: liveJe query error: ${jeErr.message}` });
         }
