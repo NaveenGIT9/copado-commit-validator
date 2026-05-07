@@ -1083,7 +1083,11 @@ window.addEventListener('message', (event) => {
 
   else if (msg.type === 'start') {
     if (isAutoRefresh) {
-      // Background refresh: keep old results visible, just flash each row to verifying as it comes in
+      // Background refresh: show section (may be hidden if no prior manual verify), wipe stale rows
+      document.getElementById('results-section').style.display = 'block';
+      document.getElementById('resultsBody').innerHTML = '';
+      projectHeaderMap = {};
+      projectLastRow   = {};
       setStatus('info', '↻ Auto-verifying in background...', true);
     } else {
       // Normal verify: wipe table and show fresh verifying placeholders
