@@ -311,6 +311,14 @@
       </label>
     </div>
     <div id="promoteList" style="margin-top:8px;font-size:11px;color:#7fc9e0;line-height:1.6"></div>
+    <div id="reVerifyForceWrap" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(245,158,11,0.2)">
+      <button onclick="reVerifyForceStories()"
+              style="padding:4px 12px;font-size:11px;border-radius:4px;cursor:pointer;
+                     border:1px solid rgba(245,158,11,0.4);background:transparent;color:#f59e0b;outline:none">
+        ↻ Re-verify Force Stories
+      </button>
+      <span style="font-size:10px;color:#475569;margin-left:8px">updates results for force-promoted stories only</span>
+    </div>
   </div>
 </div>
 
@@ -325,6 +333,7 @@ let currentOrg         = '';
 let runCompleted       = false;
 let inPromoteMode      = false;
 let mergeDeployResults = [];   // [{success, promotionId, jobId?, error?}]
+let isPartialReVerify  = false; // true when re-verifying only force-promote stories
 
 
 function updatePromoteCount() {
@@ -396,6 +405,10 @@ function updatePromoteList() {
 
   el.innerHTML = headerHtml + storiesHtml;
 
+  // Show re-verify button only when there are force-promoted stories in the list
+  const hasForce = cleanStories.some(s => s.forcePromo);
+  document.getElementById('reVerifyForceWrap').style.display = hasForce ? 'block' : 'none';
+
   const selectAllCb = document.getElementById('selectAllCb');
   if (selectAllCb && !allIncluded && !noneIncluded) selectAllCb.indeterminate = true;
 
@@ -451,6 +464,27 @@ function updatePromoteList() {
   });
 }
 
+
+function reVerifyForceStories() {
+  const forceStories = cleanStories.filter(s => s.forcePromo);
+  if (forceStories.length === 0) return;
+  const orgAlias = document.getElementById('orgAlias').value.trim();
+  const repoPath = document.getElementById('repoPath').value.trim();
+  if (!orgAlias) return;
+
+  // Remove force stories from cleanStories — story-verified will re-add them appropriately
+  for (const s of forceStories) {
+    const idx = cleanStories.findIndex(c => c.name === s.name);
+    if (idx !== -1) cleanStories.splice(idx, 1);
+  }
+  updatePromoteCount();
+
+  isPartialReVerify = true;
+  document.getElementById('verifyBtn').disabled = true;
+  document.getElementById('cancelBtn').style.display = 'inline-flex';
+  setStatus('info', `Re-verifying ${forceStories.length} force stor${forceStories.length === 1 ? 'y' : 'ies'}...`, true);
+  vscode.postMessage({ command: 'verify', stories: forceStories.map(s => s.name).join(','), orgAlias, repoPath });
+}
 
 // ── Project grouping state ─────────────────────────────────────────────────
 let projectHeaderMap = {};   // { [projectId]: <tr> header element }
@@ -543,6 +577,7 @@ function verify() {
 }
 
 function abort() {
+  isPartialReVerify = false;
   vscode.postMessage({ command: 'abort' });
 }
 
@@ -606,6 +641,7 @@ function reset() {
   projectLastRow     = {};
   inPromoteMode      = false;
   mergeDeployResults = [];
+  isPartialReVerify  = false;
 }
 
 function endRun() {
@@ -993,11 +1029,17 @@ window.addEventListener('message', (event) => {
   }
 
   else if (msg.type === 'start') {
-    document.getElementById('results-section').style.display = 'block';
-    projectHeaderMap = {};
-    projectLastRow   = {};
-    msg.storyNames.forEach(n => upsertRow(n, '', null, null, null, 'verifying', null, null));
-    setStatus('info', 'Querying Copado...', true);
+    if (isPartialReVerify) {
+      // Only update the force rows in-place — leave rest of table untouched
+      msg.storyNames.forEach(n => upsertRow(n, '', null, null, null, 'verifying', null, null));
+      setStatus('info', `Re-verifying ${msg.storyNames.length} force stor${msg.storyNames.length === 1 ? 'y' : 'ies'}...`, true);
+    } else {
+      document.getElementById('results-section').style.display = 'block';
+      projectHeaderMap = {};
+      projectLastRow   = {};
+      msg.storyNames.forEach(n => upsertRow(n, '', null, null, null, 'verifying', null, null));
+      setStatus('info', 'Querying Copado...', true);
+    }
   }
 
   else if (msg.type === 'stderr') {
@@ -1213,6 +1255,20 @@ window.addEventListener('message', (event) => {
   else if (msg.type === 'done') {
     runCompleted = true;
     endRun();
+
+    if (isPartialReVerify) {
+      isPartialReVerify = false;
+      updatePromoteCount();
+      if (cleanStories.length > 0) {
+        document.getElementById('promote-section').style.display = 'block';
+        document.getElementById('promoteBtn').disabled = false;
+      }
+      const forceCount = cleanStories.filter(s => s.forcePromo).length;
+      setStatus('success', forceCount > 0
+        ? `Re-verify complete — ${forceCount} stor${forceCount === 1 ? 'y' : 'ies'} still require force promote.`
+        : 'Re-verify complete — force stories are now normally eligible.');
+      return;
+    }
 
     if (inPromoteMode) {
       inPromoteMode = false;
