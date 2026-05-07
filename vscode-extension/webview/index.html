@@ -1162,6 +1162,14 @@ window.addEventListener('message', (event) => {
             if (forceCb.checked && idx === -1) cleanStories.push(entry);
             else if (!forceCb.checked && idx !== -1) cleanStories.splice(idx, 1);
             updatePromoteCount();
+            // Show/hide promote section — may have been hidden if no eligible stories at done time
+            const promoSection = document.getElementById('promote-section');
+            if (cleanStories.length > 0) {
+              promoSection.style.display = 'block';
+              document.getElementById('promoteBtn').disabled = false;
+            } else {
+              promoSection.style.display = 'none';
+            }
           });
         }
         // No push to cleanStories — only added when user checks Force
