@@ -383,6 +383,7 @@ function updatePromoteList() {
         <input type="checkbox" class="pl-include-cb" data-story="${s.name}" ${included ? 'checked' : ''}
                style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0;margin-right:9px" />
         <span style="font-family:monospace;font-size:11px;font-weight:500;color:${nameCol};${strike}">${s.name}</span>
+        ${s.forcePromo ? `<span style="font-size:9px;font-weight:700;color:#f59e0b;margin-left:4px;padding:1px 4px;border:1px solid rgba(245,158,11,0.4);border-radius:2px">⚠ FORCE</span>` : ''}
         ${dev}
         ${sepBtn}
       </div>`;
@@ -681,6 +682,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   const isValidatedPromo     = lastPromoWarning?.status === 'Validated';
   const isValidatedMultiStory = isValidatedPromo && (lastPromoWarning?.siblingStories?.length ?? 0) > 0;
   const isFailedPromo        = lastPromoWarning?.status === 'Completed with errors' || lastPromoWarning?.status === 'Validation failed';
+  const isForcePromo         = isPromotable && isFailedPromo; // eligible technically but last promo failed with no fix commit
 
   const LBL  = 'color:#5a8a9f;font-size:10px;white-space:nowrap;flex-shrink:0';
   const ROW  = 'display:flex;align-items:baseline;gap:5px;margin-top:2px';
@@ -696,7 +698,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   if (isVerifying) {
     promotableHtml = '—';
   } else {
-    const badge = isPromotable
+    const badge = (isPromotable && !isForcePromo)
       ? `<span class="tag tag-clean" style="font-size:11px">✓ Yes</span>`
       : `<span class="tag tag-error" style="font-size:11px">✗ No</span>`;
 
@@ -875,11 +877,19 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 
   // A story is "will be promoted" only if it passes the same gate as the cleanStories eligibility check:
   // no warning, OR Conflicts Resolved, OR innocent Merge Conflict. Only these get interactive checkboxes.
-  const willBePromoted = isPromotable && (!lastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo || isFailedPromo);
+  const willBePromoted = isPromotable && !isForcePromo && (!lastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo);
 
   // Skip: only for stories that will actually be promoted
   const showSkip = willBePromoted;
-  const skipTd = showSkip
+  const skipTd = isForcePromo
+    ? `<td style="text-align:center;vertical-align:middle">
+         <label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer" title="Last promotion failed with no fix commit. Check to force-promote anyway.">
+           <input type="checkbox" class="force-promote-cb" data-story="${storyName}"
+             style="width:13px;height:13px;accent-color:#f59e0b;cursor:pointer" />
+           <span style="font-size:9px;color:#f59e0b;font-weight:600">Force</span>
+         </label>
+       </td>`
+    : showSkip
     ? `<td style="text-align:center;vertical-align:middle">
          <label style="display:flex;align-items:center;justify-content:center;cursor:pointer">
            <input type="checkbox" class="skip-story-cb" data-story="${storyName}"
@@ -1105,7 +1115,7 @@ window.addEventListener('message', (event) => {
         && failedTests.length === 0 && !(noCommits ? false : prBlocked) && !(noCommits ? false : noApexTestClass) && !parentBlocked;
 
     if (isEligible) {
-      if (!isLastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo || isFailedPromo) {
+      if (!isLastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo) {
         const entry = {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,
@@ -1134,6 +1144,28 @@ window.addEventListener('message', (event) => {
           }
         }
         cleanStories.push(entry);
+      } else if (isFailedPromo) {
+        // Last promo failed with no fix commit — not auto-eligible; user must check "Force" to include.
+        const entry = {
+          name: msg.storyName, id: msg.storyId,
+          projectId: msg.projectId, credentialId: msg.credentialId,
+          projectName: msg.projectName ?? '',
+          separate: false, skipped: false,
+          developer: msg.storyDeveloper ?? '',
+          forcePromo: true,
+        };
+        const row = document.getElementById('row-' + msg.storyName.replace(/[^a-z0-9]/gi, '_'));
+        const forceCb = row?.querySelector(`.force-promote-cb[data-story="${msg.storyName}"]`);
+        if (forceCb) {
+          forceCb.addEventListener('change', () => {
+            const idx = cleanStories.findIndex(s => s.name === msg.storyName);
+            if (forceCb.checked && idx === -1) cleanStories.push(entry);
+            else if (!forceCb.checked && idx !== -1) cleanStories.splice(idx, 1);
+            updatePromoteCount();
+          });
+        }
+        // No push to cleanStories — only added when user checks Force
+        return; // skip normal checkbox wiring below
       }
 
       // Wire checkboxes for all eligible stories
