@@ -255,19 +255,6 @@
   <button class="btn btn-primary" id="verifyBtn" onclick="verify()">Verify Stories</button>
   <button class="btn btn-reset" id="cancelBtn" onclick="abort()" style="display:none;">Cancel</button>
   <button class="btn btn-reset" onclick="reset()">Reset</button>
-  <button class="btn btn-reset" id="autoVerifyToggleBtn" onclick="toggleAutoVerify()"
-          style="color:#1ab8e8;border-color:rgba(26,184,232,0.3)">▶ Auto-Verify</button>
-</div>
-<div id="autoVerifyBar" style="display:none;align-items:center;gap:10px;margin-top:8px;padding:5px 10px;
-     background:rgba(26,184,232,0.05);border:1px solid rgba(26,184,232,0.15);border-radius:5px;font-size:11px">
-  <span style="color:#1ab8e8;font-size:13px">↻</span>
-  <span id="autoVerifyCountdown" style="color:#7fc9e0;min-width:140px"></span>
-  <button onclick="triggerAutoVerify()"
-          style="padding:2px 10px;font-size:10px;border-radius:3px;cursor:pointer;border:1px solid rgba(26,184,232,0.3);
-                 background:transparent;color:#1ab8e8;outline:none">Verify Now</button>
-  <button onclick="toggleAutoVerify()"
-          style="padding:2px 10px;font-size:10px;border-radius:3px;cursor:pointer;border:1px solid rgba(248,113,113,0.4);
-                 background:transparent;color:#f87171;outline:none">■ Stop</button>
 </div>
 
 <!-- Status -->
@@ -339,14 +326,6 @@ let runCompleted       = false;
 let inPromoteMode      = false;
 let mergeDeployResults = [];   // [{success, promotionId, jobId?, error?}]
 
-// Auto-verify state
-let isAutoRefresh              = false;       // true while a background auto-verify is running
-let autoRefreshEnabled         = false;
-let autoRefreshCountdown       = 180;         // seconds remaining until next auto-verify
-let autoRefreshTimer           = null;        // setInterval handle for 1s tick
-let autoRefreshPromotePauseUntil = 0;         // timestamp: freeze countdown until after this (post-promote review window)
-let pendingCleanStories        = [];          // accumulates during auto-verify background run
-let pendingVerifiedStoryNames  = new Set();   // accumulates during auto-verify background run
 
 function updatePromoteCount() {
   const count = cleanStories.filter(s => !s.skipped).length;
@@ -471,81 +450,6 @@ function updatePromoteList() {
   });
 }
 
-// ── Auto-Verify ───────────────────────────────────────────────────────────
-
-function _autoVerifyIdle() {
-  const verifyBtn = document.getElementById('verifyBtn');
-  return !isAutoRefresh
-    && !inPromoteMode
-    && !(verifyBtn && verifyBtn.disabled)
-    && Date.now() >= autoRefreshPromotePauseUntil
-    && !!(document.getElementById('stories')?.value.trim())
-    && !!(document.getElementById('orgAlias')?.value.trim());
-}
-
-function _autoVerifyDisplay() {
-  const el = document.getElementById('autoVerifyCountdown');
-  if (!el) return;
-  if (_autoVerifyIdle()) {
-    const m = Math.floor(autoRefreshCountdown / 60);
-    const s = autoRefreshCountdown % 60;
-    el.textContent = `Next verify in ${m}:${String(s).padStart(2, '0')}`;
-    el.style.color = '#7fc9e0';
-  } else {
-    const remaining = Math.max(0, Math.ceil((autoRefreshPromotePauseUntil - Date.now()) / 1000));
-    el.textContent = remaining > 0
-      ? `Paused — resuming in ${remaining}s`
-      : 'Paused — verify running';
-    el.style.color = '#475569';
-  }
-}
-
-function _autoVerifyTick() {
-  if (!autoRefreshEnabled) return;
-  if (_autoVerifyIdle()) {
-    autoRefreshCountdown--;
-    if (autoRefreshCountdown <= 0) {
-      triggerAutoVerify();
-      return;
-    }
-  }
-  _autoVerifyDisplay();
-}
-
-function toggleAutoVerify() {
-  if (autoRefreshEnabled) {
-    autoRefreshEnabled = false;
-    if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
-    document.getElementById('autoVerifyToggleBtn').textContent = '▶ Auto-Verify';
-    document.getElementById('autoVerifyBar').style.display = 'none';
-  } else {
-    autoRefreshEnabled = true;
-    autoRefreshCountdown = 180;
-    document.getElementById('autoVerifyToggleBtn').textContent = '■ Auto-Verify';
-    document.getElementById('autoVerifyBar').style.display = 'flex';
-    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-    autoRefreshTimer = setInterval(_autoVerifyTick, 1000);
-    _autoVerifyDisplay();
-  }
-}
-
-function triggerAutoVerify() {
-  const stories  = document.getElementById('stories')?.value.trim() ?? '';
-  const orgAlias = document.getElementById('orgAlias')?.value.trim() ?? '';
-  const repoPath = document.getElementById('repoPath')?.value.trim() ?? '';
-  if (!stories || !orgAlias) return;
-
-  isAutoRefresh             = true;
-  pendingCleanStories       = [];
-  pendingVerifiedStoryNames = new Set();
-  autoRefreshCountdown      = 180;
-
-  document.getElementById('verifyBtn').disabled = true;
-  document.getElementById('cancelBtn').style.display = 'inline-flex';
-  setStatus('info', '↻ Auto-verifying in background...', true);
-
-  vscode.postMessage({ command: 'verify', stories, orgAlias, repoPath });
-}
 
 // ── Project grouping state ─────────────────────────────────────────────────
 let projectHeaderMap = {};   // { [projectId]: <tr> header element }
@@ -638,9 +542,6 @@ function verify() {
 }
 
 function abort() {
-  isAutoRefresh             = false;
-  pendingCleanStories       = [];
-  pendingVerifiedStoryNames = new Set();
   vscode.postMessage({ command: 'abort' });
 }
 
@@ -704,9 +605,6 @@ function reset() {
   projectLastRow     = {};
   inPromoteMode      = false;
   mergeDeployResults = [];
-  isAutoRefresh             = false;
-  pendingCleanStories       = [];
-  pendingVerifiedStoryNames = new Set();
 }
 
 function endRun() {
@@ -1085,21 +983,11 @@ window.addEventListener('message', (event) => {
   }
 
   else if (msg.type === 'start') {
-    if (isAutoRefresh) {
-      // Background refresh: show section (may be hidden if no prior manual verify), wipe stale rows
-      document.getElementById('results-section').style.display = 'block';
-      document.getElementById('resultsBody').innerHTML = '';
-      projectHeaderMap = {};
-      projectLastRow   = {};
-      setStatus('info', '↻ Auto-verifying in background...', true);
-    } else {
-      // Normal verify: wipe table and show fresh verifying placeholders
-      document.getElementById('results-section').style.display = 'block';
-      projectHeaderMap = {};
-      projectLastRow   = {};
-      msg.storyNames.forEach(n => upsertRow(n, '', null, null, null, 'verifying', null, null));
-      setStatus('info', 'Querying Copado...', true);
-    }
+    document.getElementById('results-section').style.display = 'block';
+    projectHeaderMap = {};
+    projectLastRow   = {};
+    msg.storyNames.forEach(n => upsertRow(n, '', null, null, null, 'verifying', null, null));
+    setStatus('info', 'Querying Copado...', true);
   }
 
   else if (msg.type === 'stderr') {
@@ -1202,7 +1090,7 @@ window.addEventListener('message', (event) => {
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
 
-    (isAutoRefresh ? pendingVerifiedStoryNames : verifiedStoryNames).add(msg.storyName.toUpperCase());
+    verifiedStoryNames.add(msg.storyName.toUpperCase());
 
     const isLastPromoWarning  = !!msg.lastPromoWarning;
     const isConflictsResolved = msg.lastPromoWarning?.status === 'Conflicts Resolved';
@@ -1245,7 +1133,7 @@ window.addEventListener('message', (event) => {
             entry.promoLastModifiedDate         = msg.lastPromoWarning.lastModifiedDate ?? null;
           }
         }
-        (isAutoRefresh ? pendingCleanStories : cleanStories).push(entry);
+        cleanStories.push(entry);
       }
 
       // Wire checkboxes for all eligible stories
@@ -1286,16 +1174,6 @@ window.addEventListener('message', (event) => {
     runCompleted = true;
     endRun();
 
-    // Commit background auto-verify results into main state
-    if (isAutoRefresh) {
-      isAutoRefresh      = false;
-      cleanStories       = pendingCleanStories;
-      verifiedStoryNames = pendingVerifiedStoryNames;
-      pendingCleanStories       = [];
-      pendingVerifiedStoryNames = new Set();
-      _autoVerifyDisplay();
-    }
-
     if (inPromoteMode) {
       inPromoteMode = false;
       // Re-enable promote button with remaining eligible stories (if any)
@@ -1306,8 +1184,6 @@ window.addEventListener('message', (event) => {
       } else {
         document.getElementById('promote-section').style.display = 'none';
       }
-      // Pause auto-refresh countdown for 60s so user can review promote results
-      autoRefreshPromotePauseUntil = Date.now() + 60_000;
       return; // promote-summary already set the status bar
     }
 
