@@ -745,9 +745,9 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
           const eligible = inList && cleanStories.some(c => c.name.toUpperCase() === (s.name ?? '').toUpperCase());
           const statusTag = inList
             ? (eligible
-                ? `<span style="color:#34d399;font-size:9px;font-weight:600;margin-left:8px">● eligible</span>`
-                : `<span style="color:#f87171;font-size:9px;font-weight:600;margin-left:8px">● not eligible</span>`)
-            : `<span style="color:#475569;font-size:9px;margin-left:8px">● not in list</span>`;
+                ? `<span data-sib-tag="${(s.name ?? '').toUpperCase()}" style="color:#34d399;font-size:9px;font-weight:600;margin-left:8px">● eligible</span>`
+                : `<span data-sib-tag="${(s.name ?? '').toUpperCase()}" style="color:#f87171;font-size:9px;font-weight:600;margin-left:8px">● not eligible</span>`)
+            : `<span data-sib-tag="${(s.name ?? '').toUpperCase()}" style="color:#475569;font-size:9px;margin-left:8px">● not in list</span>`;
           return `<div style="margin-top:4px;display:flex;align-items:baseline;gap:0;flex-wrap:wrap">` +
             `<span style="color:#f8fafc;font-size:11px;font-weight:600">${s.name ?? ''}</span>` +
             (s.credential ? `<span style="color:#7dd3fc;font-size:10px"> · ${s.credential}</span>` : '') +
@@ -1230,6 +1230,26 @@ window.addEventListener('message', (event) => {
       if (culprit && verifiedStoryNames.has(culprit.toUpperCase())) {
         const note = span.querySelector('.culprit-in-list-note');
         if (note) note.textContent = ' (also in this list — not eligible)';
+      }
+    });
+
+    // Refresh all sibling status tags now that ALL stories have been verified.
+    // At story-verified time the sibling may not have been processed yet, so the
+    // tag was rendered as "not in list" even when the sibling is present and eligible.
+    const eligibleNames = new Set(cleanStories.map(s => s.name.toUpperCase()));
+    document.querySelectorAll('[data-sib-tag]').forEach(span => {
+      const sibName = span.getAttribute('data-sib-tag'); // already uppercased
+      const inList  = verifiedStoryNames.has(sibName);
+      const eligible = inList && eligibleNames.has(sibName);
+      if (inList && eligible) {
+        span.style.color = '#34d399';
+        span.textContent = '● eligible';
+      } else if (inList) {
+        span.style.color = '#f87171';
+        span.textContent = '● not eligible';
+      } else {
+        span.style.color = '#475569';
+        span.textContent = '● not in list';
       }
     });
 
