@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Prototype — Compact Story List + Hover Popover</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { color-scheme: dark; }
+  body {
+    background: linear-gradient(160deg, #020d18 0%, #031525 50%, #041c30 100%);
+    background-attachment: fixed;
+    color: #90d8f0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    padding: 24px;
+    min-height: 100vh;
+  }
+
+  h2 { color: #1ab8e8; font-size: 14px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 16px; }
+
+  /* ── Promote bar ── */
+  .promote-bar {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: rgba(26,184,232,0.06);
+    border: 1px solid rgba(26,184,232,0.15);
+    border-radius: 6px;
+  }
+  .btn-promote {
+    background: linear-gradient(135deg, #0d7ab5, #0a5f8a);
+    color: #e0f4ff; border: 1px solid #1ab8e8; border-radius: 5px;
+    padding: 6px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+    letter-spacing: 0.3px;
+  }
+  .btn-promote:hover { background: linear-gradient(135deg, #1ab8e8, #0d7ab5); }
+
+  /* ── Compact results table ── */
+  .results-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  thead th {
+    background: rgba(13,122,181,0.15);
+    color: #2a6a8a; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    padding: 8px 12px; text-align: left; border-bottom: 1px solid rgba(26,184,232,0.2);
+    white-space: nowrap;
+  }
+  thead th.center { text-align: center; }
+  tbody td {
+    padding: 8px 12px; border-bottom: 1px solid rgba(26,184,232,0.07);
+    vertical-align: middle; font-size: 12px;
+  }
+  tr.story-row { cursor: default; transition: background 0.1s; }
+  tr.story-row:hover td { background: rgba(26,184,232,0.07); }
+
+  /* Project header rows */
+  tr.proj-hdr td {
+    background: rgba(13,122,181,0.1) !important;
+    border-bottom: 1px solid rgba(26,184,232,0.2) !important;
+    border-top: 1px solid rgba(26,184,232,0.1);
+    padding: 6px 12px;
+    font-size: 10px; font-weight: 700; color: #1ab8e8;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+
+  /* YES / NO pills */
+  .pill-yes {
+    display: inline-block; padding: 3px 12px; border-radius: 4px; font-size: 11px; font-weight: 700;
+    background: rgba(52,211,153,0.12); color: #34d399; border: 1px solid rgba(52,211,153,0.35);
+  }
+  .pill-no {
+    display: inline-block; padding: 3px 12px; border-radius: 4px; font-size: 11px; font-weight: 700;
+    background: rgba(248,81,73,0.12); color: #f85149; border: 1px solid rgba(248,81,73,0.35);
+  }
+  .pill-verifying {
+    display: inline-block; padding: 3px 12px; border-radius: 4px; font-size: 11px;
+    background: rgba(26,184,232,0.1); color: #1ab8e8; border: 1px solid rgba(26,184,232,0.25);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  /* ── Detail Popover ── */
+  #detail-popover {
+    position: fixed; z-index: 9999;
+    width: 360px; max-height: 74vh; overflow-y: auto;
+    background: #071828;
+    border: 1px solid rgba(26,184,232,0.35);
+    border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(26,184,232,0.06);
+    padding: 16px 18px;
+    font-size: 12px; color: #90d8f0;
+    pointer-events: auto;
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+  }
+  #detail-popover.visible { opacity: 1; visibility: visible; }
+  #detail-popover::-webkit-scrollbar { width: 4px; }
+  #detail-popover::-webkit-scrollbar-track { background: transparent; }
+  #detail-popover::-webkit-scrollbar-thumb { background: rgba(26,184,232,0.25); border-radius: 2px; }
+
+  .pop-header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:2px; }
+  .pop-story-name { color:#e0f4ff; font-size:14px; font-weight:700; font-family:monospace; }
+
+  .pop-section { margin-top:11px; padding-top:11px; border-top:1px solid rgba(26,184,232,0.1); }
+  .pop-label {
+    font-size:9px; font-weight:700; color:#2a6a8a;
+    text-transform:uppercase; letter-spacing:0.8px; margin-bottom:5px;
+  }
+  .pop-kv { display:flex; align-items:baseline; gap:6px; margin-top:4px; line-height:1.4; }
+  .pop-kv-lbl { color:#4a7a9a; font-size:10px; white-space:nowrap; flex-shrink:0; }
+
+  .ok   { color:#34d399; }
+  .err  { color:#f85149; }
+  .warn { color:#e3b341; }
+  .muted { color:#475569; }
+  .info  { color:#7dd3fc; }
+
+  /* Sibling block */
+  .sib-block {
+    margin-top:8px; padding:8px 10px;
+    background:rgba(217,119,6,0.07);
+    border-left:2px solid #b45309;
+    border-radius:0 4px 4px 0;
+  }
+  .sib-block-title { color:#d97706; font-size:10px; font-weight:700; margin-bottom:5px; }
+  .sib-row { display:flex; align-items:baseline; flex-wrap:wrap; gap:3px; margin-top:3px; }
+
+  /* Tags within popover */
+  .tag-mini {
+    display:inline-block; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:600;
+  }
+  .tag-clean    { background:rgba(52,211,153,0.12); color:#34d399; border:1px solid rgba(52,211,153,0.3); }
+  .tag-covered  { background:rgba(52,211,153,0.08); color:#6ee7b7; border:1px solid rgba(52,211,153,0.2); }
+  .tag-warn     { background:rgba(227,179,65,0.12); color:#e3b341; border:1px solid rgba(227,179,65,0.3); }
+  .tag-err      { background:rgba(248,81,73,0.12);  color:#f85149; border:1px solid rgba(248,81,73,0.3); }
+  .tag-info     { background:rgba(26,184,232,0.1);  color:#7dd3fc; border:1px solid rgba(26,184,232,0.25); }
+
+  /* Reason block */
+  .reason-list { display:flex; flex-direction:column; gap:3px; margin-top:4px; }
+  .reason-item { font-size:11px; display:flex; align-items:center; gap:5px; }
+
+  /* Promote list section */
+  .promote-list-wrap {
+    margin-top: 20px;
+    padding: 14px 16px;
+    background: rgba(26,184,232,0.04);
+    border: 1px solid rgba(26,184,232,0.12);
+    border-radius: 6px;
+  }
+  .promote-list-title { font-size:11px; font-weight:700; color:#2a6a8a; margin-bottom:10px; text-transform:uppercase; letter-spacing:0.7px; }
+  .pl-group-title { font-size:9px; font-weight:700; color:#1ab8e8; text-transform:uppercase; letter-spacing:0.8px; padding:3px 0 4px; border-bottom:1px solid rgba(26,184,232,0.15); margin-bottom:4px; margin-top:10px; }
+  .pl-row { display:flex; align-items:center; gap:0; padding:4px 6px; border-radius:4px; margin-bottom:1px; }
+  .pl-row:first-of-type { margin-top:0; }
+  .pl-include { width:13px; height:13px; accent-color:#1ab8e8; cursor:pointer; flex-shrink:0; margin-right:9px; }
+  .pl-name { font-family:monospace; font-size:11px; font-weight:500; color:#e2f4fb; }
+  .pl-dev { color:#4a8aaa; font-size:10px; margin-left:5px; }
+  .sep-btn {
+    margin-left:auto; padding:2px 8px; font-size:9px; font-weight:600; border-radius:3px;
+    cursor:pointer; white-space:nowrap; outline:none; letter-spacing:0.3px; transition:all 0.15s;
+    border:1px solid #1e3a4a; background:transparent; color:#2a4a60;
+  }
+  .sep-btn.active { border-color:#1ab8e8; background:rgba(26,184,232,0.18); color:#1ab8e8; }
+
+  .note-banner {
+    margin-top: 12px; font-size: 10px; color: #4a7a9a;
+    border-top: 1px solid rgba(26,184,232,0.1); padding-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<h2>Copado Commit Validator — UI Prototype</h2>
+
+<!-- Promote bar -->
+<div class="promote-bar">
+  <button class="btn-promote">Promote Eligible Stories (<span id="promoteCount">7</span>)</button>
+  <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#2a6a8a;cursor:pointer">
+    <input type="checkbox" style="width:14px;height:14px;accent-color:#1ab8e8;cursor:pointer" />
+    Auto Merge &amp; Deploy
+  </label>
+</div>
+
+<!-- Compact results table -->
+<div class="results-wrap">
+<table>
+  <thead>
+    <tr>
+      <th>Story</th>
+      <th>Source → Target</th>
+      <th>Developer</th>
+      <th class="center" style="width:90px">Eligible</th>
+    </tr>
+  </thead>
+  <tbody id="resultsBody"></tbody>
+</table>
+</div>
+
+<!-- Promote List -->
+<div class="promote-list-wrap" id="promoteListWrap" style="display:none">
+  <div class="promote-list-title">Included in Promotion</div>
+  <div id="promoteList"></div>
+</div>
+
+<!-- Hover popover -->
+<div id="detail-popover"></div>
+
+<script>
+// ── Demo Data ──────────────────────────────────────────────────────────────
+const STORIES = [
+  {
+    name: 'US-0019913', project: 'IT SALES ROADMAP', projectId: 'p1',
+    srcEnv: 'DEV', dstEnv: 'QA', developer: 'Ankit Tripathi',
+    branch: 'feature/US-0019913', verdict: 'clean',
+    copadoCommits: 3, branchCommits: 3,
+    committedBy: ['ankit.tripathi@rubrik.com'],
+    tests: [{ tool: 'Apex Test', status: 'Success' }],
+    prApproved: true, hasApexCode: true, hasDeploymentTasks: false,
+    lastPromoWarning: null, isEligible: true,
+    failingGates: []
+  },
+  {
+    name: 'US-0021209', project: 'IT CUSTOMER SUPPORT — FY 2021 ROADMAP', projectId: 'p2',
+    srcEnv: 'DEV', dstEnv: 'QA', developer: 'Raveesh Layal',
+    branch: 'feature/US-0021209', verdict: 'clean',
+    copadoCommits: 2, branchCommits: 2,
+    committedBy: ['raveesh.layal@rubrik.com'],
+    tests: [],
+    prApproved: true, hasApexCode: false, hasDeploymentTasks: false,
+    lastPromoWarning: null, isEligible: true,
+    failingGates: []
+  },
+  {
+    name: 'US-0023104', project: 'IT MARKETING ROADMAP', projectId: 'p3',
+    srcEnv: 'DEV', dstEnv: 'QA', developer: 'Biswanath Mishra',
+    branch: 'feature/US-0023104', verdict: 'clean',
+    copadoCommits: 1, branchCommits: 1,
+    committedBy: ['biswanath.mishra@rubrik.com'],
+    tests: [{ tool: 'Apex Test', status: 'Success' }],
+    prApproved: true, hasApexCode: true, hasDeploymentTasks: false,
+    lastPromoWarning: {
+      status: 'Merge Conflict',
+      name: 'P-23050',
+      isConflictOnCurrentStory: false,
+      conflictCulprit: 'US-0023106',
+      mergedIntoPromotion: true,
+      siblingStories: [
+        { name: 'US-0023106', credential: 'DEV', developer: 'Biswanath Mishra' }
+      ]
+    },
+    isEligible: true, failingGates: []
+  },
+  {
+    name: 'US-0023106', project: 'IT MARKETING ROADMAP', projectId: 'p3',
+    srcEnv: 'DEV', dstEnv: 'QA', developer: 'Biswanath Mishra',
+    branch: 'feature/US-0023106', verdict: 'clean',
+    copadoCommits: 1, branchCommits: 3,
+    committedBy: ['biswanath.mishra@rubrik.com'],
+    tests: [{ tool: 'Apex Test', status: 'Failed' }],
+    prApproved: true, hasApexCode: true, hasDeploymentTasks: false,
+    lastPromoWarning: {
+      status: 'Merge Conflict',
+      name: 'P-23050',
+      isConflictOnCurrentStory: true,
+      siblingStories: [
+        { name: 'US-0023104', credential: 'DEV', developer: 'Biswanath Mishra' }
+      ]
+    },
+    isEligible: false,
+    failingGates: ['1 Apex test failed', 'Merge Conflict blocking promotion']
+  },
+  {
+    name: 'US-0023135', project: 'RENEWALS ROADMAP', projectId: 'p4',
+    srcEnv: 'DEV', dstEnv: 'QA', developer: 'Puja Yeole',
+    branch: 'feature/US-0023135', verdict: 'clean',
+    copadoCommits: 4, branchCommits: 4,
+    committedBy: ['puja.yeole@rubrik.com'],
+    tests: [{ tool: 'Apex Test', status: 'Success' }],
+    prApproved: true, hasApexCode: true, hasDeploymentTasks: false,
+    lastPromoWarning: {
+      status: 'Conflicts Resolved',
+      name: 'P-22050',
+      resolutionsStale: false,
+      siblingStories: [
+        { name: 'US-0023696', credential: 'DEV', developer: 'Ashish Sahu' },
+        { name: 'US-0024472', credential: 'DEV', developer: 'Paritosh Bhatia' }
+      ]
+    },
+    isEligible: true, failingGates: [],
+    absentSiblings: [{ name: 'US-0024472' }],
+    ineligibleSiblings: [{ name: 'US-0023696' }]
+  },
+  {
+    name: 'US-0023696', project: 'RENEWALS ROADMAP', projectId: 'p4',
+    srcEnv: 'DEV', dstEnv: 'QA', developer: 'Ashish Sahu',
+    branch: 'feature/US-0023696', verdict: 'skip-no-commits',
+    copadoCommits: 0, branchCommits: 0,
+    committedBy: [],
+    tests: [],
+    prApproved: true, hasApexCode: false, hasDeploymentTasks: true,
+    lastPromoWarning: null,
+    isEligible: true, failingGates: []
+  },
+  {
+    name: 'US-0024472', project: 'RENEWALS ROADMAP', projectId: 'p4',
+    srcEnv: 'DEV', dstEnv: 'QA', developer: 'Paritosh Bhatia',
+    branch: 'feature/US-0024472', verdict: 'clean',
+    copadoCommits: 2, branchCommits: 2,
+    committedBy: ['paritosh.bhatia@rubrik.com'],
+    tests: [{ tool: 'Apex Test', status: 'Success' }],
+    prApproved: false, hasApexCode: true, hasDeploymentTasks: false,
+    lastPromoWarning: null,
+    isEligible: false,
+    failingGates: ['PR not approved']
+  },
+  {
+    name: 'US-0024597', project: 'RENEWALS ROADMAP', projectId: 'p4',
+    srcEnv: 'DEV', dstEnv: 'QA', developer: 'Puja Yeole',
+    branch: 'feature/US-0024597', verdict: 'skip-covered-same-author',
+    copadoCommits: 2, branchCommits: 3,
+    committedBy: ['puja.yeole@rubrik.com'],
+    tests: [],
+    prApproved: true, hasApexCode: false, hasDeploymentTasks: false,
+    lastPromoWarning: null,
+    isEligible: true, failingGates: []
+  },
+  {
+    name: 'US-0024514', project: 'SALESFORCE PLATFORM HUB', projectId: 'p5',
+    srcEnv: 'DEV', dstEnv: 'UAT', developer: 'Praveen Kumar',
+    branch: 'feature/US-0024514', verdict: 'clean',
+    copadoCommits: 5, branchCommits: 5,
+    committedBy: ['praveen.kumar@rubrik.com'],
+    tests: [{ tool: 'Apex Test', status: 'Success' }, { tool: 'OmniScript Test', status: 'Not Started' }],
+    prApproved: true, hasApexCode: true, hasDeploymentTasks: false,
+    lastPromoWarning: {
+      status: 'In Progress',
+      name: 'P-24099',
+      jeStatus: 'In Progress',
+      siblingStories: [
+        { name: 'US-0024601', credential: 'DEV', developer: 'Meera Joshi' }
+      ]
+    },
+    isEligible: false,
+    failingGates: ['Promotion In Progress — P-24099']
+  },
+];
+
+// ── Build table ────────────────────────────────────────────────────────────
+const tbody = document.getElementById('resultsBody');
+const seenProjects = new Set();
+let eligibleCount = 0;
+
+for (const s of STORIES) {
+  // Project header
+  if (!seenProjects.has(s.projectId)) {
+    seenProjects.add(s.projectId);
+    const hdr = document.createElement('tr');
+    hdr.className = 'proj-hdr';
+    hdr.innerHTML = `<td colspan="4">${s.project}</td>`;
+    tbody.appendChild(hdr);
+  }
+
+  if (s.isEligible) eligibleCount++;
+
+  const row = document.createElement('tr');
+  row.className = 'story-row';
+  row.id = 'row-' + s.name;
+
+  const envLabel = s.dstEnv
+    ? `${s.srcEnv} → ${s.dstEnv}`
+    : s.srcEnv || '—';
+
+  const eligibleCell = s.isEligible
+    ? `<td style="text-align:center"><span class="pill-yes">YES</span></td>`
+    : `<td style="text-align:center"><span class="pill-no">NO</span></td>`;
+
+  row.innerHTML = `
+    <td><strong style="color:#e0f4ff;font-family:monospace">${s.name}</strong></td>
+    <td style="color:#4a7a9a;font-size:11px">${envLabel}</td>
+    <td style="color:#94a3b8;font-size:11px">${s.developer || '—'}</td>
+    ${eligibleCell}
+  `;
+
+  wireRowPopover(s, row);
+  tbody.appendChild(row);
+}
+
+document.getElementById('promoteCount').textContent = eligibleCount;
+
+// ── Build promote list ─────────────────────────────────────────────────────
+const eligibleStories = STORIES.filter(s => s.isEligible);
+if (eligibleStories.length > 0) {
+  document.getElementById('promoteListWrap').style.display = '';
+  const plEl = document.getElementById('promoteList');
+  const groupOrder = [], groups = {};
+  for (const s of eligibleStories) {
+    if (!groups[s.projectId]) {
+      groups[s.projectId] = { name: s.project, stories: [] };
+      groupOrder.push(s.projectId);
+    }
+    groups[s.projectId].stories.push(s);
+  }
+
+  // Select All row
+  plEl.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:5px 8px;
+                background:rgba(26,184,232,0.05);border-radius:5px;border:1px solid rgba(26,184,232,0.12)">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="selectAllCb" checked style="width:14px;height:14px;accent-color:#1ab8e8;cursor:pointer" />
+        <span style="font-size:11px;font-weight:600;color:#7fc9e0">Select All</span>
+      </label>
+      <span style="font-size:10px;color:#334155">— uncheck to exclude from promotion</span>
+    </div>` +
+    groupOrder.map(pid => {
+      const g = groups[pid];
+      return `<div>
+        <div class="pl-group-title">${g.name}</div>
+        ${g.stories.map(s => `
+          <div class="pl-row" id="pl-${s.name}">
+            <input type="checkbox" class="pl-include" checked data-story="${s.name}" />
+            <span class="pl-name">${s.name}</span>
+            <span class="pl-dev">·  ${s.developer || ''}</span>
+            <button class="sep-btn" data-story="${s.name}">⟶ Separate</button>
+          </div>`).join('')}
+      </div>`;
+    }).join('');
+
+  // Wire checkboxes
+  document.querySelectorAll('.pl-include').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const row = document.getElementById('pl-' + cb.dataset.story);
+      if (row) row.style.opacity = cb.checked ? '1' : '0.4';
+      updatePromoteCount();
+    });
+  });
+  document.querySelectorAll('.sep-btn').forEach(btn => {
+    btn.addEventListener('click', () => btn.classList.toggle('active'));
+  });
+
+  document.getElementById('selectAllCb')?.addEventListener('change', e => {
+    document.querySelectorAll('.pl-include').forEach(cb => {
+      cb.checked = e.target.checked;
+      const row = document.getElementById('pl-' + cb.dataset.story);
+      if (row) row.style.opacity = e.target.checked ? '1' : '0.4';
+    });
+    updatePromoteCount();
+  });
+}
+
+function updatePromoteCount() {
+  const count = document.querySelectorAll('.pl-include:checked').length;
+  document.getElementById('promoteCount').textContent = count;
+}
+
+// ── Popover ────────────────────────────────────────────────────────────────
+let _popTimer = null;
+const popEl = document.getElementById('detail-popover');
+popEl.addEventListener('mouseenter', () => clearTimeout(_popTimer));
+popEl.addEventListener('mouseleave', () => hidePopover());
+
+function hidePopover() {
+  popEl.classList.remove('visible');
+}
+
+function showPopover(story, anchorRect) {
+  popEl.innerHTML = renderPopover(story);
+  const pw = 360, mg = 10, vw = window.innerWidth, vh = window.innerHeight;
+  let left = anchorRect.right + mg;
+  if (left + pw > vw - mg) left = anchorRect.left - pw - mg;
+  if (left < mg) left = Math.max(mg, (vw - pw) / 2);
+  let top = anchorRect.top;
+  const maxH = Math.min(vh * 0.74, 520);
+  if (top + maxH > vh - mg) top = vh - maxH - mg;
+  if (top < mg) top = mg;
+  popEl.style.left = `${Math.round(left)}px`;
+  popEl.style.top  = `${Math.round(top)}px`;
+  popEl.classList.add('visible');
+}
+
+function wireRowPopover(story, rowEl) {
+  rowEl.addEventListener('mouseenter', () => {
+    clearTimeout(_popTimer);
+    showPopover(story, rowEl.getBoundingClientRect());
+  });
+  rowEl.addEventListener('mouseleave', () => {
+    _popTimer = setTimeout(hidePopover, 220);
+  });
+}
+
+// ── Render Popover Content ─────────────────────────────────────────────────
+function kv(label, valueHtml) {
+  return `<div class="pop-kv"><span class="pop-kv-lbl">${label}</span>${valueHtml}</div>`;
+}
+function section(label, body) {
+  return `<div class="pop-section"><div class="pop-label">${label}</div>${body}</div>`;
+}
+
+function renderPopover(s) {
+  const parts = [];
+
+  // ── Header ──
+  const badge = s.isEligible
+    ? `<span class="pill-yes" style="font-size:11px">YES</span>`
+    : `<span class="pill-no"  style="font-size:11px">NO</span>`;
+  parts.push(`
+    <div class="pop-header">
+      <span class="pop-story-name">${s.name}</span>
+      ${badge}
+    </div>
+    <div style="color:#4a7a9a;font-size:10px;margin-top:2px">${s.developer || ''}</div>
+  `);
+
+  // ── Environment ──
+  if (s.srcEnv) {
+    const envStr = s.dstEnv ? `${s.srcEnv} → ${s.dstEnv}` : s.srcEnv;
+    parts.push(section('Environment',
+      kv('Source → Target:', `<span class="info">${envStr}</span>`)));
+  }
+
+  // ── Branch & Commits ──
+  {
+    let body = kv('Branch:', `<span style="font-family:monospace;color:#2a6a8a;font-size:10px">${s.branch || '—'}</span>`);
+    body += kv('Copado commits:', `<span style="color:#90d8f0">${s.copadoCommits}</span>${s.committedBy.length ? ` <span class="muted" style="font-size:10px">by ${s.committedBy.join(', ')}</span>` : ''}`);
+    body += kv('Branch commits:', `<span style="color:#90d8f0">${s.branchCommits}</span>`);
+    parts.push(section('Branch & Commits', body));
+  }
+
+  // ── Verdict ──
+  {
+    const verdictMap = {
+      'clean':                   ['tag-clean',   '✓ Clean'],
+      'skip-covered-same-author':['tag-covered', '✓ Covered (same author)'],
+      'skip-no-commits':         ['tag-warn',    '⚠ No commits'],
+      'skip-unregistered':       ['tag-err',     '✗ Unregistered'],
+      'skip-needs-verify':       ['tag-warn',    '⚠ Needs Verify'],
+    };
+    const [cls, lbl] = verdictMap[s.verdict] ?? ['tag-err', '✗ Error'];
+    parts.push(section('Verdict', `<span class="tag-mini ${cls}">${lbl}</span>`));
+  }
+
+  // ── Tests ──
+  if ((s.tests || []).length > 0) {
+    const rows = s.tests.map(t => {
+      const ok  = t.status === 'Success';
+      const col = ok ? 'ok' : (t.status === 'Failed' || t.status === 'Error' ? 'err' : 'warn');
+      return kv(`${t.tool}:`, `<span class="${col}">${ok ? '✓' : '✗'} ${t.status}</span>`);
+    }).join('');
+    parts.push(section('Tests', rows));
+  } else if (s.hasApexCode) {
+    parts.push(section('Tests', kv('Apex:', `<span class="muted">No test records linked</span>`)));
+  }
+
+  // ── PR Approval ──
+  if (s.verdict !== 'skip-no-commits') {
+    parts.push(section('Pull Request',
+      kv('Approval:', s.prApproved
+        ? `<span class="ok">✓ Approved</span>`
+        : `<span class="err">✗ Not approved</span>`)));
+  }
+
+  // ── Deployment Tasks ──
+  if (s.hasDeploymentTasks) {
+    parts.push(section('Deployment Tasks',
+      `<span class="ok">✓ Has job steps (no commits required)</span>`));
+  }
+
+  // ── Last Promo Warning ──
+  if (s.lastPromoWarning) {
+    const lpw    = s.lastPromoWarning;
+    const status = lpw.status;
+    const name   = lpw.name;
+    let statusHtml = '';
+
+    if (status === 'Merge Conflict') {
+      if (!lpw.isConflictOnCurrentStory) {
+        const merged = lpw.mergedIntoPromotion;
+        const mergeLabel = merged === true  ? `✓ Merged into ${name}`
+                         : merged === false ? `ℹ Not yet merged in ${name}`
+                         :                   `ℹ Merge order unknown in ${name}`;
+        statusHtml = `<span class="info">${mergeLabel}</span><br>
+          <span class="muted" style="font-size:10px">Conflict caused by ${lpw.conflictCulprit}</span>`;
+      } else {
+        statusHtml = `<span class="tag-mini tag-err">⚠ Merge Conflict — ${name}</span>`;
+      }
+    } else if (status === 'In Progress') {
+      const col = lpw.jeStatus === 'Queued' ? 'warn' : 'ok';
+      statusHtml = `<span class="${col}">${lpw.jeStatus ?? 'In Progress'} — ${name}</span>`;
+    } else if (status === 'Conflicts Resolved') {
+      statusHtml = `<span class="tag-mini tag-warn">⚠ Conflicts Resolved — ${name}</span>`;
+      if (lpw.resolutionsStale)
+        statusHtml += ` <span class="tag-mini tag-err" style="font-size:9px">resolutions stale</span>`;
+      else
+        statusHtml += `<br><span class="ok" style="font-size:10px">✓ Resolution files will be copied</span>`;
+    } else if (status === 'Validated') {
+      statusHtml = `<span class="tag-mini tag-warn">⚠ Validated only — not deployed — ${name}</span>`;
+    } else {
+      statusHtml = `<span class="warn">⚠ ${status} — ${name}</span>`;
+    }
+
+    let sibHtml = '';
+    const sibs = lpw.siblingStories ?? [];
+    if (sibs.length > 0) {
+      const sibRows = sibs.map(sib => {
+        const inList   = STORIES.some(st => st.name === sib.name);
+        const eligible = STORIES.find(st => st.name === sib.name)?.isEligible;
+        const tag = !inList
+          ? `<span class="muted" style="font-size:9px">● not in list</span>`
+          : eligible
+            ? `<span class="ok"    style="font-size:9px">● eligible</span>`
+            : `<span class="err"   style="font-size:9px">● not eligible</span>`;
+        return `<div class="sib-row">
+          <strong style="color:#f8fafc;font-size:11px">${sib.name}</strong>
+          <span class="info" style="font-size:10px"> · ${sib.credential}</span>
+          <span class="muted" style="font-size:10px"> · ${sib.developer}</span>
+          ${tag}
+        </div>`;
+      }).join('');
+      sibHtml = `<div class="sib-block">
+        <div class="sib-block-title">Also in promotion — ${name}</div>
+        ${sibRows}
+      </div>`;
+    }
+
+    parts.push(section('Last Promotion Warning', statusHtml + sibHtml));
+  }
+
+  // ── Absent / Ineligible siblings (post-done data) ──
+  if ((s.absentSiblings?.length ?? 0) > 0 || (s.ineligibleSiblings?.length ?? 0) > 0) {
+    let noteHtml = '';
+    if (s.absentSiblings?.length)
+      noteHtml += `<div class="err" style="font-size:10px">Missing from list — ${s.absentSiblings.map(x => x.name).join(', ')}</div>`;
+    if (s.ineligibleSiblings?.length)
+      noteHtml += `<div class="warn" style="font-size:10px">In list but not eligible — ${s.ineligibleSiblings.map(x => x.name).join(', ')}</div>`;
+    parts.push(section('Sibling Status', noteHtml));
+  }
+
+  // ── Reason NOT eligible ──
+  if (!s.isEligible && s.failingGates?.length > 0) {
+    const items = s.failingGates.map(g =>
+      `<div class="reason-item"><span class="err">✗</span><span style="color:#f87171;font-size:11px">${g}</span></div>`
+    ).join('');
+    parts.push(section('Reason Not Eligible', `<div class="reason-list">${items}</div>`));
+  }
+
+  return parts.join('');
+}
+</script>
+
+<div class="note-banner">
+  ℹ &nbsp;Hover over any story row to see full details. This is a browser prototype — no real Copado data.
+</div>
+
+</body>
+</html>
