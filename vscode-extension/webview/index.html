@@ -317,7 +317,7 @@
                      border:1px solid rgba(245,158,11,0.4);background:transparent;color:#f59e0b;outline:none">
         ↻ Re-verify Force Stories
       </button>
-      <span style="font-size:10px;color:#475569;margin-left:8px">updates results for force-promoted stories only</span>
+      <span style="font-size:10px;color:#475569;margin-left:8px">re-verifies all stories where no fix commit was made</span>
     </div>
   </div>
 </div>
@@ -329,11 +329,13 @@ const vscode = acquireVsCodeApi();
 
 let cleanStories       = [];   // [{name, id, projectId, credentialId, skipped}]
 let verifiedStoryNames = new Set(); // all story names that came back from verify (uppercased), for culprit-in-list check
+let storyWarningMap    = new Map(); // upperName → lastPromoWarning | null, for sibling tag rendering
 let currentOrg         = '';
 let runCompleted       = false;
 let inPromoteMode      = false;
 let mergeDeployResults = [];   // [{success, promotionId, jobId?, error?}]
 let isPartialReVerify  = false; // true when re-verifying only force-promote stories
+let forcePromoStoryNames = new Set(); // ALL stories flagged as isFailedPromo (regardless of Force checkbox)
 
 
 function updatePromoteCount() {
@@ -406,8 +408,7 @@ function updatePromoteList() {
   el.innerHTML = headerHtml + storiesHtml;
 
   // Show re-verify button only when there are force-promoted stories in the list
-  const hasForce = cleanStories.some(s => s.forcePromo);
-  document.getElementById('reVerifyForceWrap').style.display = hasForce ? 'block' : 'none';
+  document.getElementById('reVerifyForceWrap').style.display = forcePromoStoryNames.size > 0 ? 'block' : 'none';
 
   const selectAllCb = document.getElementById('selectAllCb');
   if (selectAllCb && !allIncluded && !noneIncluded) selectAllCb.indeterminate = true;
@@ -466,24 +467,24 @@ function updatePromoteList() {
 
 
 function reVerifyForceStories() {
-  const forceStories = cleanStories.filter(s => s.forcePromo);
-  if (forceStories.length === 0) return;
+  if (forcePromoStoryNames.size === 0) return;
   const orgAlias = document.getElementById('orgAlias').value.trim();
   const repoPath = document.getElementById('repoPath').value.trim();
   if (!orgAlias) return;
 
-  // Remove force stories from cleanStories — story-verified will re-add them appropriately
-  for (const s of forceStories) {
-    const idx = cleanStories.findIndex(c => c.name === s.name);
+  // Remove any force stories that were manually checked from cleanStories — story-verified will re-evaluate them
+  for (const name of forcePromoStoryNames) {
+    const idx = cleanStories.findIndex(c => c.name === name && c.forcePromo);
     if (idx !== -1) cleanStories.splice(idx, 1);
   }
   updatePromoteCount();
 
+  const count = forcePromoStoryNames.size;
   isPartialReVerify = true;
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
-  setStatus('info', `Re-verifying ${forceStories.length} force stor${forceStories.length === 1 ? 'y' : 'ies'}...`, true);
-  vscode.postMessage({ command: 'verify', stories: forceStories.map(s => s.name).join(','), orgAlias, repoPath });
+  setStatus('info', `Re-verifying ${count} force stor${count === 1 ? 'y' : 'ies'}...`, true);
+  vscode.postMessage({ command: 'verify', stories: [...forcePromoStoryNames].join(','), orgAlias, repoPath });
 }
 
 // ── Project grouping state ─────────────────────────────────────────────────
@@ -551,12 +552,14 @@ function verify() {
     setStatus('error', 'Enter story names and Copado org alias / username before verifying.');
     return;
   }
-  currentOrg         = orgAlias;
-  cleanStories       = [];
-  verifiedStoryNames = new Set();
-  runCompleted       = false;
-  projectHeaderMap   = {};
-  projectLastRow     = {};
+  currentOrg           = orgAlias;
+  cleanStories         = [];
+  verifiedStoryNames   = new Set();
+  storyWarningMap      = new Map();
+  forcePromoStoryNames = new Set();
+  runCompleted         = false;
+  projectHeaderMap     = {};
+  projectLastRow       = {};
 
   document.getElementById('results-section').style.display = 'none';
   document.getElementById('promote-section').style.display = 'none';
@@ -577,7 +580,8 @@ function verify() {
 }
 
 function abort() {
-  isPartialReVerify = false;
+  isPartialReVerify    = false;
+  forcePromoStoryNames = new Set();
   vscode.postMessage({ command: 'abort' });
 }
 
@@ -628,8 +632,10 @@ function reset() {
   document.getElementById('stories').value = '';
   // Ask panel.ts for the current default org (re-reads .sf/config.json fresh)
   vscode.postMessage({ command: 'getDefaultOrg' });
-  cleanStories       = [];
-  verifiedStoryNames = new Set();
+  cleanStories         = [];
+  verifiedStoryNames   = new Set();
+  storyWarningMap      = new Map();
+  forcePromoStoryNames = new Set();
   document.getElementById('promoteList').textContent = '';
   document.getElementById('pipelineNamesBar').style.display = 'none';
   document.getElementById('pipelineNamesBar').textContent = '';
@@ -1143,6 +1149,7 @@ window.addEventListener('message', (event) => {
     insertGroupedRow(msg.storyName, msg.projectId, html);
 
     verifiedStoryNames.add(msg.storyName.toUpperCase());
+    storyWarningMap.set(msg.storyName.toUpperCase(), msg.lastPromoWarning ?? null);
 
     const isLastPromoWarning  = !!msg.lastPromoWarning;
     const isConflictsResolved = msg.lastPromoWarning?.status === 'Conflicts Resolved';
@@ -1158,6 +1165,8 @@ window.addEventListener('message', (event) => {
 
     if (isEligible) {
       if (!isLastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo) {
+        // If this story was previously force-flagged (re-verify scenario), remove it now that it's eligible.
+        forcePromoStoryNames.delete(msg.storyName);
         const entry = {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,
@@ -1188,6 +1197,7 @@ window.addEventListener('message', (event) => {
         cleanStories.push(entry);
       } else if (isFailedPromo) {
         // Last promo failed with no fix commit — not auto-eligible; user must check "Force" to include.
+        forcePromoStoryNames.add(msg.storyName);
         const entry = {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,
@@ -1258,14 +1268,13 @@ window.addEventListener('message', (event) => {
 
     if (isPartialReVerify) {
       isPartialReVerify = false;
-      updatePromoteCount();
-      if (cleanStories.length > 0) {
+      updatePromoteCount(); // also updates reVerifyForceWrap visibility via forcePromoStoryNames
+      if (cleanStories.length > 0 || forcePromoStoryNames.size > 0) {
         document.getElementById('promote-section').style.display = 'block';
-        document.getElementById('promoteBtn').disabled = false;
+        if (cleanStories.length > 0) document.getElementById('promoteBtn').disabled = false;
       }
-      const forceCount = cleanStories.filter(s => s.forcePromo).length;
-      setStatus('success', forceCount > 0
-        ? `Re-verify complete — ${forceCount} stor${forceCount === 1 ? 'y' : 'ies'} still require force promote.`
+      setStatus('success', forcePromoStoryNames.size > 0
+        ? `Re-verify complete — ${forcePromoStoryNames.size} stor${forcePromoStoryNames.size === 1 ? 'y' : 'ies'} still require force promote.`
         : 'Re-verify complete — force stories are now normally eligible.');
       return;
     }
@@ -1352,8 +1361,14 @@ window.addEventListener('message', (event) => {
         span.style.color = '#34d399';
         span.textContent = '● eligible';
       } else if (inList) {
-        span.style.color = '#f87171';
-        span.textContent = '● not eligible';
+        const warn = storyWarningMap.get(sibName);
+        if (warn?.status === 'In Progress' && warn?.name) {
+          span.style.color = '#f59e0b';
+          span.textContent = `● In Progress — ${warn.name}`;
+        } else {
+          span.style.color = '#f87171';
+          span.textContent = '● not eligible';
+        }
       } else {
         span.style.color = '#475569';
         span.textContent = '● not in list';
@@ -1366,7 +1381,15 @@ window.addEventListener('message', (event) => {
       document.getElementById('promoteBtn').disabled = false;
       setStatus('success', `Verification complete — ${cleanStories.length} stor${cleanStories.length === 1 ? 'y' : 'ies'} eligible to promote.`);
     } else {
-      setStatus('warning', 'Verification complete — no eligible stories to promote.');
+      // No eligible stories — but show re-verify button if any force stories exist
+      if (forcePromoStoryNames.size > 0) {
+        document.getElementById('promote-section').style.display = 'block';
+        document.getElementById('reVerifyForceWrap').style.display = 'block';
+      }
+      const forceMsg = forcePromoStoryNames.size > 0
+        ? ` (${forcePromoStoryNames.size} stor${forcePromoStoryNames.size === 1 ? 'y' : 'ies'} require force promote)`
+        : '';
+      setStatus('warning', `Verification complete — no eligible stories to promote.${forceMsg}`);
     }
   }
 

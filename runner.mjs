@@ -1,6 +1,6 @@
 // Standalone runner — bypasses sf CLI framework entirely for fast startup
 import { spawnSync } from 'child_process';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join as pathJoin } from 'path';
 import { AuthInfo, Connection, StateAggregator } from '@salesforce/core';
@@ -453,17 +453,29 @@ async function main() {
     const tempBase = pathJoin(tmpdir(), 'copado-validator');
     effectiveRepoPath = pathJoin(tempBase, detectedRepoName);
 
+    // Validate the repo is actually functional — .git folder may exist but be corrupt/cleaned by OS temp purge
+    let repoValid = false;
     if (existsSync(pathJoin(effectiveRepoPath, '.git'))) {
-      // Repo already cloned previously — just fetch latest
+      try {
+        await simpleGit(effectiveRepoPath).revparse(['--git-dir']);
+        repoValid = true;
+      } catch { /* .git folder exists but repo is corrupt — will wipe and re-clone */ }
+    }
+
+    if (repoValid) {
+      // Repo is healthy — just fetch latest
       emit({ type: 'effective-repo-path', repoPath: effectiveRepoPath });
       emit({ type: 'git-fetch-start' });
       const g = simpleGit(effectiveRepoPath);
-      try { await g.fetch(['origin']); }
+      try { await g.fetch(['--prune', 'origin']); }
       catch (err) { emit({ type: 'fatal', message: `git fetch failed: ${String(err)}` }); return; }
       emit({ type: 'git-fetch-done' });
       alreadyFetched = true;
     } else {
-      // First time — clone without checking out files (faster, we only need git history)
+      // First time OR temp was purged/corrupted — wipe any leftover and re-clone
+      if (existsSync(effectiveRepoPath)) {
+        rmSync(effectiveRepoPath, { recursive: true, force: true });
+      }
       emit({ type: 'git-clone-start', repoName: detectedRepoName });
       mkdirSync(tempBase, { recursive: true });
       try {
@@ -483,7 +495,7 @@ async function main() {
   const git = simpleGit(effectiveRepoPath);
   if (!alreadyFetched) {
     emit({ type: 'git-fetch-start' });
-    try { await git.fetch(['origin']); }
+    try { await git.fetch(['--prune', 'origin']); }
     catch (err) { emit({ type: 'fatal', message: `git fetch failed: ${String(err)}` }); return; }
     emit({ type: 'git-fetch-done' });
   }
