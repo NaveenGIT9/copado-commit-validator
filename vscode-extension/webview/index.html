@@ -879,10 +879,10 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   } else {
     unregHtml = detail.map(d => {
       if (d._errorMsg) return `<span style="color:#f85149;font-size:11px">${d._errorMsg}</span>`;
-      if (d.commitNotInBranch) {
+      if (d.copadoStatus && d.copadoStatus !== 'Failed') {
         return [
           `<span class="hash-list" style="color:#2a6a8a">${d.sha}</span>`,
-          `<span style="color:#f85149;font-size:10px">⛔ Registered in Copado with 'Commit not in branch' status</span>`,
+          `<span style="color:#f85149;font-size:10px">⛔ Registered in Copado with '${d.copadoStatus}' status</span>`,
           d.commitMessage ? `<span style="color:#2a6a8a;font-size:10px;display:block;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.commitMessage}">${d.commitMessage}</span>` : '',
         ].filter(Boolean).join('<br>');
       }
@@ -894,6 +894,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         ].join('<br>');
       }
       const lines = [`<span class="hash-list" style="color:#2a6a8a">${d.sha}</span>`];
+      if (d.copadoStatus === 'Failed')
+        lines.push(`<span style="color:#e3b341;font-size:10px">⚠ Registered in Copado with 'Failed' status — checking metadata coverage</span>`);
       if (d.coveredComponents && d.coveredComponents.length > 0)
         lines.push(`<span style="color:#e3b341;font-size:10px">In metadata:<br>${d.coveredComponents.join('<br>')}</span>`);
       if (d.uncoveredComponents && d.uncoveredComponents.length > 0)
