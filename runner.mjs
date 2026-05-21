@@ -60,6 +60,14 @@ function parseApiName(filePath) {
   if (defaultIdx === -1) return null;
   const typeFolder = parts[defaultIdx + 1];
   if (['aura', 'lwc'].includes(typeFolder)) return parts[defaultIdx + 2] ?? null;
+  // Object-nested metadata: default/objects/<Object>/<subfolder>/<name>-meta.xml
+  // Covers CustomField, RecordType, ValidationRule, FieldSet, WebLink, ListView, QuickAction.
+  // Copado stores these as "Object.Name" — return the same format.
+  if (typeFolder === 'objects' && parts.length >= defaultIdx + 5) {
+    const objectName = parts[defaultIdx + 2];
+    const memberName = parts[parts.length - 1].replace(/-meta\.xml$/, '').replace(/\.[^.]+$/, '');
+    return memberName ? `${objectName}.${memberName}` : null;
+  }
   return parts[parts.length - 1].replace(/-meta\.xml$/, '').replace(/\.[^.]+$/, '') || null;
 }
 
@@ -702,8 +710,15 @@ async function main() {
         || commitMessage.startsWith('Add custom PMD rules to custom-rules-list.txt');
 
       const components        = [...new Set(files.map(parseApiName).filter(Boolean))];
-      const coveredComponents   = components.filter(c => storyMetadataNames.has(c.toLowerCase()));
-      const uncoveredComponents = components.filter(c => !storyMetadataNames.has(c.toLowerCase()));
+      // Exact match covers most types. Prefix match (e.g. "Account" → "Account.MyRule")
+      // covers SharingCriteriaRule, SharingOwnerRule, WorkflowRule — stored as one file
+      // per object in git but tracked individually (Object.Name) in Copado metadata.
+      const isCovered = (c) => {
+        const cl = c.toLowerCase();
+        return storyMetadataNames.has(cl) || [...storyMetadataNames].some(m => m.startsWith(cl + '.'));
+      };
+      const coveredComponents   = components.filter(c => isCovered(c));
+      const uncoveredComponents = components.filter(c => !isCovered(c));
       const authorMismatch      = authorEmail ? !storyAuthorEmails.has(authorEmail.toLowerCase()) : false;
 
       // Check if this unregistered SHA matches a Copado commit record with non-Complete status.
