@@ -212,8 +212,15 @@ async function main() {
       if (group.retriggerPromotionId) {
         const pid = group.retriggerPromotionId;
         const promotionName = group.retriggerPromotionName ?? pid;
+        let retriggerDestEnvName = '—';
+        try {
+          const promoDetailRes = await conn.query(
+            `SELECT copado__Destination_Environment__r.Name FROM copado__Promotion__c WHERE Id = '${pid}'`
+          );
+          retriggerDestEnvName = promoDetailRes.records[0]?.copado__Destination_Environment__r?.Name ?? '—';
+        } catch { /* non-fatal — display '—' if query fails */ }
         emit({ type: 'promotion-retriggered', promotionId: pid, promotionName, projectId, storyCount: groupStories.length });
-        promotionSummary.push({ success: true, projectId, destEnvName: '—', promotionName, promotionId: pid, storyCount: groupStories.length, stories: groupStories.map((name, i) => ({ name, developer: (group.storyDevelopers || [])[i] || '' })) });
+        promotionSummary.push({ success: true, projectId, destEnvName: retriggerDestEnvName, promotionName, promotionId: pid, storyCount: groupStories.length, stories: groupStories.map((name, i) => ({ name, developer: (group.storyDevelopers || [])[i] || '' })) });
         for (const name of groupStories) {
           emit({ type: 'promote-result', storyName: name, success: true, promotionId: pid });
         }
