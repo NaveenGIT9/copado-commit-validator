@@ -4,9 +4,13 @@
   "description": "Verify and promote Copado User Stories with branch commit validation",
   "version": "2.0.0",
   "publisher": "NaveenBonthu9",
-  "engines": { "vscode": "^1.85.0" },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
   "icon": "media/copado-logo.png",
-  "categories": ["Other"],
+  "categories": [
+    "Other"
+  ],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
@@ -18,11 +22,12 @@
     ]
   },
   "scripts": {
-    "build": "npx tsc -p tsconfig.json"
+    "build": "npx tsc -p tsconfig.json && npx esbuild ../runner.mjs --bundle --platform=node --outfile=runner.bundle.js --format=cjs"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
     "@types/node": "^18",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.28.0",
     "typescript": "^5"
   }
 }

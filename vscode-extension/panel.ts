@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 
-const RUNNER_PATH = path.join('D:', 'plugin-promoter', 'runner.mjs');
+const RUNNER_PATH = path.join(__dirname, '..', 'runner.bundle.js');
 
 interface StoryResult {
   storyName: string;
@@ -232,7 +232,7 @@ export class PromoterPanel {
   }
 
   private getHtml(): string {
-    const htmlPath = path.join('D:', 'plugin-promoter', 'vscode-extension', 'webview', 'index.html');
+    const htmlPath = path.join(__dirname, '..', 'webview', 'index.html');
     if (fs.existsSync(htmlPath)) {
       let html = fs.readFileSync(htmlPath, 'utf8');
       const defaultOrg = this.getDefaultOrg();
