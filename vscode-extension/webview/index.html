@@ -396,6 +396,7 @@ function updatePromoteList() {
         <span style="font-family:monospace;font-size:11px;font-weight:500;color:${nameCol};${strike}">${s.name}</span>
         ${s.forcePromo ? `<span style="font-size:9px;font-weight:700;color:#f59e0b;margin-left:4px;padding:1px 4px;border:1px solid rgba(245,158,11,0.4);border-radius:2px">⚠ FORCE</span>` : ''}
         ${dev}
+        ${s.promoWarning ? `<span style="font-size:9px;color:#94a3b8;margin-left:8px;flex-shrink:0">In Promotion · ${s.promoWarning.name} · ${s.promoWarning.status}</span>` : ''}
         ${sepBtn}
       </div>`;
     }).join('');
@@ -942,7 +943,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
        </td>`
     : `<td></td>`;
   // Separate Promo: shown for normal eligible stories and innocent Merge Conflict stories.
-  // Innocent conflict stories are pre-checked (forced separate) but user can override.
+  // Innocent conflict stories show the checkbox unchecked — user decides whether to promote separately.
   // CR multi-story stories get a hidden cell that the done handler reveals only when some siblings are missing.
   const separateTd = (willBePromoted && (!lastPromoWarning || isInnocentConflict))
     ? `<td style="text-align:center;vertical-align:middle">
@@ -1173,9 +1174,10 @@ window.addEventListener('message', (event) => {
           projectId: msg.projectId, credentialId: msg.credentialId,
           projectName: msg.projectName ?? '',
           // Innocent Merge Conflict always separate. CR multi-story defaults unchecked (re-trigger).
-          separate: isInnocentConflict,
+          separate: false,
           skipped: false,
           developer: msg.storyDeveloper ?? '',
+          promoWarning: isInnocentConflict ? { name: msg.lastPromoWarning?.name, status: msg.lastPromoWarning?.status } : null,
         };
         if (isConflictsResolved || isValidatedPromo) {
           entry.retriggerPromotionId   = msg.lastPromoWarning.id;
