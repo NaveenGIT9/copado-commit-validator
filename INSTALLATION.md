@@ -1,91 +1,90 @@
-# Copado Commit Validator — Installation Guide (v1.0)
+# Copado Commit Validator — Installation Guide
 
 ## What Is This?
 
-A VSCode extension that automates the verification of Copado User Story commits before promotion. Instead of manually checking each story's commits in Copado, paste story names, click **Verify**, and the tool checks everything automatically — commit registration, test results, PR approvals, and Apex test class presence.
+A VS Code extension that checks your Copado User Story commits before promotion and lets you promote directly from the tool. Paste story names, click **Verify**, and it checks commit registration, PR approvals, merge conflicts, parent dependencies, and more — then promotes eligible stories in one click.
 
 ---
 
-## Prerequisites
+## For Colleagues — Just Install the VSIX
 
-Before installing the extension, make sure you have the following on your machine:
+You only need one file: **`promoter-latest.vsix`** (shared directly by Naveen).
 
-| Requirement | Details |
+### Prerequisites
+
+Make sure you have these on your machine:
+
+| Requirement | How to check |
 |---|---|
-| **Node.js** | Version 18 or higher |
-| **Salesforce CLI** | `sf` CLI installed and your Copado org authenticated (`sf org login web --alias your-alias`) |
-| **Git** | Installed and your Salesforce project repository cloned locally |
+| **VS Code** | Already installed |
+| **Node.js 18+** | Run `node --version` in terminal |
+| **Salesforce CLI** | Run `sf --version` in terminal |
+| **Git** | Run `git --version` in terminal |
+| **Copado org authenticated** | Run `sf org list` — your org alias should appear |
+| **SF repo cloned locally** | e.g. `D:\Projects\rbk-sfdc-release` |
 
----
+### Install Steps
 
-## Installation Steps
-
-### Step 1 — Download the VSIX
-
-1. Go to the GitHub repository
-2. Navigate to `vscode-extension/` folder
-3. Click `promoter-latest.vsix`
-4. Click **Download raw file**
-
-### Step 2 — Install in VS Code
-
-**Option A — via Extensions Sidebar:**
 1. Open VS Code
-2. Click the Extensions icon in the sidebar
-3. Click the `...` (three dots) at the top right
+2. Click the **Extensions** icon in the left sidebar
+3. Click the **`...`** menu at the top right of the Extensions panel
 4. Select **Install from VSIX...**
-5. Browse to and select the downloaded `promoter-latest.vsix`
+5. Select the `promoter-latest.vsix` file
+6. Reload VS Code when prompted
 
-**Option B — via Command Palette:**
-1. Press `Ctrl+Shift+P`
-2. Type `Install from VSIX`
-3. Select the downloaded file
+### Open the Extension
 
-### Step 3 — Open the Panel
+Press `Ctrl+Shift+P` → type **Copado Commit Validator** → press Enter
 
-1. Press `Ctrl+Shift+P`
-2. Type **Copado Commit Validator**
-3. Press Enter — the panel opens
+### Using It
 
----
-
-## Using the Tool
-
-1. Paste your story names (one per line or comma-separated) in the **User Stories** field
-2. Enter your **SF org alias** (the alias you used when authenticating with `sf org login`)
-3. Enter the **local path** of your Salesforce project repository (e.g. `D:\Projects\my-sf-repo`)
+1. Enter your **Copado org alias** (same alias you use with `sf` CLI)
+2. Enter the **path to your local SF repo** (e.g. `D:\Projects\rbk-sfdc-release`)
+3. Paste story names — one per line or comma-separated
 4. Click **Verify Stories**
-5. Once verification completes, eligible stories appear — click **Promote Eligible Stories** to promote
+5. Review results → click **Promote Eligible Stories**
 
 ---
 
-## Does This GitHub Repo Need to Be Cloned?
+## Do I Need to Clone This Repo?
 
-**No.** You only need to download the `promoter-latest.vsix` file. Cloning this `copado-commit-validator` repository is only needed if you want to read or modify the source code.
+**No.** The VSIX is fully self-contained — all dependencies are bundled inside it.
 
-What you **do** need cloned locally is your **own Salesforce project repository** — the tool runs git commands against it to verify commits on each feature branch.
-
----
-
-## Does Making the Repo Private Affect an Already-Installed Extension?
-
-**No.** Once the VSIX is downloaded and installed, it runs entirely on your local machine. It connects only to:
-- Your **Salesforce org** (via SF CLI authentication)
-- Your **local Salesforce project repository** (via git commands)
-
-It never connects back to GitHub after installation. Private or public makes no difference once installed.
+What you **do** need cloned is your **own Salesforce project repo** (e.g. `rbk-sfdc-release`) — the tool runs git commands against it to check commits on each feature branch.
 
 ---
 
-## Sharing with Team Members
+## Updating to a New Version
 
-1. Add them as a **Collaborator** on this GitHub repo (Settings → Collaborators → Add people)
-2. They download `promoter-latest.vsix` and follow Steps 1–3 above
-3. They need their own Copado org authenticated and their Salesforce project repository cloned locally
-4. Done — no other setup required
+When Naveen shares a newer VSIX:
+
+1. Go to Extensions → find **Copado Commit Validator** → click **Uninstall**
+2. Follow the install steps above with the new file
 
 ---
 
-## Version
+## For Developers (Making Changes)
 
-**v1.0** — Initial release
+### First-time setup
+
+```
+cd D:\plugin-promoter\vscode-extension
+npm install
+```
+
+### After changing runner.mjs or index.html
+
+```
+cd D:\plugin-promoter\vscode-extension
+npm run build
+npx vsce package --no-dependencies --out promoter-latest.vsix
+```
+
+Share the new `promoter-latest.vsix` with colleagues. That's it — no other files needed.
+
+### What `npm run build` does
+
+1. Compiles TypeScript → `dist/panel.js`
+2. Bundles `runner.mjs` + all npm dependencies → `runner.bundle.js`
+
+Both are packaged into the VSIX automatically.
