@@ -100,6 +100,7 @@ async function main() {
 
     const authInfo = await AuthInfo.create({ username });
     conn = await Connection.create({ authInfo });
+    emit({ type: 'instance-url', url: conn.instanceUrl });
   } catch (err) {
     emit({ type: 'fatal', message: `Auth failed for "${orgAlias}": ${String(err)}` });
     process.exit(1);
@@ -212,7 +213,7 @@ async function main() {
         const pid = group.retriggerPromotionId;
         const promotionName = group.retriggerPromotionName ?? pid;
         emit({ type: 'promotion-retriggered', promotionId: pid, promotionName, projectId, storyCount: groupStories.length });
-        promotionSummary.push({ success: true, projectId, destEnvName: '—', promotionName, storyCount: groupStories.length });
+        promotionSummary.push({ success: true, projectId, destEnvName: '—', promotionName, promotionId: pid, storyCount: groupStories.length, stories: groupStories.map((name, i) => ({ name, developer: (group.storyDevelopers || [])[i] || '' })) });
         for (const name of groupStories) {
           emit({ type: 'promote-result', storyName: name, success: true, promotionId: pid });
         }
@@ -276,9 +277,9 @@ async function main() {
         const promotionName = nameRes.records[0]?.Name ?? promotionId;
 
         emit({ type: 'promotion-created', promotionId, promotionName, projectId, storyCount: storyIds.length });
-        promotionSummary.push({ success: true, projectId, destEnvName, promotionName, storyCount: storyIds.length });
+        promotionSummary.push({ success: true, projectId, destEnvName, promotionName, promotionId, storyCount: storyIds.length, stories: groupStories.map((name, i) => ({ name, developer: (group.storyDevelopers || [])[i] || '' })) });
       } catch (err) {
-        promotionSummary.push({ success: false, projectId, storyCount: groupStories.length });
+        promotionSummary.push({ success: false, projectId, promotionId: null, storyCount: groupStories.length, stories: groupStories.map((name, i) => ({ name, developer: (group.storyDevelopers || [])[i] || '' })) });
         for (const name of groupStories) {
           emit({ type: 'promote-result', storyName: name, success: false, error: `Promotion create failed: ${String(err)}` });
         }

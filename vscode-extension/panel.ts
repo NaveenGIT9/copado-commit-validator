@@ -104,6 +104,7 @@ export class PromoterPanel {
     orgAlias?: string;
     repoPath?: string;
     envType?: string;
+    url?: string;
     groups?: Array<{ projectId: string; credentialId: string; stories: string[]; storyIds: string[] }>;
     mergeDeployAfter?: boolean;
   }): void {
@@ -120,6 +121,8 @@ export class PromoterPanel {
       this.abortRun();
     } else if (msg.command === 'getDefaultOrg') {
       this.post({ type: 'default-org', org: this.getDefaultOrg() });
+    } else if (msg.command === 'openUrl') {
+      void vscode.env.openExternal(vscode.Uri.parse(msg.url ?? ''));
     }
   }
 

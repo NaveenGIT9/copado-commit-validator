@@ -331,6 +331,7 @@ let cleanStories       = [];   // [{name, id, projectId, credentialId, skipped}]
 let verifiedStoryNames = new Set(); // all story names that came back from verify (uppercased), for culprit-in-list check
 let storyWarningMap    = new Map(); // upperName → lastPromoWarning | null, for sibling tag rendering
 let currentOrg         = '';
+let instanceUrl        = '';
 let runCompleted       = false;
 let inPromoteMode      = false;
 let mergeDeployResults = [];   // [{success, promotionId, jobId?, error?}]
@@ -599,7 +600,7 @@ function promote() {
               : s.retriggerGroup ? `__retrigger__${s.retriggerGroup}`
               : `${s.projectId}::${s.credentialId}`;
     if (!groupMap[key]) {
-      groupMap[key] = { projectId: s.projectId, credentialId: s.credentialId, stories: [], storyIds: [],
+      groupMap[key] = { projectId: s.projectId, credentialId: s.credentialId, stories: [], storyIds: [], storyDevelopers: [],
         // When separate: create new promo + copy attachments. When re-trigger: re-trigger old promo.
         retriggerPromotionId:             s.separate ? null : (s.retriggerPromotionId ?? null),
         retriggerPromotionName:           s.separate ? null : (s.retriggerPromotionName ?? null),
@@ -610,6 +611,7 @@ function promote() {
     }
     groupMap[key].stories.push(s.name);
     groupMap[key].storyIds.push(s.id);
+    groupMap[key].storyDevelopers.push(s.developer ?? '');
   }
 
   const groups       = Object.values(groupMap);
@@ -618,6 +620,7 @@ function promote() {
   document.getElementById('promoteBtn').disabled = true;
   const action = mergeDeployAfter ? 'Promoting + triggering Merge & Deploy' : 'Creating promotions';
   setStatus('info', `${action} for ${totalStories} stor${totalStories > 1 ? 'ies' : 'y'} across ${groups.length} group${groups.length > 1 ? 's' : ''}...`, true);
+  document.getElementById('statusBar').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   inPromoteMode      = true;
   mergeDeployResults = [];
   vscode.postMessage({ command: 'promote', groups, orgAlias: currentOrg, mergeDeployAfter });
@@ -654,6 +657,10 @@ function reset() {
 function endRun() {
   document.getElementById('verifyBtn').disabled = false;
   document.getElementById('cancelBtn').style.display = 'none';
+}
+
+function openUrl(url) {
+  vscode.postMessage({ command: 'openUrl', url });
 }
 
 function setStatus(type, msg, spinner = false) {
@@ -1479,46 +1486,78 @@ window.addEventListener('message', (event) => {
   }
 
   else if (msg.type === 'promote-summary') {
-    const successes = (msg.promotionSummary || []).filter(p => p.success);
-    const total = successes.length;
-    if (total === 0) return; // individual errors already shown
+    const summary = msg.promotionSummary || [];
+    if (summary.length === 0) return;
 
-    // Destination env line
-    const byEnv = {};
-    for (const p of successes) {
-      const env = p.destEnvName || 'Unknown';
-      byEnv[env] = (byEnv[env] || 0) + 1;
-    }
-    const envEntries = Object.entries(byEnv);
-    const envLine = envEntries.length === 1
-      ? `${total} Promotion${total > 1 ? 's' : ''} created to ${envEntries[0][0]}`
-      : `${total} Promotions created — ${envEntries.map(([e, c]) => `${c} to ${e}`).join(', ')}`;
+    const mdResultMap = {};
+    for (const r of mergeDeployResults) mdResultMap[r.promotionId] = r;
 
-    // Promotion names line
-    const names = successes.map(p => p.promotionName).filter(Boolean);
-    const namesLine = names.length > 0 ? `Promotions Created: ${names.join(', ')}` : '';
-
-    // Merge & Deploy status line
-    let mdLine = '';
-    if (mergeDeployResults.length > 0) {
-      const mdOk  = mergeDeployResults.filter(r => r.success);
-      const mdErr = mergeDeployResults.filter(r => !r.success);
-      if (mdErr.length === 0) {
-        mdLine = `Merge & Deploy triggered for all ${mdOk.length} promotion${mdOk.length > 1 ? 's' : ''}.`;
-      } else if (mdOk.length > 0) {
-        const uniqueErrs = [...new Set(mdErr.map(r => r.error))];
-        mdLine = `Merge & Deploy: ${mdOk.length} triggered, ${mdErr.length} failed — ${uniqueErrs.join('; ')}`;
-      } else {
-        const uniqueErrs = [...new Set(mdErr.map(r => r.error))];
-        mdLine = `Merge & Deploy failed: ${uniqueErrs.join('; ')}`;
-      }
-    }
-
-    const allMdFailed = mergeDeployResults.length > 0 && mergeDeployResults.every(r => !r.success);
+    const allFailed = summary.every(p => !p.success);
+    const anyMdFail = mergeDeployResults.some(r => !r.success);
     const bar = document.getElementById('statusBar');
-    bar.style.display = 'flex';
-    bar.className = allMdFailed ? 'status-bar error' : 'status-bar success';
-    bar.innerHTML = `<span>${envLine}${namesLine ? `<br><span style="font-size:11px;opacity:0.85">${namesLine}</span>` : ''}${mdLine ? `<br><span style="font-size:11px;opacity:0.85">${mdLine}</span>` : ''}</span>`;
+    bar.style.display = 'block';
+    bar.className = (allFailed || anyMdFail) ? 'status-bar error' : 'status-bar success';
+
+    // Header
+    const ok  = summary.filter(p => p.success).length;
+    const bad = summary.filter(p => !p.success).length;
+    const headerText = ok > 0 && bad === 0
+      ? `✓ ${ok} Promotion${ok > 1 ? 's' : ''} Created${mergeDeployResults.length > 0 ? ' — Merge & Deploy Triggered' : ''}`
+      : ok > 0
+      ? `⚠ ${ok} Created, ${bad} Failed`
+      : `✗ All Promotions Failed`;
+
+    // Build rows
+    const rows = summary.map(p => {
+      const mdResult = mdResultMap[p.promotionId] ?? null;
+      const mdStatus = !p.success
+        ? `<span style="color:#f85149">✗ Create failed</span>`
+        : mdResult
+          ? mdResult.success
+            ? `<span style="color:#34d399">✓ Merge &amp; Deploy triggered</span>`
+            : `<span style="color:#f85149" title="${(mdResult.error || '').replace(/"/g, '&quot;')}">✗ M&amp;D failed</span>`
+          : `<span style="color:#94a3b8">— no M&amp;D</span>`;
+
+      const promoLink = p.promotionName && p.promotionId && instanceUrl
+        ? `<a href="#" onclick="openUrl('${instanceUrl}/lightning/r/copado__Promotion__c/${p.promotionId}/view');return false;"
+              style="color:#7dd3fc;font-weight:700;text-decoration:none;font-size:12px"
+              onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"
+           >${p.promotionName}</a>`
+        : `<span style="color:#7dd3fc;font-weight:700;font-size:12px">${p.promotionName || '—'}</span>`;
+
+      const promoRow = `<tr>
+        <td style="padding:5px 10px 3px 0;white-space:nowrap">${promoLink}</td>
+        <td style="padding:5px 14px 3px 0;white-space:nowrap;color:#f59e0b;font-size:11px">${p.destEnvName || '—'}</td>
+        <td style="padding:5px 0 3px 0;font-size:11px">${mdStatus}</td>
+      </tr>`;
+
+      const storyRows = (p.stories || []).map(s =>
+        `<tr><td colspan="3" style="padding:1px 0 1px 18px;font-size:10px;color:#94a3b8">
+          └ <span style="color:#e0f4ff">${s.name}</span>${s.developer ? ` <span style="color:#475569">· ${s.developer}</span>` : ''}
+        </td></tr>`
+      ).join('');
+
+      return promoRow + storyRows;
+    }).join('');
+
+    bar.innerHTML = `
+      <div style="width:100%">
+        <div style="font-size:12px;font-weight:700;margin-bottom:8px">${headerText}</div>
+        <table style="border-collapse:collapse;width:100%">
+          <thead><tr>
+            <th style="text-align:left;font-size:10px;color:#475569;font-weight:600;padding:0 10px 4px 0;border-bottom:1px solid rgba(255,255,255,0.08)">PROMOTION</th>
+            <th style="text-align:left;font-size:10px;color:#475569;font-weight:600;padding:0 14px 4px 0;border-bottom:1px solid rgba(255,255,255,0.08)">TARGET</th>
+            <th style="text-align:left;font-size:10px;color:#475569;font-weight:600;padding:0 0 4px 0;border-bottom:1px solid rgba(255,255,255,0.08)">STATUS</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+
+    bar.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  else if (msg.type === 'instance-url') {
+    instanceUrl = msg.url ?? '';
   }
 
   else if (msg.type === 'promote-phase') {
