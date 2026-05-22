@@ -811,10 +811,13 @@ async function main() {
       const storyDst = dstEnvName?.toLowerCase() ?? '';
       const promoSrc = (latest?.copado__Source_Org_Credential__r?.Name ?? '').toLowerCase();
       const promoDst = (latest?.copado__Destination_Environment__r?.Name ?? '').toLowerCase();
-      // Only reject if both sides are non-empty and they differ — null/empty on the promotion side means field not populated, not a mismatch.
-      const srcMatch = !storySrc || !promoSrc || promoSrc === storySrc;
+      // Source credential is intentionally not checked: a promotion can contain stories from multiple
+      // developer sandboxes (DEV1, DEV2, ...) but the promotion records only one source credential.
+      // Matching on source would reject legitimate multi-developer promotions.
+      // Only the destination is used to confirm the promotion is on the correct pipeline path.
+      const srcMatch = !storySrc || !promoSrc || promoSrc === storySrc; // kept for debug log only
       const dstMatch = !storyDst || !promoDst || promoDst === storyDst;
-      const promo = (latest && srcMatch && dstMatch) ? latest : null;
+      const promo = (latest && dstMatch) ? latest : null;
       emit({ type: 'debug', message: `promo ${story.Name}: last promo ${latest?.Name ?? 'none'} src:${promoSrc}→${storySrc}(${srcMatch?'ok':'MISMATCH'}) dst:${promoDst}→${storyDst}(${dstMatch?'ok':'MISMATCH'})` });
       emit({ type: 'debug', message: `promo ${story.Name}: latest = ${promo ? `${promo.Name} | status=${promo.copado__Status__c} | created=${promo.CreatedDate}` : 'none'}` });
       const promoStatus = promo?.copado__Status__c;

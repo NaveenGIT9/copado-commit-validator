@@ -1,0 +1,81 @@
+{
+  "commands": {
+    "promoter:run": {
+      "aliases": [],
+      "args": {},
+      "flags": {
+        "flags-dir": {
+          "helpGroup": "GLOBAL",
+          "name": "flags-dir",
+          "summary": "Import flag values from a directory.",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "stories": {
+          "char": "s",
+          "name": "stories",
+          "required": true,
+          "summary": "Comma-separated User Story names (e.g. US-0023250,US-0023251)",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "target-org": {
+          "char": "o",
+          "name": "target-org",
+          "noCacheDefault": true,
+          "required": true,
+          "summary": "Username or alias of the target org. Not required if the `target-org` configuration variable is already set.",
+          "hasDynamicHelp": true,
+          "multiple": false,
+          "type": "option"
+        },
+        "repo-path": {
+          "name": "repo-path",
+          "summary": "Absolute path to local git repository",
+          "default": "D:\\plugin-promoter",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "promote": {
+          "name": "promote",
+          "summary": "Promote clean stories after verification",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "story-ids": {
+          "name": "story-ids",
+          "required": false,
+          "summary": "Comma-separated Salesforce IDs of stories to promote (used internally by --promote)",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": true,
+      "hiddenAliases": [],
+      "id": "promoter:run",
+      "pluginAlias": "@naveengit9/plugin-promoter",
+      "pluginName": "@naveengit9/plugin-promoter",
+      "pluginType": "core",
+      "strict": true,
+      "summary": "Verify and promote Copado User Stories",
+      "enableJsonFlag": false,
+      "isESM": true,
+      "relativePath": [
+        "lib",
+        "commands",
+        "promoter",
+        "run.js"
+      ],
+      "aliasPermutations": [],
+      "permutations": [
+        "promoter:run",
+        "run:promoter"
+      ]
+    }
+  },
+  "version": "1.0.0"
+}
