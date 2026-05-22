@@ -344,6 +344,7 @@ async function main() {
     // Immediate sequential calls → Copado silently drops subsequent ones while first job initialises.
     // Solution: one call at a time, 5-second gap to let Copado register the previous job.
     if (doMergeDeploy && mergeDeployQueue.length > 0) {
+      emit({ type: 'promote-phase', label: `Triggering Merge & Deploy for ${mergeDeployQueue.length} promotion${mergeDeployQueue.length > 1 ? 's' : ''} in Copado` });
       for (let i = 0; i < mergeDeployQueue.length; i++) {
         const { pid, deployOnly } = mergeDeployQueue[i];
         if (i > 0) await new Promise(r => setTimeout(r, 5000));
@@ -356,7 +357,7 @@ async function main() {
               inputs: [{ promotionId: pid, executePromotion: !deployOnly, executeDeployment: true }],
             }),
           });
-          emit({ type: 'stderr', message: `PromoteAction [${pid}]: ${JSON.stringify(actionRes)}` });
+          emit({ type: 'debug', message: `PromoteAction [${pid}]: ${JSON.stringify(actionRes)}` });
           const result0 = actionRes?.[0];
           if (!result0?.isSuccess) {
             const errMsg = (result0?.errors || [])

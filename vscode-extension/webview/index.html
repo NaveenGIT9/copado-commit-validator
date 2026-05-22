@@ -1521,6 +1521,10 @@ window.addEventListener('message', (event) => {
     bar.innerHTML = `<span>${envLine}${namesLine ? `<br><span style="font-size:11px;opacity:0.85">${namesLine}</span>` : ''}${mdLine ? `<br><span style="font-size:11px;opacity:0.85">${mdLine}</span>` : ''}</span>`;
   }
 
+  else if (msg.type === 'promote-phase') {
+    setStatus('info', `${msg.label}...`, true);
+  }
+
   else if (msg.type === 'merge-deploy-started') {
     mergeDeployResults.push({ success: true, promotionId: msg.promotionId, jobId: msg.jobExecutionId });
   }
