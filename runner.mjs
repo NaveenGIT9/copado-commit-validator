@@ -1051,16 +1051,20 @@ async function main() {
         `FROM copado__Team_Dependency__c ` +
         `WHERE copado__Dependent_User_Story__c = '${story.Id}'`
       );
-      const childLevel = credLevel.get(srcEnvName?.toLowerCase() ?? '') ?? -1;
+      const childLevel   = credLevel.get(srcEnvName?.toLowerCase() ?? '') ?? -1;
+      const siblingNames = new Set((lastPromoWarning?.siblingStories ?? []).map(s => (s.name ?? '').toUpperCase()));
       dependencies = depRes.records.map(r => {
+        const parentName  = r.copado__Provider_User_Story__r?.Name ?? '';
         const parentEnv   = r.copado__Provider_User_Story__r?.copado__Org_Credential__r?.Name ?? null;
         const parentLevel = credLevel.get(parentEnv?.toLowerCase() ?? '') ?? -1;
         return {
-          relationshipType: r.copado__Relationship_Type__c ?? '',
-          parentName:       r.copado__Provider_User_Story__r?.Name ?? '',
+          relationshipType:  r.copado__Relationship_Type__c ?? '',
+          parentName,
           parentEnv,
-          parentDeveloper:  r.copado__Provider_User_Story__r?.copado__Developer__r?.Name ?? null,
-          parentAhead:      parentLevel > childLevel,
+          parentDeveloper:   r.copado__Provider_User_Story__r?.copado__Developer__r?.Name ?? null,
+          parentAhead:       parentLevel > childLevel,
+          parentInSamePromo: siblingNames.has(parentName.toUpperCase()),
+          promoName:         lastPromoWarning?.name ?? null,
         };
       });
       emit({ type: 'debug', message: `${story.Name}: dep query (Id=${story.Id}): ${dependencies.length} dependenc${dependencies.length === 1 ? 'y' : 'ies'} found${dependencies.length > 0 ? ' | ' + dependencies.map(d => `${d.parentName}@${d.parentEnv}(ahead=${d.parentAhead})`).join(', ') : ''}` });
