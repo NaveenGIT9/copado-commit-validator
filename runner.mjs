@@ -1048,7 +1048,7 @@ async function main() {
         `copado__Provider_User_Story__r.Name, ` +
         `copado__Provider_User_Story__r.copado__Org_Credential__r.Name, ` +
         `copado__Provider_User_Story__r.copado__Developer__r.Name ` +
-        `FROM copado__User_Story_Dependency__c ` +
+        `FROM copado__Team_Dependency__c ` +
         `WHERE copado__Dependent_User_Story__c = '${story.Id}'`
       );
       const childLevel = credLevel.get(srcEnvName?.toLowerCase() ?? '') ?? -1;
