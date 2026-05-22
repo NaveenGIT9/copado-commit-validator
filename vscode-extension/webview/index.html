@@ -706,7 +706,7 @@ function upsertRow(storyName, branch, copadoCommits, extraCommits, unregisteredD
   row.innerHTML = html;
 }
 
-function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null, stalePromoInfo = null, baseBranch = null) {
+function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null, stalePromoInfo = null, baseBranch = null, dependencies = []) {
   const failedTests      = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
   const hasApexTest      = (tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || '') || /apex/i.test(t.name || ''));
   const noApexTestClass  = hasApexCode && !hasApexTest;
@@ -726,6 +726,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   const isValidatedMultiStory = isValidatedPromo && (lastPromoWarning?.siblingStories?.length ?? 0) > 0;
   const isFailedPromo        = lastPromoWarning?.status === 'Completed with errors' || lastPromoWarning?.status === 'Validation failed';
   const isForcePromo         = isPromotable && isFailedPromo; // eligible technically but last promo failed with no fix commit
+  const dependencyBlocked    = dependencies.some(d => !d.parentAhead);
+  const isForceDepBlocked    = isPromotable && dependencyBlocked && !isForcePromo; // parent story not yet ahead in pipeline
 
   const LBL  = 'color:#5a8a9f;font-size:10px;white-space:nowrap;flex-shrink:0';
   const ROW  = 'display:flex;align-items:baseline;gap:5px;margin-top:2px';
@@ -741,7 +743,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   if (isVerifying) {
     promotableHtml = '—';
   } else {
-    const badge = (isPromotable && !isForcePromo)
+    const badge = (isPromotable && !isForcePromo && !isForceDepBlocked)
       ? `<span class="tag tag-clean" style="font-size:11px">✓ Yes</span>`
       : `<span class="tag tag-error" style="font-size:11px">✗ No</span>`;
 
@@ -811,6 +813,28 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     if (stalePromoInfo) {
       const { status: staleStatus, name: staleName } = stalePromoInfo;
       rows.push(kv('Last promo:', `<span style="color:#34d399;font-size:11px">✓ Fix committed after last ${staleStatus}</span><br><span style="color:#94a3b8;font-size:10px">${staleName}</span>`));
+    }
+    if (dependencies.length > 0) {
+      const depLines = dependencies.map(d => {
+        const ahead     = d.parentAhead;
+        const envCol    = ahead ? '#34d399' : '#f59e0b';
+        const envIcon   = ahead ? '✓' : '⚠';
+        const relLabel  = d.relationshipType ? `<span style="color:#475569;font-size:9px;margin-left:4px">[${d.relationshipType}]</span>` : '';
+        return `<div style="margin-top:4px;display:flex;align-items:baseline;gap:0;flex-wrap:wrap">` +
+          `<span style="color:#f8fafc;font-size:11px;font-weight:600">${d.parentName}</span>` +
+          (d.parentEnv      ? `<span style="color:${envCol};font-size:10px"> · ${envIcon} ${d.parentEnv}</span>` : '') +
+          (d.parentDeveloper ? `<span style="color:#94a3b8;font-size:10px"> · ${d.parentDeveloper}</span>` : '') +
+          relLabel +
+          `</div>`;
+      }).join('');
+      const hasBlocked = dependencies.some(d => !d.parentAhead);
+      const borderCol  = hasBlocked ? '#b45309' : '#065f46';
+      const titleCol   = hasBlocked ? '#d97706' : '#34d399';
+      const title      = hasBlocked ? '⚠ Parent not yet ahead — Force to promote anyway' : '✓ Parent already ahead in pipeline';
+      rows.push(`<div style="margin-top:6px;padding:8px 12px;background:rgba(217,119,6,0.07);border-left:2px solid ${borderCol};border-radius:0 4px 4px 0">` +
+        `<div style="color:${titleCol};font-size:10px;font-weight:700;letter-spacing:0.4px;margin-bottom:2px">${title}</div>` +
+        depLines +
+        `</div>`);
     }
 
     // Not-eligible badge: culprit Merge Conflict or In Progress
@@ -922,13 +946,14 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 
   // A story is "will be promoted" only if it passes the same gate as the cleanStories eligibility check:
   // no warning, OR Conflicts Resolved, OR innocent Merge Conflict. Only these get interactive checkboxes.
-  const willBePromoted = isPromotable && !isForcePromo && (!lastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo);
+  const willBePromoted = isPromotable && !isForcePromo && !isForceDepBlocked && (!lastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo);
 
   // Skip: only for stories that will actually be promoted
   const showSkip = willBePromoted;
-  const skipTd = isForcePromo
+  const skipTd = (isForcePromo || isForceDepBlocked)
     ? `<td style="text-align:center;vertical-align:middle">
-         <label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer" title="Last promotion failed with no fix commit. Check to force-promote anyway.">
+         <label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer"
+                title="${isForceDepBlocked ? 'Parent story not yet ahead in pipeline. Check to force-promote anyway.' : 'Last promotion failed with no fix commit. Check to force-promote anyway.'}">
            <input type="checkbox" class="force-promote-cb" data-story="${storyName}"
              style="width:13px;height:13px;accent-color:#f59e0b;cursor:pointer" />
            <span style="font-size:9px;color:#f59e0b;font-weight:600">Force</span>
@@ -1145,7 +1170,8 @@ window.addEventListener('message', (event) => {
       msg.unregisteredDetail, msg.verdict, msg.storyCommittedBy, msg.extraCommittedBy,
       msg.tests, prBlocked, msg.hasApexCode, msg.hasDeploymentTasks ?? false,
       msg.parentStory ?? null, msg.promotionCount ?? 0, lastPromoWarningForRow,
-      msg.srcEnvName ?? null, msg.dstEnvName ?? null, msg.stalePromoInfo ?? null, msg.baseBranch ?? null
+      msg.srcEnvName ?? null, msg.dstEnvName ?? null, msg.stalePromoInfo ?? null, msg.baseBranch ?? null,
+      msg.dependencies ?? []
     );
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
@@ -1160,10 +1186,12 @@ window.addEventListener('message', (event) => {
     // Innocent Merge Conflict: another story caused the conflict; current story still eligible but needs separate promo.
     const isInnocentConflict  = msg.lastPromoWarning?.status === 'Merge Conflict'
                                 && msg.lastPromoWarning?.isConflictOnCurrentStory === false;
-    const noCommits  = msg.verdict === 'skip-no-commits';
+    const noCommits          = msg.verdict === 'skip-no-commits';
+    const dependencyBlocked  = (msg.dependencies ?? []).some(d => !d.parentAhead);
     const isEligible = (msg.verdict === 'clean' || msg.verdict === 'skip-covered-same-author' || noCommits)
         && !noCommitsNoTasks
-        && failedTests.length === 0 && !(noCommits ? false : prBlocked) && !(noCommits ? false : noApexTestClass) && !parentBlocked;
+        && failedTests.length === 0 && !(noCommits ? false : prBlocked) && !(noCommits ? false : noApexTestClass) && !parentBlocked
+        && !dependencyBlocked;
 
     if (isEligible) {
       if (!isLastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo) {
@@ -1230,6 +1258,36 @@ window.addEventListener('message', (event) => {
         // No push to cleanStories — only added when user checks Force
         return; // skip normal checkbox wiring below
       }
+    } else if (dependencyBlocked) {
+      // Story is otherwise eligible but a parent story is not yet ahead in the pipeline.
+      // Treat same as isFailedPromo: show Force checkbox, not auto-included.
+      forcePromoStoryNames.add(msg.storyName);
+      const entry = {
+        name: msg.storyName, id: msg.storyId,
+        projectId: msg.projectId, credentialId: msg.credentialId,
+        projectName: msg.projectName ?? '',
+        separate: false, skipped: false,
+        developer: msg.storyDeveloper ?? '',
+        forcePromo: true,
+      };
+      const row = document.getElementById('row-' + msg.storyName.replace(/[^a-z0-9]/gi, '_'));
+      const forceCb = row?.querySelector(`.force-promote-cb[data-story="${msg.storyName}"]`);
+      if (forceCb) {
+        forceCb.addEventListener('change', () => {
+          const idx = cleanStories.findIndex(s => s.name === msg.storyName);
+          if (forceCb.checked && idx === -1) cleanStories.push(entry);
+          else if (!forceCb.checked && idx !== -1) cleanStories.splice(idx, 1);
+          updatePromoteCount();
+          const promoSection = document.getElementById('promote-section');
+          if (cleanStories.length > 0) {
+            promoSection.style.display = 'block';
+            document.getElementById('promoteBtn').disabled = false;
+          } else {
+            promoSection.style.display = 'none';
+          }
+        });
+      }
+      return;
 
       // Wire checkboxes for all eligible stories
       const row = document.getElementById('row-' + msg.storyName.replace(/[^a-z0-9]/gi, '_'));

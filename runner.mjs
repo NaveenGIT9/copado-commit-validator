@@ -1038,6 +1038,36 @@ async function main() {
       : !allSameAuthor                               ? 'skip-needs-verify'
       : 'skip-covered-same-author';
 
+    // Query all dependency records where this story is the child.
+    // credLevel (built from pipeline BFS) gives each env a numeric level so we can tell if a
+    // parent is "ahead" (higher level = further along the pipeline = already promoted past child).
+    let dependencies = [];
+    try {
+      const depRes = await conn.query(
+        `SELECT Id, copado__Relationship_Type__c, ` +
+        `copado__Provider_User_Story__r.Name, ` +
+        `copado__Provider_User_Story__r.copado__Org_Credential__r.Name, ` +
+        `copado__Provider_User_Story__r.copado__Developer__r.Name ` +
+        `FROM copado__User_Story_Dependency__c ` +
+        `WHERE copado__Dependent_User_Story__c = '${story.Id}'`
+      );
+      const childLevel = credLevel.get(srcEnvName?.toLowerCase() ?? '') ?? -1;
+      dependencies = depRes.records.map(r => {
+        const parentEnv   = r.copado__Provider_User_Story__r?.copado__Org_Credential__r?.Name ?? null;
+        const parentLevel = credLevel.get(parentEnv?.toLowerCase() ?? '') ?? -1;
+        return {
+          relationshipType: r.copado__Relationship_Type__c ?? '',
+          parentName:       r.copado__Provider_User_Story__r?.Name ?? '',
+          parentEnv,
+          parentDeveloper:  r.copado__Provider_User_Story__r?.copado__Developer__r?.Name ?? null,
+          parentAhead:      parentLevel > childLevel,
+        };
+      });
+      emit({ type: 'debug', message: `${story.Name}: ${dependencies.length} dependenc${dependencies.length === 1 ? 'y' : 'ies'} found` });
+    } catch (depErr) {
+      emit({ type: 'debug', message: `${story.Name}: dependency query error: ${depErr.message}` });
+    }
+
     emit({
       type: 'story-verified',
       storyName: story.Name, storyId: story.Id,
@@ -1055,6 +1085,7 @@ async function main() {
       latestUnregisteredCommitDate,
       srcEnvName, dstEnvName,
       baseBranch: (story.copado__Base_Branch__c ?? '').trim() || null,
+      dependencies,
       verdict,
     });
   }
