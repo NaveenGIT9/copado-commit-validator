@@ -1063,7 +1063,7 @@ async function main() {
           parentAhead:      parentLevel > childLevel,
         };
       });
-      emit({ type: 'debug', message: `${story.Name}: ${dependencies.length} dependenc${dependencies.length === 1 ? 'y' : 'ies'} found` });
+      emit({ type: 'debug', message: `${story.Name}: dep query (Id=${story.Id}): ${dependencies.length} dependenc${dependencies.length === 1 ? 'y' : 'ies'} found${dependencies.length > 0 ? ' | ' + dependencies.map(d => `${d.parentName}@${d.parentEnv}(ahead=${d.parentAhead})`).join(', ') : ''}` });
     } catch (depErr) {
       emit({ type: 'debug', message: `${story.Name}: dependency query error: ${depErr.message}` });
     }
