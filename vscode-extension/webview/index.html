@@ -1011,6 +1011,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     ? (dstEnvName ? `${srcEnvName.toUpperCase()} → ${dstEnvName.toUpperCase()}` : srcEnvName.toUpperCase())
     : '—';
 
+  const rowId = 'row-' + storyName.replace(/[^a-z0-9]/gi, '_');
   return `
     <td><strong style="color:#e0f4ff">${storyName}</strong></td>
     <td style="font-size:11px;color:#5a8a9f;white-space:nowrap">${envLabel}</td>
@@ -1020,7 +1021,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     <td>${extraHtml}</td>
     <td>${extraByHtml}</td>
     <td>${unregHtml}</td>
-    <td>${verdictHtml}</td>
+    <td id="verdict-${rowId}">${verdictHtml}</td>
     <td>${promotableHtml}</td>
     ${skipTd}
     ${separateTd}
@@ -1471,17 +1472,19 @@ window.addEventListener('message', (event) => {
   }
 
   else if (msg.type === 'promote-result') {
-    const errMsg = msg.success ? null : (msg.error || 'Unknown error');
-    upsertRow(msg.storyName, '', null, null,
-      errMsg ? [{ sha: 'promote-error', coveredComponents: [], uncoveredComponents: [], authorMismatch: false, orphaned: false, _errorMsg: errMsg }] : null,
-      msg.success ? 'promoted' : 'promote-failed', null, null);
-    if (!msg.success) {
-      setStatus('error', `Promote failed: ${errMsg}`);
-    }
-    // Remove successfully promoted story so count stays accurate for remaining eligible stories
+    const rowId = 'row-' + msg.storyName.replace(/[^a-z0-9]/gi, '_');
+    const row = document.getElementById(rowId);
+    const verdictCell = document.getElementById('verdict-' + rowId);
     if (msg.success) {
+      if (verdictCell) verdictCell.innerHTML = `<span class="tag tag-promoted">✓ Promoted</span>`;
+      if (row) row.style.background = 'rgba(52,211,153,0.07)';
       const idx = cleanStories.findIndex(s => s.name === msg.storyName);
       if (idx !== -1) cleanStories.splice(idx, 1);
+    } else {
+      const errMsg = msg.error || 'Unknown error';
+      if (verdictCell) verdictCell.innerHTML = `<span class="tag tag-error">✗ Promote failed</span>`;
+      if (row) row.style.background = 'rgba(248,81,73,0.07)';
+      setStatus('error', `Promote failed: ${errMsg}`);
     }
   }
 
