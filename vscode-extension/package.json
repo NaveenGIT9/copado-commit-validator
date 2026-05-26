@@ -22,7 +22,7 @@
     ]
   },
   "scripts": {
-    "build": "npx tsc -p tsconfig.json && npx esbuild ../runner.mjs --bundle --platform=node --outfile=runner.bundle.js --format=cjs"
+    "build": "npx tsc -p tsconfig.json && npx esbuild ../runner.mjs --bundle --platform=node --outfile=runner.bundle.js --format=cjs --alias:pino=./pino-stub.cjs --alias:pino-pretty=./pino-stub.cjs --alias:pino-abstract-transport=./pino-stub.cjs"
   },
   "devDependencies": {
     "@types/node": "^18",

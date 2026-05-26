@@ -6,7 +6,7 @@
   "bugs": "https://github.com/NaveenBonthu9/plugin-promoter/issues",
   "dependencies": {
     "@oclif/core": "^3",
-    "@salesforce/core": "^6",
+    "@salesforce/core": "^8",
     "@salesforce/sf-plugins-core": "^9",
     "simple-git": "^3.22.0"
   },
