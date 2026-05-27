@@ -972,7 +972,17 @@ async function main() {
           } catch (e) {
             emit({ type: 'debug', message: `conflict ${story.Name}: sibling fetch error: ${e.message}` });
           }
-          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, conflictCulprit, isConflictOnCurrentStory, mergedIntoPromotion, siblingStories: mcSiblingStories };
+          // Check if developer resolved conflicts for this story (RESOLVED attachment exists on promotion)
+          let hasResolutionFiles = false;
+          try {
+            const attRes = await conn.query(
+              `SELECT COUNT() FROM Attachment WHERE ParentId = '${promo.Id}' AND Name LIKE 'RESOLVED%${story.Name}%'`
+            );
+            hasResolutionFiles = (attRes.totalSize ?? 0) > 0;
+          } catch (attErr) {
+            emit({ type: 'debug', message: `resolution att query error ${story.Name}: ${attErr}` });
+          }
+          lastPromoWarning = { status: promoStatus, name: promo.Name, id: promo.Id, conflictCulprit, isConflictOnCurrentStory, mergedIntoPromotion, siblingStories: mcSiblingStories, hasResolutionFiles };
 
         } else {
           // 'Completed with errors' or 'Conflicts Resolved'

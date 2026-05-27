@@ -881,9 +881,17 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     if (isInnocentConflict) {
       const culprit  = lastPromoWarning.conflictCulprit ?? 'unknown story';
       const merged   = lastPromoWarning.mergedIntoPromotion;
-      const mergeLabel = merged === true  ? `✓ Merged into ${lastPromoWarning.name}`
-                       : merged === false ? `ℹ Not yet merged in ${lastPromoWarning.name}`
-                       : `ℹ Merge order unknown in ${lastPromoWarning.name}`;
+      const hasResFiles = lastPromoWarning.hasResolutionFiles === true;
+
+      const conflictStatusBadge = merged === true
+        ? (hasResFiles
+            ? `<span style="background:#422006;color:#fbbf24;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin:0 3px">[Conflicts Resolved]</span>`
+            : `<span style="background:#052e16;color:#4ade80;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin:0 3px">[No Conflicts]</span>`)
+        : '';
+
+      const mergeLabel = merged === true  ? `✓ ${storyName} Merged into ${lastPromoWarning.name}${conflictStatusBadge}`
+                       : merged === false ? `ℹ ${storyName} Not yet merged in ${lastPromoWarning.name}`
+                       : `ℹ ${storyName} Merge order unknown in ${lastPromoWarning.name}`;
       // data-culprit used by done handler to append "(also in this list — not eligible)" if culprit verified
       innocentBadge =
         `<span data-innocent-badge data-culprit="${culprit}" style="display:inline-block;background:#0c2340;border:1px solid #1ab8e8;color:#7fc9e0;font-size:10px;padding:2px 8px;border-radius:4px;white-space:nowrap;margin-top:4px">` +
