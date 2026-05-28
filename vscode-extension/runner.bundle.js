@@ -125094,6 +125094,9 @@ var doPromote = args.promote === "true";
 var doMergeDeploy = args["merge-deploy"] === "true";
 var doFetchReady = args["fetch-ready"] === "true";
 var fetchEnvType = args["env-type"] ?? "QA";
+var fetchStatus = args["fetch-status"] ?? "";
+var fetchEnvs = args["fetch-envs"] ?? "";
+var fetchReadyToPromote = args["fetch-ready-to-promote"] !== "false";
 function repoNameFromUri(uri) {
   if (!uri) return "";
   return uri.replace(/\.git$/, "").split(/[/:]/).pop() ?? "";
@@ -125141,41 +125144,26 @@ async function main() {
     process.exit(1);
   }
   if (doFetchReady) {
-    const listViewLabel = fetchEnvType === "UAT" ? "UAT Deployment" : "QA Deployment";
-    emit({ type: "fetch-start", envType: fetchEnvType, listViewLabel });
-    let listViewResultsUrl;
-    try {
-      const lvRes = await conn.request({
-        method: "GET",
-        url: `/services/data/v${conn.version}/sobjects/copado__User_Story__c/listviews`
-      });
-      const listView = (lvRes.listviews ?? []).find((lv) => lv.label === listViewLabel);
-      if (!listView) {
-        emit({ type: "fatal", message: `List view "${listViewLabel}" not found on copado__User_Story__c.` });
-        process.exit(1);
-      }
-      listViewResultsUrl = listView.resultsUrl;
-    } catch (err) {
-      emit({ type: "fatal", message: `Failed to fetch list views: ${String(err)}` });
-      process.exit(1);
-    }
+    emit({ type: "fetch-start", envType: fetchEnvType });
+    const effectiveStatus = fetchStatus || (fetchEnvType === "UAT" ? "Ready for UAT deployment" : "Ready for QA deployment");
+    const safeStatus = effectiveStatus.replace(/'/g, "\\'");
+    const envList = fetchEnvs.split(",").map((e) => e.trim()).filter(Boolean);
+    const envClause = envList.length > 0 ? ` AND copado__Org_Credential__r.Name IN (${envList.map((e) => `'${e.replace(/'/g, "\\'")}'`).join(",")})` : "";
+    const readyToPromoteClause = fetchReadyToPromote ? ` AND copado__Promote_Change__c = true` : "";
+    const soql = `SELECT Id, Name FROM copado__User_Story__c WHERE copado__Status__c = '${safeStatus}'${readyToPromoteClause}${envClause} ORDER BY Name`;
+    emit({ type: "debug", message: `fetch args received: status="${effectiveStatus}" envs="${fetchEnvs}" readyToPromote=${fetchReadyToPromote}` });
+    emit({ type: "debug", message: `fetch SOQL: ${soql}` });
     let storyIds = [], storyNames2 = [];
     try {
-      const resultsRes = await conn.request({ method: "GET", url: listViewResultsUrl });
-      const headerCols = resultsRes.columns ?? [];
-      const idColIdx = headerCols.findIndex((c3) => c3.fieldNameOrPath === "Id");
-      const nameColIdx = headerCols.findIndex((c3) => c3.fieldNameOrPath === "Name");
-      for (const row of resultsRes.records ?? []) {
-        const rowCols = row.columns ?? [];
-        const id = idColIdx >= 0 ? rowCols[idColIdx]?.value : row.Id ?? row.id;
-        const name = nameColIdx >= 0 ? rowCols[nameColIdx]?.value : row.Name ?? row.name;
-        if (id && name) {
-          storyIds.push(id);
-          storyNames2.push(name);
+      const res = await conn.query(soql);
+      for (const r2 of res.records ?? []) {
+        if (r2.Id && r2.Name) {
+          storyIds.push(r2.Id);
+          storyNames2.push(r2.Name);
         }
       }
     } catch (err) {
-      emit({ type: "fatal", message: `Failed to fetch list view results: ${String(err)}` });
+      emit({ type: "fatal", message: `Fetch query failed: ${String(err)}` });
       process.exit(1);
     }
     if (storyIds.length === 0) {

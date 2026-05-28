@@ -234,6 +234,48 @@
   <div class="btn-row" style="margin-bottom:8px;">
     <button class="btn btn-primary" onclick="fetchReady('QA')">Fetch QA Ready</button>
     <button class="btn btn-primary" onclick="fetchReady('UAT')">Fetch UAT Ready</button>
+    <button class="btn btn-reset" id="filterToggleBtn" onclick="toggleFetchFilters()"
+      style="font-size:11px;padding:5px 12px;border-radius:6px;margin-left:auto">⚙ Filters</button>
+  </div>
+  <!-- Live filter summary — always visible, updates as user changes filters -->
+  <div id="fetchFilterSummary" style="font-size:10px;color:#2a6a8a;margin-bottom:6px;line-height:1.6"></div>
+  <!-- Fetch Filters panel — collapsed by default, persisted in localStorage -->
+  <div id="fetchFiltersPanel" style="display:none;background:rgba(26,184,232,0.04);border:1px solid rgba(26,184,232,0.15);border-radius:8px;padding:10px 14px;margin-bottom:8px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div>
+        <div style="font-size:9px;font-weight:700;color:#1ab8e8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">QA Fetch</div>
+        <label style="font-size:9px;color:#2a6a8a;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:3px">Status value</label>
+        <input type="text" id="qaStatus" value="Ready for QA deployment"
+          oninput="saveFetchFilters()"
+          style="width:100%;font-size:11px;padding:5px 8px;border-radius:6px;margin-bottom:6px" />
+        <label style="font-size:9px;color:#2a6a8a;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:3px">Source Environments <span style="font-weight:400;text-transform:none">(comma-sep, optional)</span></label>
+        <input type="text" id="qaEnvs" placeholder="RBKDEV4, RBKADMNDEV, RBKSALEDEV"
+          oninput="saveFetchFilters()"
+          style="width:100%;font-size:11px;padding:5px 8px;border-radius:6px;margin-bottom:6px" />
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:2px">
+          <input type="checkbox" id="qaReadyToPromote" checked onchange="saveFetchFilters()"
+            style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0" />
+          <span style="font-size:10px;color:#90d8f0">Ready to Promote = ✓ <span style="color:#2a6a8a;font-size:9px">(copado__Promote_Change__c)</span></span>
+        </label>
+      </div>
+      <div>
+        <div style="font-size:9px;font-weight:700;color:#1ab8e8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">UAT Fetch</div>
+        <label style="font-size:9px;color:#2a6a8a;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:3px">Status value</label>
+        <input type="text" id="uatStatus" value="Ready for UAT deployment"
+          oninput="saveFetchFilters()"
+          style="width:100%;font-size:11px;padding:5px 8px;border-radius:6px;margin-bottom:6px" />
+        <label style="font-size:9px;color:#2a6a8a;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:3px">Source Environments <span style="font-weight:400;text-transform:none">(comma-sep, optional)</span></label>
+        <input type="text" id="uatEnvs" placeholder="leave blank for all environments"
+          oninput="saveFetchFilters()"
+          style="width:100%;font-size:11px;padding:5px 8px;border-radius:6px;margin-bottom:6px" />
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:2px">
+          <input type="checkbox" id="uatReadyToPromote" checked onchange="saveFetchFilters()"
+            style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0" />
+          <span style="font-size:10px;color:#90d8f0">Ready to Promote = ✓ <span style="color:#2a6a8a;font-size:9px">(copado__Promote_Change__c)</span></span>
+        </label>
+      </div>
+    </div>
+    <div style="font-size:9px;color:#2a6a8a;margin-top:8px">Settings are saved automatically and persist across sessions.</div>
   </div>
   <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado"></textarea>
 </div>
@@ -517,6 +559,7 @@ if (Array.isArray(window.__orgHistory) && window.__orgHistory.length > 0) {
 
 populateDatalist('orgAliasList', 'orgAliasHistory');
 populateDatalist('repoPathList', 'repoPathHistory');
+restoreFetchFilters();
 
 // Apply defaults injected by panel.ts at HTML generation time.
 // Only overwrite if the field is still empty (don't clobber user input).
@@ -526,9 +569,67 @@ if (window.__defaultOrg && !document.getElementById('orgAlias').value) {
   populateDatalist('orgAliasList', 'orgAliasHistory');
 }
 
+// ── Fetch Filters persistence ──────────────────────────────────────────────
+function updateFilterSummary() {
+  const qaStatus  = document.getElementById('qaStatus').value.trim()  || 'Ready for QA deployment';
+  const qaEnvs    = document.getElementById('qaEnvs').value.trim();
+  const qaRtp     = document.getElementById('qaReadyToPromote').checked;
+  const uatStatus = document.getElementById('uatStatus').value.trim() || 'Ready for UAT deployment';
+  const uatEnvs   = document.getElementById('uatEnvs').value.trim();
+  const uatRtp    = document.getElementById('uatReadyToPromote').checked;
+  const warn  = v => `<span style="color:#f59e0b">⚠ ${v}</span>`;
+  const ok    = `<span style="color:#34d399">✓</span>`;
+  const no    = `<span style="color:#f87171">—</span>`;
+  const lbl   = t => `<span style="color:#5a8a9f;font-weight:700">${t}:</span>`;
+  document.getElementById('fetchFilterSummary').innerHTML =
+    `${lbl('QA')} "${qaStatus}" &nbsp;|&nbsp; Envs: ${qaEnvs || warn('all envs')} &nbsp;|&nbsp; Ready to Promote: ${qaRtp ? ok : no}` +
+    `&emsp;${lbl('UAT')} "${uatStatus}" &nbsp;|&nbsp; Envs: ${uatEnvs || warn('all envs')} &nbsp;|&nbsp; Ready to Promote: ${uatRtp ? ok : no}`;
+}
+function saveFetchFilters() {
+  localStorage.setItem('fetchFilters', JSON.stringify({
+    qaStatus:          document.getElementById('qaStatus').value,
+    qaEnvs:            document.getElementById('qaEnvs').value,
+    qaReadyToPromote:  document.getElementById('qaReadyToPromote').checked,
+    uatStatus:         document.getElementById('uatStatus').value,
+    uatEnvs:           document.getElementById('uatEnvs').value,
+    uatReadyToPromote: document.getElementById('uatReadyToPromote').checked,
+  }));
+  updateFilterSummary();
+}
+function restoreFetchFilters() {
+  try {
+    const f = JSON.parse(localStorage.getItem('fetchFilters') || '{}');
+    document.getElementById('qaStatus').value            = f.qaStatus  || 'Ready for QA deployment';
+    document.getElementById('qaEnvs').value              = f.qaEnvs    ?? '';
+    document.getElementById('qaReadyToPromote').checked  = f.qaReadyToPromote  ?? true;
+    document.getElementById('uatStatus').value           = f.uatStatus || 'Ready for UAT deployment';
+    document.getElementById('uatEnvs').value             = f.uatEnvs   ?? '';
+    document.getElementById('uatReadyToPromote').checked = f.uatReadyToPromote ?? true;
+  } catch { /* use placeholder defaults */ }
+  updateFilterSummary();
+}
+function toggleFetchFilters() {
+  const panel = document.getElementById('fetchFiltersPanel');
+  const btn   = document.getElementById('filterToggleBtn');
+  const open  = panel.style.display === 'none';
+  panel.style.display = open ? 'block' : 'none';
+  btn.textContent     = open ? '✕ Filters' : '⚙ Filters';
+  if (open) btn.style.borderColor = 'rgba(26,184,232,0.5)';
+  else btn.style.borderColor = '';
+}
+
 function fetchReady(envType) {
   const orgAlias = document.getElementById('orgAlias').value.trim();
   if (!orgAlias) { setStatus('error', 'Enter your Copado org alias or username.'); return; }
+  const fetchStatus = envType === 'QA'
+    ? (document.getElementById('qaStatus').value.trim() || 'Ready for QA deployment')
+    : (document.getElementById('uatStatus').value.trim() || 'Ready for UAT deployment');
+  const fetchEnvs = envType === 'QA'
+    ? document.getElementById('qaEnvs').value.trim()
+    : document.getElementById('uatEnvs').value.trim();
+  const fetchReadyToPromote = envType === 'QA'
+    ? document.getElementById('qaReadyToPromote').checked
+    : document.getElementById('uatReadyToPromote').checked;
   cleanStories     = [];
   projectHeaderMap = {};
   projectLastRow   = {};
@@ -541,7 +642,7 @@ function fetchReady(envType) {
   setStatus('info', `Fetching ${envType} ready stories from Copado...`, true);
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
-  vscode.postMessage({ command: 'fetchReady', envType, orgAlias });
+  vscode.postMessage({ command: 'fetchReady', envType, orgAlias, fetchStatus, fetchEnvs, fetchReadyToPromote });
 }
 
 
@@ -1071,7 +1172,7 @@ window.addEventListener('message', (event) => {
     document.getElementById('verifyBtn').disabled = false;
     document.getElementById('cancelBtn').style.display = 'none';
     if (stories.length === 0) {
-      setStatus('info', `No stories available in the ${msg.envType ?? ''} list view to fetch.`);
+      setStatus('info', `No stories found matching the ${msg.envType ?? ''} fetch filter. Check the Status value in ⚙ Filters.`);
     } else {
       setStatus('success', `${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} loaded. Click Verify Stories to proceed.`);
     }

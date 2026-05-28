@@ -104,6 +104,9 @@ export class PromoterPanel {
     orgAlias?: string;
     repoPath?: string;
     envType?: string;
+    fetchStatus?: string;
+    fetchEnvs?: string;
+    fetchReadyToPromote?: boolean;
     url?: string;
     groups?: Array<{ projectId: string; credentialId: string; stories: string[]; storyIds: string[] }>;
     mergeDeployAfter?: boolean;
@@ -116,7 +119,7 @@ export class PromoterPanel {
       this.runPromote(msg.groups ?? [], msg.orgAlias ?? '', msg.mergeDeployAfter ?? false);
     } else if (msg.command === 'fetchReady') {
       this.saveOrgHistory(msg.orgAlias ?? '');
-      this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '');
+      this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '', msg.fetchStatus ?? '', msg.fetchEnvs ?? '', msg.fetchReadyToPromote ?? true);
     } else if (msg.command === 'abort') {
       this.abortRun();
     } else if (msg.command === 'getDefaultOrg') {
@@ -126,12 +129,15 @@ export class PromoterPanel {
     }
   }
 
-  private runFetchReady(envType: string, orgAlias: string): void {
+  private runFetchReady(envType: string, orgAlias: string, fetchStatus: string, fetchEnvs: string, fetchReadyToPromote: boolean): void {
     const args = [
       RUNNER_PATH,
       '--target-org', orgAlias,
       '--fetch-ready', 'true',
       '--env-type', envType,
+      '--fetch-status', fetchStatus,
+      '--fetch-envs', fetchEnvs,
+      '--fetch-ready-to-promote', String(fetchReadyToPromote),
     ];
     this.spawnCommand(args, true);
   }

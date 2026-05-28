@@ -45,6 +45,9 @@ const doPromote     = args.promote === 'true';
 const doMergeDeploy = args['merge-deploy'] === 'true';
 const doFetchReady  = args['fetch-ready'] === 'true';
 const fetchEnvType  = args['env-type'] ?? 'QA';
+const fetchStatus         = args['fetch-status'] ?? '';
+const fetchEnvs           = args['fetch-envs'] ?? '';
+const fetchReadyToPromote = args['fetch-ready-to-promote'] !== 'false';
 
 // Extract the GitHub repo name from a Copado git repository URI.
 // Handles both HTTPS (https://github.com/Org/Repo-Name.git) and
@@ -108,44 +111,31 @@ async function main() {
 
   // ── FETCH READY MODE ────────────────────────────────────────────────────────
   if (doFetchReady) {
-    const listViewLabel = fetchEnvType === 'UAT' ? 'UAT Deployment' : 'QA Deployment';
-    emit({ type: 'fetch-start', envType: fetchEnvType, listViewLabel });
+    emit({ type: 'fetch-start', envType: fetchEnvType });
 
-    // Step 1: find the list view by label
-    let listViewResultsUrl;
-    try {
-      const lvRes = await conn.request({
-        method: 'GET',
-        url: `/services/data/v${conn.version}/sobjects/copado__User_Story__c/listviews`,
-      });
-      const listView = (lvRes.listviews ?? []).find(lv => lv.label === listViewLabel);
-      if (!listView) {
-        emit({ type: 'fatal', message: `List view "${listViewLabel}" not found on copado__User_Story__c.` });
-        process.exit(1);
-      }
-      listViewResultsUrl = listView.resultsUrl;
-    } catch (err) {
-      emit({ type: 'fatal', message: `Failed to fetch list views: ${String(err)}` });
-      process.exit(1);
-    }
+    // Use sensible defaults if status wasn't passed (e.g. old cached webview HTML).
+    const effectiveStatus = fetchStatus || (fetchEnvType === 'UAT' ? 'Ready for UAT deployment' : 'Ready for QA deployment');
 
-    // Step 2: execute list view to get story records.
-    // List view results API puts ALL field values inside row.columns[], not as top-level properties.
-    // Find Id and Name by their column index in the header, then read the same index per row.
+    // Build WHERE clause: status is required, source environments are optional.
+    // Escape single quotes in user-supplied values to avoid SOQL errors.
+    const safeStatus = effectiveStatus.replace(/'/g, "\\'");
+    const envList = fetchEnvs.split(',').map(e => e.trim()).filter(Boolean);
+    const envClause = envList.length > 0
+      ? ` AND copado__Org_Credential__r.Name IN (${envList.map(e => `'${e.replace(/'/g, "\\'")}'`).join(',')})`
+      : '';
+    const readyToPromoteClause = fetchReadyToPromote ? ` AND copado__Promote_Change__c = true` : '';
+    const soql = `SELECT Id, Name FROM copado__User_Story__c WHERE copado__Status__c = '${safeStatus}'${readyToPromoteClause}${envClause} ORDER BY Name`;
+    emit({ type: 'debug', message: `fetch args received: status="${effectiveStatus}" envs="${fetchEnvs}" readyToPromote=${fetchReadyToPromote}` });
+    emit({ type: 'debug', message: `fetch SOQL: ${soql}` });
+
     let storyIds = [], storyNames = [];
     try {
-      const resultsRes = await conn.request({ method: 'GET', url: listViewResultsUrl });
-      const headerCols = resultsRes.columns ?? [];
-      const idColIdx   = headerCols.findIndex(c => c.fieldNameOrPath === 'Id');
-      const nameColIdx = headerCols.findIndex(c => c.fieldNameOrPath === 'Name');
-      for (const row of (resultsRes.records ?? [])) {
-        const rowCols = row.columns ?? [];
-        const id   = idColIdx   >= 0 ? rowCols[idColIdx]?.value   : (row.Id ?? row.id);
-        const name = nameColIdx >= 0 ? rowCols[nameColIdx]?.value : (row.Name ?? row.name);
-        if (id && name) { storyIds.push(id); storyNames.push(name); }
+      const res = await conn.query(soql);
+      for (const r of (res.records ?? [])) {
+        if (r.Id && r.Name) { storyIds.push(r.Id); storyNames.push(r.Name); }
       }
     } catch (err) {
-      emit({ type: 'fatal', message: `Failed to fetch list view results: ${String(err)}` });
+      emit({ type: 'fatal', message: `Fetch query failed: ${String(err)}` });
       process.exit(1);
     }
 
