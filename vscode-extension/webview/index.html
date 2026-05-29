@@ -1614,7 +1614,7 @@ window.addEventListener('message', (event) => {
     const ok  = summary.filter(p => p.success).length;
     const bad = summary.filter(p => !p.success).length;
     const headerText = ok > 0 && bad === 0
-      ? `✓ ${ok} Promotion${ok > 1 ? 's' : ''} Created${mergeDeployResults.length > 0 ? ' — Merge & Deploy Triggered' : ''}`
+      ? `✓ ${ok} Promotion${ok > 1 ? 's' : ''} Created${mergeDeployResults.length > 0 ? (mergeDeployResults.every(r => r.deployOnly) ? ' — Deploy Changes Triggered' : mergeDeployResults.some(r => r.deployOnly) ? ' — Merge & Deploy / Deploy Changes Triggered' : ' — Merge & Deploy Triggered') : ''}`
       : ok > 0
       ? `⚠ ${ok} Created, ${bad} Failed`
       : `✗ All Promotions Failed`;
@@ -1626,9 +1626,9 @@ window.addEventListener('message', (event) => {
         ? `<span style="color:#f85149">✗ Create failed</span>`
         : mdResult
           ? mdResult.success
-            ? `<span style="color:#34d399">✓ Merge &amp; Deploy triggered</span>`
-            : `<span style="color:#f85149" title="${(mdResult.error || '').replace(/"/g, '&quot;')}">✗ M&amp;D failed</span>`
-          : `<span style="color:#94a3b8">— no M&amp;D</span>`;
+            ? `<span style="color:#34d399">${mdResult.deployOnly ? '✓ Deploy Changes triggered' : '✓ Merge &amp; Deploy triggered'}</span>`
+            : `<span style="color:#f85149" title="${(mdResult.error || '').replace(/"/g, '&quot;')}">✗ ${mdResult.deployOnly ? 'Deploy failed' : 'M&amp;D failed'}</span>`
+          : `<span style="color:#94a3b8">— no action</span>`;
 
       const promoLink = p.promotionName && p.promotionId && instanceUrl
         ? `<a href="#" onclick="openUrl('${instanceUrl}/lightning/r/copado__Promotion__c/${p.promotionId}/view');return false;"
@@ -1677,7 +1677,7 @@ window.addEventListener('message', (event) => {
   }
 
   else if (msg.type === 'merge-deploy-started') {
-    mergeDeployResults.push({ success: true, promotionId: msg.promotionId, jobId: msg.jobExecutionId });
+    mergeDeployResults.push({ success: true, promotionId: msg.promotionId, jobId: msg.jobExecutionId, deployOnly: msg.deployOnly ?? false });
   }
 
   else if (msg.type === 'merge-deploy-error') {

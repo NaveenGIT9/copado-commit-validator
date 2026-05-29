@@ -342,20 +342,32 @@ async function main() {
     // Immediate sequential calls → Copado silently drops subsequent ones while first job initialises.
     // Solution: one call at a time, 5-second gap to let Copado register the previous job.
     if (doMergeDeploy && mergeDeployQueue.length > 0) {
-      emit({ type: 'promote-phase', label: `Triggering Merge & Deploy for ${mergeDeployQueue.length} promotion${mergeDeployQueue.length > 1 ? 's' : ''} in Copado` });
+      const mergeCount   = mergeDeployQueue.filter(q => !q.deployOnly).length;
+      const deployCount  = mergeDeployQueue.filter(q =>  q.deployOnly).length;
+      const phaseLabel   = [
+        mergeCount  > 0 ? `Triggering Merge & Deploy for ${mergeCount} promotion${mergeCount > 1 ? 's' : ''}` : '',
+        deployCount > 0 ? `Triggering Deploy Changes for ${deployCount} validated promotion${deployCount > 1 ? 's' : ''}` : '',
+      ].filter(Boolean).join(' | ');
+      emit({ type: 'promote-phase', label: phaseLabel });
       for (let i = 0; i < mergeDeployQueue.length; i++) {
         const { pid, deployOnly } = mergeDeployQueue[i];
         if (i > 0) await new Promise(r => setTimeout(r, 5000));
         try {
+          // Validated promotions: use PromotionDeployAction (Deploy Changes only — skip re-merge).
+          // Regular promotions: use PromoteAction (Merge & Deploy).
+          const actionUrl = deployOnly
+            ? `/services/data/v${conn.version}/actions/custom/apex/copado__PromotionDeployAction`
+            : `/services/data/v${conn.version}/actions/custom/apex/copado__PromoteAction`;
+          const actionBody = deployOnly
+            ? JSON.stringify({ inputs: [{ promotionId: pid }] })
+            : JSON.stringify({ inputs: [{ promotionId: pid, executePromotion: true, executeDeployment: true }] });
           const actionRes = await conn.request({
             method: 'POST',
-            url: `/services/data/v${conn.version}/actions/custom/apex/copado__PromoteAction`,
+            url: actionUrl,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              inputs: [{ promotionId: pid, executePromotion: !deployOnly, executeDeployment: true }],
-            }),
+            body: actionBody,
           });
-          emit({ type: 'debug', message: `PromoteAction [${pid}]: ${JSON.stringify(actionRes)}` });
+          emit({ type: 'debug', message: `${deployOnly ? 'PromotionDeployAction' : 'PromoteAction'} [${pid}]: ${JSON.stringify(actionRes)}` });
           const result0 = actionRes?.[0];
           if (!result0?.isSuccess) {
             const errMsg = (result0?.errors || [])
@@ -364,7 +376,7 @@ async function main() {
             emit({ type: 'merge-deploy-error', promotionId: pid, error: errMsg });
           } else {
             const jobExecId = result0?.outputValues?.jobExecution?.Id ?? null;
-            emit({ type: 'merge-deploy-started', promotionId: pid, jobExecutionId: jobExecId });
+            emit({ type: 'merge-deploy-started', promotionId: pid, jobExecutionId: jobExecId, deployOnly });
 
             // Update promotion status to 'In Progress' once Copado creates the queued JE.
             // JE creation is async — retry up to 3x with 2s gap before giving up (non-fatal).
