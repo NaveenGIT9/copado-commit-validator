@@ -240,50 +240,52 @@
   <!-- Live filter summary — always visible, updates as user changes filters -->
   <div id="fetchFilterSummary" style="font-size:10px;color:#2a6a8a;margin-bottom:6px;line-height:1.6"></div>
   <!-- Fetch Filters panel — collapsed by default, persisted in localStorage -->
-  <div id="fetchFiltersPanel" style="display:none;background:rgba(26,184,232,0.04);border:1px solid rgba(26,184,232,0.15);border-radius:8px;padding:10px 14px;margin-bottom:8px;">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+  <div id="fetchFiltersPanel" style="display:none;background:rgba(26,184,232,0.04);border:1px solid rgba(26,184,232,0.15);border-radius:8px;padding:12px 14px;margin-bottom:8px;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+      <!-- QA dynamic filter builder -->
       <div>
-        <div style="font-size:9px;font-weight:700;color:#1ab8e8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">QA Fetch</div>
-        <label style="font-size:9px;color:#2a6a8a;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:3px">Status value</label>
-        <input type="text" id="qaStatus" value="Ready for QA deployment"
-          oninput="saveFetchFilters()"
-          style="width:100%;font-size:11px;padding:5px 8px;border-radius:6px;margin-bottom:6px" />
-        <label style="font-size:9px;color:#2a6a8a;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:3px">Source Environments <span style="font-weight:400;text-transform:none">(comma-sep, optional)</span></label>
-        <input type="text" id="qaEnvs" placeholder="RBKDEV4, RBKADMNDEV, RBKSALEDEV"
-          oninput="saveFetchFilters()"
-          style="width:100%;font-size:11px;padding:5px 8px;border-radius:6px;margin-bottom:6px" />
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:2px">
-          <input type="checkbox" id="qaReadyToPromote" checked onchange="saveFetchFilters()"
-            style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0" />
-          <span style="font-size:10px;color:#90d8f0">Ready to Promote = ✓ <span style="color:#2a6a8a;font-size:9px">(copado__Promote_Change__c)</span></span>
-        </label>
+        <div style="font-size:9px;font-weight:700;color:#1ab8e8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px">QA Fetch Filters</div>
+        <div style="font-size:10px;color:#2a6a8a;margin-bottom:7px;display:flex;align-items:center;gap:5px">
+          Match
+          <select id="qaFilterLogic" onchange="saveFetchFilters()" style="font-size:10px;background:#0a1929;color:#1ab8e8;border:1px solid rgba(26,184,232,0.3);border-radius:4px;padding:1px 5px;cursor:pointer">
+            <option value="AND">ALL</option>
+            <option value="OR">ANY</option>
+          </select>
+          of these conditions:
+        </div>
+        <div id="qaFilterRows"></div>
+        <button onclick="addFilterRow('qa')" style="font-size:10px;color:#1ab8e8;background:none;border:none;cursor:pointer;padding:5px 0;margin-top:3px;display:flex;align-items:center;gap:3px;opacity:0.85">
+          <span style="font-size:15px;line-height:1">+</span> Add Filter
+        </button>
       </div>
+      <!-- UAT dynamic filter builder -->
       <div>
-        <div style="font-size:9px;font-weight:700;color:#1ab8e8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">UAT Fetch</div>
-        <label style="font-size:9px;color:#2a6a8a;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:3px">Status value</label>
-        <input type="text" id="uatStatus" value="Ready for UAT deployment"
-          oninput="saveFetchFilters()"
-          style="width:100%;font-size:11px;padding:5px 8px;border-radius:6px;margin-bottom:6px" />
-        <label style="font-size:9px;color:#2a6a8a;text-transform:uppercase;letter-spacing:0.6px;display:block;margin-bottom:3px">Source Environments <span style="font-weight:400;text-transform:none">(comma-sep, optional)</span></label>
-        <input type="text" id="uatEnvs" placeholder="leave blank for all environments"
-          oninput="saveFetchFilters()"
-          style="width:100%;font-size:11px;padding:5px 8px;border-radius:6px;margin-bottom:6px" />
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:2px">
-          <input type="checkbox" id="uatReadyToPromote" checked onchange="saveFetchFilters()"
-            style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0" />
-          <span style="font-size:10px;color:#90d8f0">Ready to Promote = ✓ <span style="color:#2a6a8a;font-size:9px">(copado__Promote_Change__c)</span></span>
-        </label>
+        <div style="font-size:9px;font-weight:700;color:#1ab8e8;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px">UAT Fetch Filters</div>
+        <div style="font-size:10px;color:#2a6a8a;margin-bottom:7px;display:flex;align-items:center;gap:5px">
+          Match
+          <select id="uatFilterLogic" onchange="saveFetchFilters()" style="font-size:10px;background:#0a1929;color:#1ab8e8;border:1px solid rgba(26,184,232,0.3);border-radius:4px;padding:1px 5px;cursor:pointer">
+            <option value="AND">ALL</option>
+            <option value="OR">ANY</option>
+          </select>
+          of these conditions:
+        </div>
+        <div id="uatFilterRows"></div>
+        <button onclick="addFilterRow('uat')" style="font-size:10px;color:#1ab8e8;background:none;border:none;cursor:pointer;padding:5px 0;margin-top:3px;display:flex;align-items:center;gap:3px;opacity:0.85">
+          <span style="font-size:15px;line-height:1">+</span> Add Filter
+        </button>
       </div>
     </div>
-    <div style="font-size:9px;color:#2a6a8a;margin-top:8px">Settings are saved automatically and persist across sessions.</div>
+    <div style="font-size:9px;color:#2a6a8a;margin-top:10px">Filters are saved automatically and persist across sessions.</div>
   </div>
-  <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado"></textarea>
+  <div id="storiesWrap">
+    <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado"></textarea>
+  </div>
 </div>
 
-<div class="row section">
+<div id="orgAliasSection" class="row section">
   <div>
     <label>Copado Org Alias / Username</label>
-    <input type="text" id="orgAlias" list="orgAliasList" placeholder="Auto-detecting..." />
+    <input type="text" id="orgAlias" list="orgAliasList" placeholder="Auto-detecting..." onchange="requestDescribeFields()" />
     <datalist id="orgAliasList"></datalist>
   </div>
   <div>
@@ -293,7 +295,7 @@
   </div>
 </div>
 
-<div class="btn-row">
+<div id="verifyBtnRow" class="btn-row">
   <button class="btn btn-primary" id="verifyBtn" onclick="verify()">Verify Stories</button>
   <button class="btn btn-reset" id="cancelBtn" onclick="abort()" style="display:none;">Cancel</button>
   <button class="btn btn-reset" onclick="reset()">Reset</button>
@@ -559,7 +561,6 @@ if (Array.isArray(window.__orgHistory) && window.__orgHistory.length > 0) {
 
 populateDatalist('orgAliasList', 'orgAliasHistory');
 populateDatalist('repoPathList', 'repoPathHistory');
-restoreFetchFilters();
 
 // Apply defaults injected by panel.ts at HTML generation time.
 // Only overwrite if the field is still empty (don't clobber user input).
@@ -569,45 +570,246 @@ if (window.__defaultOrg && !document.getElementById('orgAlias').value) {
   populateDatalist('orgAliasList', 'orgAliasHistory');
 }
 
-// ── Fetch Filters persistence ──────────────────────────────────────────────
-function updateFilterSummary() {
-  const qaStatus  = document.getElementById('qaStatus').value.trim()  || 'Ready for QA deployment';
-  const qaEnvs    = document.getElementById('qaEnvs').value.trim();
-  const qaRtp     = document.getElementById('qaReadyToPromote').checked;
-  const uatStatus = document.getElementById('uatStatus').value.trim() || 'Ready for UAT deployment';
-  const uatEnvs   = document.getElementById('uatEnvs').value.trim();
-  const uatRtp    = document.getElementById('uatReadyToPromote').checked;
-  const warn  = v => `<span style="color:#f59e0b">⚠ ${v}</span>`;
-  const ok    = `<span style="color:#34d399">✓</span>`;
-  const no    = `<span style="color:#f87171">—</span>`;
-  const lbl   = t => `<span style="color:#5a8a9f;font-weight:700">${t}:</span>`;
-  document.getElementById('fetchFilterSummary').innerHTML =
-    `${lbl('QA')} "${qaStatus}" &nbsp;|&nbsp; Envs: ${qaEnvs || warn('all envs')} &nbsp;|&nbsp; Ready to Promote: ${qaRtp ? ok : no}` +
-    `&emsp;${lbl('UAT')} "${uatStatus}" &nbsp;|&nbsp; Envs: ${uatEnvs || warn('all envs')} &nbsp;|&nbsp; Ready to Promote: ${uatRtp ? ok : no}`;
+// ── Dynamic fetch filter builder ──────────────────────────────────────────
+// Fallback field list used until org describe completes
+const FILTER_FIELDS = [
+  { lbl: 'Status',             api: 'copado__Status__c',             type: 'text' },
+  { lbl: 'Ready to Promote',   api: 'copado__Promote_Change__c',     type: 'bool' },
+  { lbl: 'Source Environment', api: 'copado__Environment__r.Name',   type: 'text' },
+  { lbl: 'Developer',         api: 'copado__Developer__r.Name',      type: 'text' },
+  { lbl: 'Project',           api: 'copado__Project__r.Name',        type: 'text' },
+  { lbl: 'Story Name (Name)', api: 'Name',                           type: 'text' },
+  { lbl: 'Sprint',            api: 'copado__Sprint__r.Name',         type: 'text' },
+  { lbl: 'PR Approved',       api: 'copado__Pull_Request_Approved__c', type: 'bool' },
+  { lbl: 'Has Apex Code',     api: 'copado__Has_Apex_Code__c',       type: 'bool' },
+  { lbl: 'Base Branch',       api: 'copado__Base_Branch__c',         type: 'text' },
+  { lbl: 'Story Points',      api: 'copado__Story_Points__c',        type: 'num'  },
+  { lbl: 'Feature',           api: 'copado__Feature__r.Name',        type: 'text' },
+  { lbl: 'Custom Field (API)',api: '__custom__',                      type: 'custom'},
+];
+const TEXT_OPS = [
+  { lbl: 'equals',          key: 'equals'        },
+  { lbl: 'not equal to',    key: 'not_equal'     },
+  { lbl: 'contains',        key: 'contains'      },
+  { lbl: 'does not contain',key: 'not_contains'  },
+  { lbl: 'starts with',     key: 'starts_with'   },
+  { lbl: 'in (comma-sep)',  key: 'in'            },
+  { lbl: 'not in',          key: 'not_in'        },
+  { lbl: 'is null',         key: 'is_null'       },
+  { lbl: 'is not null',     key: 'not_null'      },
+];
+const BOOL_OPS = [
+  { lbl: 'is true',  key: 'equals_true'  },
+  { lbl: 'is false', key: 'equals_false' },
+  { lbl: 'is null',  key: 'is_null'      },
+];
+const NUM_OPS = [
+  { lbl: '=',   key: 'equals'    },
+  { lbl: '≠',   key: 'not_equal' },
+  { lbl: '>',   key: 'gt'        },
+  { lbl: '<',   key: 'lt'        },
+  { lbl: '≥',   key: 'gte'       },
+  { lbl: '≤',   key: 'lte'       },
+  { lbl: 'is null',     key: 'is_null'  },
+  { lbl: 'is not null', key: 'not_null' },
+];
+const NO_VALUE_OPS = new Set(['is_null','not_null','equals_true','equals_false']);
+
+let _frCounter = 0;
+let _dynamicFields = null; // set when org describe completes
+
+function getFieldList() {
+  return _dynamicFields || FILTER_FIELDS;
 }
+
+// Rebuild all field <select> dropdowns across both prefixes with latest field list
+function rebuildAllFieldSelects() {
+  ['qa','uat'].forEach(prefix => {
+    const container = document.getElementById(`${prefix}FilterRows`);
+    if (!container) return;
+    const fields = getFieldList();
+    for (const row of container.children) {
+      const id = row.id;
+      if (!id) continue;
+      const sel = document.getElementById(`${id}_field`);
+      if (!sel) continue;
+      const current = sel.value;
+      sel.innerHTML = fields.map(f =>
+        `<option value="${f.api}"${f.api === current ? ' selected' : ''}>${f.label}</option>`
+      ).join('');
+      // If previously selected field no longer exists, reset to first
+      if (!fields.find(f => f.api === current)) sel.value = fields[0]?.api || '';
+    }
+  });
+}
+
+function requestDescribeFields() {
+  const orgAlias = (document.getElementById('orgAlias').value.trim()) || (window.__defaultOrg ?? '');
+  if (!orgAlias) return;
+  vscode.postMessage({ command: 'describeFields', orgAlias });
+}
+
+restoreFetchFilters();
+
+function _opsForField(fieldType) {
+  if (fieldType === 'bool')   return BOOL_OPS;
+  if (fieldType === 'num')    return NUM_OPS;
+  return TEXT_OPS;
+}
+
+function addFilterRow(prefix, saved) {
+  const id   = `${prefix}_fr_${++_frCounter}`;
+  const container = document.getElementById(`${prefix}FilterRows`);
+  const fields    = getFieldList();
+  const fieldDef  = saved ? (fields.find(f => f.api === saved.field) || fields[0]) : fields[0];
+  const ops       = _opsForField(fieldDef?.type || 'text');
+  const savedOp   = saved?.op || ops[0].key;
+  const noVal     = NO_VALUE_OPS.has(savedOp);
+
+  // Build field options using current field list (static fallback or real org fields)
+  const fieldOpts = fields.map(f =>
+    `<option value="${f.api}"${f.api === (saved?.field || fields[0]?.api) ? ' selected' : ''}>${f.label || f.lbl}</option>`
+  ).join('');
+
+  // Build operator options
+  const opOpts = ops.map(o =>
+    `<option value="${o.key}"${o.key === savedOp ? ' selected' : ''}>${o.lbl}</option>`
+  ).join('');
+
+  const rowHtml = `
+  <div id="${id}" style="display:flex;align-items:center;gap:5px;margin-bottom:6px;flex-wrap:nowrap">
+    <select id="${id}_field" onchange="onFrChange('${id}','${prefix}')"
+      style="flex:0 0 auto;max-width:140px;font-size:10px;background:#0a1929;color:#90d8f0;border:1px solid rgba(26,184,232,0.25);border-radius:4px;padding:3px 4px;cursor:pointer">
+      ${fieldOpts}
+    </select>
+    <select id="${id}_op" onchange="onFrChange('${id}','${prefix}')"
+      style="flex:0 0 auto;max-width:120px;font-size:10px;background:#0a1929;color:#90d8f0;border:1px solid rgba(26,184,232,0.25);border-radius:4px;padding:3px 4px;cursor:pointer">
+      ${opOpts}
+    </select>
+    <input id="${id}_val" type="text" value="${saved?.value || ''}"
+      placeholder="${['equals','not_equal','contains','not_contains','starts_with','in','not_in'].includes(savedOp) ? 'val1, val2, val3' : 'value'}" oninput="saveFetchFilters()"
+      style="flex:1;min-width:0;font-size:10px;background:#0a1929;color:#90d8f0;border:1px solid rgba(26,184,232,0.25);border-radius:4px;padding:3px 6px;${noVal ? 'display:none;' : ''}">
+    <input id="${id}_cfield" type="text" value="${fieldDef.type === 'custom' ? (saved?.field || '') : ''}"
+      placeholder="Field API name" oninput="saveFetchFilters()"
+      style="flex:1;min-width:0;font-size:10px;background:#0a1929;color:#90d8f0;border:1px solid rgba(26,184,232,0.25);border-radius:4px;padding:3px 6px;${fieldDef.type !== 'custom' ? 'display:none;' : ''}">
+    <button onclick="removeFr('${id}','${prefix}')"
+      style="flex:0 0 auto;background:none;border:none;color:rgba(248,81,73,0.7);font-size:15px;cursor:pointer;padding:0 3px;line-height:1" title="Remove">×</button>
+  </div>`;
+
+  container.insertAdjacentHTML('beforeend', rowHtml);
+  saveFetchFilters();
+}
+
+function onFrChange(id, prefix) {
+  const fieldSel = document.getElementById(`${id}_field`);
+  const opSel    = document.getElementById(`${id}_op`);
+  const valInput = document.getElementById(`${id}_val`);
+  const cfInput  = document.getElementById(`${id}_cfield`);
+  const fieldApi = fieldSel.value;
+  const fieldDef = getFieldList().find(f => f.api === fieldApi) || FILTER_FIELDS[0];
+
+  // Show/hide custom field API name input
+  cfInput.style.display = fieldDef.type === 'custom' ? '' : 'none';
+
+  // Rebuild operators for new field type
+  const ops = _opsForField(fieldDef.type);
+  const curOp = opSel.value;
+  opSel.innerHTML = ops.map(o =>
+    `<option value="${o.key}"${o.key === curOp ? ' selected' : ''}>${o.lbl}</option>`
+  ).join('');
+  if (!ops.find(o => o.key === curOp)) opSel.value = ops[0].key;
+
+  // Show/hide value input and update placeholder hint
+  const op = opSel.value;
+  valInput.style.display = NO_VALUE_OPS.has(op) ? 'none' : '';
+  const MULTI_OPS = new Set(['equals','not_equal','contains','not_contains','starts_with','in','not_in']);
+  valInput.placeholder = MULTI_OPS.has(op) ? 'val1, val2, val3' : 'value';
+  saveFetchFilters();
+}
+
+function removeFr(id, prefix) {
+  document.getElementById(id)?.remove();
+  saveFetchFilters();
+}
+
+function getFilterState(prefix) {
+  const logic = document.getElementById(`${prefix}FilterLogic`)?.value || 'AND';
+  const container = document.getElementById(`${prefix}FilterRows`);
+  if (!container) return { logic, rows: [] };
+  const rows = [];
+  for (const row of container.children) {
+    const id = row.id;
+    if (!id) continue;
+    const fieldSel = document.getElementById(`${id}_field`);
+    const opSel    = document.getElementById(`${id}_op`);
+    const valInput = document.getElementById(`${id}_val`);
+    const cfInput  = document.getElementById(`${id}_cfield`);
+    if (!fieldSel || !opSel) continue;
+    const fieldApi = fieldSel.value;
+    const fieldDef = getFieldList().find(f => f.api === fieldApi);
+    const actualField = (fieldDef?.type === 'custom' && cfInput?.value?.trim())
+      ? cfInput.value.trim() : fieldApi;
+    rows.push({ field: actualField, op: opSel.value, value: valInput?.value || '' });
+  }
+  return { logic, rows };
+}
+
+function serializeFilters(prefix) {
+  return JSON.stringify(getFilterState(prefix));
+}
+
+function updateFilterSummary() {
+  const qa  = getFilterState('qa');
+  const uat = getFilterState('uat');
+  const lbl = t => `<span style="color:#5a8a9f;font-weight:700">${t}:</span>`;
+  const qaStr  = qa.rows.length
+    ? qa.rows.map(r => `${r.field} ${r.op}${r.value ? ' "' + r.value + '"' : ''}`).join(` ${qa.logic} `)
+    : '<span style="color:#f59e0b">no filters</span>';
+  const uatStr = uat.rows.length
+    ? uat.rows.map(r => `${r.field} ${r.op}${r.value ? ' "' + r.value + '"' : ''}`).join(` ${uat.logic} `)
+    : '<span style="color:#f59e0b">no filters</span>';
+  document.getElementById('fetchFilterSummary').innerHTML =
+    `${lbl('QA')} ${qaStr}&emsp;${lbl('UAT')} ${uatStr}`;
+}
+
 function saveFetchFilters() {
-  localStorage.setItem('fetchFilters', JSON.stringify({
-    qaStatus:          document.getElementById('qaStatus').value,
-    qaEnvs:            document.getElementById('qaEnvs').value,
-    qaReadyToPromote:  document.getElementById('qaReadyToPromote').checked,
-    uatStatus:         document.getElementById('uatStatus').value,
-    uatEnvs:           document.getElementById('uatEnvs').value,
-    uatReadyToPromote: document.getElementById('uatReadyToPromote').checked,
+  localStorage.setItem('fetchFiltersV2', JSON.stringify({
+    qa:  getFilterState('qa'),
+    uat: getFilterState('uat'),
   }));
   updateFilterSummary();
 }
+
 function restoreFetchFilters() {
   try {
-    const f = JSON.parse(localStorage.getItem('fetchFilters') || '{}');
-    document.getElementById('qaStatus').value            = f.qaStatus  || 'Ready for QA deployment';
-    document.getElementById('qaEnvs').value              = f.qaEnvs    ?? '';
-    document.getElementById('qaReadyToPromote').checked  = f.qaReadyToPromote  ?? true;
-    document.getElementById('uatStatus').value           = f.uatStatus || 'Ready for UAT deployment';
-    document.getElementById('uatEnvs').value             = f.uatEnvs   ?? '';
-    document.getElementById('uatReadyToPromote').checked = f.uatReadyToPromote ?? true;
-  } catch { /* use placeholder defaults */ }
+    const saved = JSON.parse(localStorage.getItem('fetchFiltersV2') || 'null');
+    ['qa', 'uat'].forEach(prefix => {
+      const container = document.getElementById(`${prefix}FilterRows`);
+      if (!container) return;
+      container.innerHTML = '';
+      const logic  = document.getElementById(`${prefix}FilterLogic`);
+      const state  = saved?.[prefix];
+      if (state?.logic && logic) logic.value = state.logic;
+      const rows = state?.rows;
+      if (rows && rows.length) {
+        rows.forEach(r => addFilterRow(prefix, r));
+      } else {
+        // Default filters: Status equals + Ready to Promote true
+        const defStatus = prefix === 'qa' ? 'Ready for QA deployment' : 'Ready for UAT deployment';
+        addFilterRow(prefix, { field: 'copado__Status__c',       op: 'equals',      value: defStatus });
+        addFilterRow(prefix, { field: 'copado__Promote_Change__c', op: 'equals_true', value: '' });
+      }
+    });
+  } catch {
+    ['qa','uat'].forEach(prefix => {
+      const defStatus = prefix === 'qa' ? 'Ready for QA deployment' : 'Ready for UAT deployment';
+      addFilterRow(prefix, { field: 'copado__Status__c',         op: 'equals',      value: defStatus });
+      addFilterRow(prefix, { field: 'copado__Promote_Change__c', op: 'equals_true', value: '' });
+    });
+  }
   updateFilterSummary();
 }
+
 function toggleFetchFilters() {
   const panel = document.getElementById('fetchFiltersPanel');
   const btn   = document.getElementById('filterToggleBtn');
@@ -616,20 +818,31 @@ function toggleFetchFilters() {
   btn.textContent     = open ? '✕ Filters' : '⚙ Filters';
   if (open) btn.style.borderColor = 'rgba(26,184,232,0.5)';
   else btn.style.borderColor = '';
+  // Hide verify inputs while configuring filters; restore when closed
+  const hide = open ? 'none' : '';
+  ['storiesWrap', 'orgAliasSection', 'verifyBtnRow'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = hide;
+  });
+  // Load real field list from org when filter panel first opens
+  if (open) requestDescribeFields();
 }
 
 function fetchReady(envType) {
-  const orgAlias = document.getElementById('orgAlias').value.trim();
+  const orgAlias = document.getElementById('orgAlias').value.trim() || (window.__defaultOrg ?? '');
   if (!orgAlias) { setStatus('error', 'Enter your Copado org alias or username.'); return; }
-  const fetchStatus = envType === 'QA'
-    ? (document.getElementById('qaStatus').value.trim() || 'Ready for QA deployment')
-    : (document.getElementById('uatStatus').value.trim() || 'Ready for UAT deployment');
-  const fetchEnvs = envType === 'QA'
-    ? document.getElementById('qaEnvs').value.trim()
-    : document.getElementById('uatEnvs').value.trim();
-  const fetchReadyToPromote = envType === 'QA'
-    ? document.getElementById('qaReadyToPromote').checked
-    : document.getElementById('uatReadyToPromote').checked;
+  const filterJson = serializeFilters(envType.toLowerCase());
+  // Close filter panel and reveal verify sections before fetching
+  const panel = document.getElementById('fetchFiltersPanel');
+  if (panel && panel.style.display !== 'none') {
+    panel.style.display = 'none';
+    const btn = document.getElementById('filterToggleBtn');
+    if (btn) { btn.textContent = '⚙ Filters'; btn.style.borderColor = ''; }
+    ['storiesWrap', 'orgAliasSection', 'verifyBtnRow'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
+  }
   cleanStories     = [];
   projectHeaderMap = {};
   projectLastRow   = {};
@@ -642,7 +855,7 @@ function fetchReady(envType) {
   setStatus('info', `Fetching ${envType} ready stories from Copado...`, true);
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
-  vscode.postMessage({ command: 'fetchReady', envType, orgAlias, fetchStatus, fetchEnvs, fetchReadyToPromote });
+  vscode.postMessage({ command: 'fetchReady', envType, orgAlias, filterJson });
 }
 
 
@@ -814,7 +1027,7 @@ function upsertRow(storyName, branch, copadoCommits, extraCommits, unregisteredD
   row.innerHTML = html;
 }
 
-function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null, stalePromoInfo = null, baseBranch = null, dependencies = []) {
+function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null, stalePromoInfo = null, baseBranch = null, dependencies = [], xmlTypeMetadata = []) {
   const failedTests      = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
   const hasApexTest      = (tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || '') || /apex/i.test(t.name || ''));
   const noApexTestClass  = hasApexCode && !hasApexTest;
@@ -824,7 +1037,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   const effectivePrBlock    = noCommits ? false : prBlocked;
   const isVerifying         = verdict === 'verifying' || tests === undefined;
   const parentBlocked       = parentStory && !parentStory.promoted;
-  const isPromotable        = commitOk && failedTests.length === 0 && !effectivePrBlock && !(noCommits ? false : noApexTestClass) && !parentBlocked;
+  const isPromotable        = commitOk && failedTests.length === 0 && !effectivePrBlock && !(noCommits ? false : noApexTestClass) && !parentBlocked && xmlTypeMetadata.length === 0;
   const isMergeConflict      = lastPromoWarning?.status === 'Merge Conflict';
   const isInnocentConflict   = isMergeConflict && lastPromoWarning?.isConflictOnCurrentStory === false;
   const isAlreadyInProg      = lastPromoWarning?.status === 'In Progress';
@@ -864,6 +1077,10 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     }
     if (parentBlocked) {
       rows.push(kv('Parent:', `<span style="${ERR}">⛔ ${parentStory.name} not yet deployed</span>`));
+    }
+    if (xmlTypeMetadata.length > 0) {
+      rows.push(kv('Metadata:', `<span style="${ERR}">⛔ ${xmlTypeMetadata.length} item(s) with Type=xml — deployment will fail (missing registry type)</span>`));
+      rows.push(kv('', `<span style="color:#9ca3af;font-size:9px;word-break:break-all">${xmlTypeMetadata.slice(0, 5).join(', ')}${xmlTypeMetadata.length > 5 ? ` +${xmlTypeMetadata.length - 5} more` : ''}</span>`));
     }
     if (noCommitsNoTasks) {
       rows.push(kv('Commits:', `<span style="${ERR}">✗ No commits or deployment tasks on story</span>`));
@@ -1153,6 +1370,14 @@ window.addEventListener('message', (event) => {
     bar.style.display = 'block';
   }
 
+  else if (msg.type === 'fields') {
+    // Real field list from org describe — update all filter dropdowns
+    if (Array.isArray(msg.fields) && msg.fields.length > 0) {
+      _dynamicFields = msg.fields;
+      rebuildAllFieldSelects();
+    }
+  }
+
   else if (msg.type === 'fetch-stories-found') {
     setStatus('info', `Found ${msg.count} ${msg.envType} ready stories — checking promotion history...`, true);
   }
@@ -1162,6 +1387,11 @@ window.addEventListener('message', (event) => {
   }
 
   else if (msg.type === 'fetch-done') {
+    // Ensure verify sections are visible after fetch completes
+    ['storiesWrap', 'orgAliasSection', 'verifyBtnRow'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = '';
+    });
     const stories = msg.stories ?? [];
     document.getElementById('stories').value = stories.join('\n');
     if (msg.repoPath) {
@@ -1209,6 +1439,7 @@ window.addEventListener('message', (event) => {
 
   else if (msg.type === 'default-org') {
     document.getElementById('orgAlias').value = msg.org ?? '';
+    requestDescribeFields();
   }
 
   else if (msg.type === 'aborted') {
@@ -1297,7 +1528,7 @@ window.addEventListener('message', (event) => {
       msg.tests, prBlocked, msg.hasApexCode, msg.hasDeploymentTasks ?? false,
       msg.parentStory ?? null, msg.promotionCount ?? 0, lastPromoWarningForRow,
       msg.srcEnvName ?? null, msg.dstEnvName ?? null, msg.stalePromoInfo ?? null, msg.baseBranch ?? null,
-      msg.dependencies ?? []
+      msg.dependencies ?? [], msg.xmlTypeMetadata ?? []
     );
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
@@ -1317,7 +1548,8 @@ window.addEventListener('message', (event) => {
     const isEligible = (msg.verdict === 'clean' || msg.verdict === 'skip-covered-same-author' || noCommits)
         && !noCommitsNoTasks
         && failedTests.length === 0 && !(noCommits ? false : prBlocked) && !(noCommits ? false : noApexTestClass) && !parentBlocked
-        && !dependencyBlocked;
+        && !dependencyBlocked
+        && (msg.xmlTypeMetadata ?? []).length === 0;
 
     if (isEligible) {
       if (!isLastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo) {
