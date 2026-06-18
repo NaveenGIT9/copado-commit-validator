@@ -460,6 +460,7 @@ function updatePromoteList() {
                style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0;margin-right:9px" />
         ${sfStoryLink(s.name, s.id, `font-family:monospace;font-size:11px;font-weight:500;color:${nameCol}`)}
         ${s.forcePromo ? `<span style="font-size:9px;font-weight:700;color:#f59e0b;margin-left:4px;padding:1px 4px;border:1px solid rgba(245,158,11,0.4);border-radius:2px">⚠ FORCE</span>` : ''}
+        ${s.mergeConflict ? `<span style="font-size:9px;font-weight:600;color:#fb923c;margin-left:8px;flex-shrink:0;display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border:1px solid rgba(251,146,60,0.3);border-radius:3px;background:rgba(251,146,60,0.06)">⚠ Conflict · ${sfPromoLink(s.mergeConflict.name, s.mergeConflict.id)}</span>` : ''}
         ${dev}
         ${s.promoWarning ? `<span style="font-size:9px;color:#94a3b8;margin-left:8px;flex-shrink:0">In Promotion · ${s.promoWarning.name} · ${s.promoWarning.status}</span>` : ''}
         ${sepBtn}
@@ -1362,26 +1363,34 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         ? `<span style="color:#fb923c;font-size:11px">${nUnreg} extra · all in metadata</span>`
         : `<span style="color:#f87171;font-size:11px">${nUnreg} extra · not in metadata</span>`;
       tlItems.push(tlRow(unregDot, 'Unregistered', unregVal));
-      if (nUnreg > 0 && detail.length > 0) {
-        const detailBlocks = detail.filter(d => !d.copadoAuto && !d._errorMsg).map(d => {
+      if (detail.length > 0) {
+        const detailBlocks = detail.map(d => {
+          if (d._errorMsg) return `<div style="padding:6px 8px;background:#050e1a;border:1px solid rgba(248,81,73,0.2);border-radius:5px;margin-top:4px"><div style="color:#f85149;font-size:10px">${d._errorMsg}</div></div>`;
+          if (d.copadoAuto) return `<div style="padding:6px 8px;background:#050e1a;border:1px solid rgba(26,184,232,0.1);border-radius:5px;margin-top:4px">
+            <div style="font-family:monospace;color:#1ab8e8;font-size:10px">${d.sha || ''}</div>
+            <div style="color:#1ab8e8;font-size:10px;margin-top:2px">⚡ Copado auto-commit — exempt</div>
+            ${d.commitMessage ? `<div style="color:#3a6a8a;font-style:italic;font-size:10px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.commitMessage}">${d.commitMessage}</div>` : ''}
+          </div>`;
           const covered   = (d.coveredComponents   || []);
           const uncovered = (d.uncoveredComponents || []);
           const statusLine = d.copadoStatus && d.copadoStatus !== 'Failed'
-            ? `<div style="color:#f85149">⛔ Registered in Copado as '${d.copadoStatus}'</div>`
+            ? `<div style="color:#f85149;font-size:10px">⛔ Registered in Copado as '${d.copadoStatus}'</div>`
             : d.copadoStatus === 'Failed'
-            ? `<div style="color:#e3b341">⚠ Copado status: Failed — checking metadata coverage</div>`
+            ? `<div style="color:#e3b341;font-size:10px">⚠ Copado status: Failed — checking metadata coverage</div>`
             : '';
-          const covLine   = covered.length   > 0 ? `<div style="color:#4ade80;margin-top:2px">✓ In metadata: ${covered.join(', ')}</div>`   : '';
-          const uncovLine = uncovered.length > 0 ? `<div style="color:#f87171;margin-top:2px">✗ Not in metadata: ${uncovered.join(', ')}</div>` : '';
-          const msgLine   = d.commitMessage ? `<div style="color:#3a6a8a;font-style:italic;margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.commitMessage}">${d.commitMessage}</div>` : '';
-          const authLine  = d.authorMismatch ? `<div style="color:#f87171;margin-top:2px">⚠ Author: ${d.authorName || d.authorEmail}</div>` : '';
+          const covLine   = covered.length   > 0 ? `<div style="color:#4ade80;font-size:10px;margin-top:2px">✓ In metadata: ${covered.join(', ')}</div>`   : '';
+          const uncovLine = uncovered.length > 0 ? `<div style="color:#f87171;font-size:10px;margin-top:2px">✗ Not in metadata: ${uncovered.join(', ')}</div>` : '';
+          const msgLine   = d.commitMessage ? `<div style="color:#3a6a8a;font-style:italic;font-size:10px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.commitMessage}">${d.commitMessage}</div>` : '';
+          const authLine  = d.authorMismatch ? `<div style="color:#f87171;font-size:10px;margin-top:2px">⚠ Author: ${d.authorName || d.authorEmail}</div>` : '';
+          const noCovLine = (covered.length === 0 && uncovered.length === 0 && !d.copadoStatus)
+            ? `<div style="color:#3a6a8a;font-size:10px;margin-top:2px">No metadata components found in this commit</div>` : '';
           return `<div style="padding:6px 8px;background:#050e1a;border:1px solid rgba(26,184,232,0.1);border-radius:5px;margin-top:4px">
             <div style="font-family:monospace;color:#1ab8e8;font-size:10px">${d.sha || ''}</div>
-            ${statusLine}${covLine}${uncovLine}${authLine}${msgLine}
+            ${statusLine}${covLine}${uncovLine}${authLine}${noCovLine}${msgLine}
           </div>`;
         }).join('');
         tlItems.push(`<details style="margin-top:2px">
-          <summary style="font-size:10px;color:#3a6a8a;cursor:pointer;list-style:none;user-select:none">▶ Unregistered commit details</summary>
+          <summary style="font-size:10px;color:#3a6a8a;cursor:pointer;list-style:none;user-select:none">▶ Extra branch commit details (${detail.length})</summary>
           <div style="margin-top:4px">${detailBlocks}</div>
         </details>`);
       }
@@ -1501,7 +1510,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         const sB   = isQueued ? '#92400e' : '#065f46';
         const sT   = isQueued ? '#f59e0b' : '#10b981';
         const sW   = isQueued ? '1.5px'   : '2.5px';
-        return `<div style="margin-top:6px;display:inline-flex;align-items:center;gap:6px;background:#18181b;border:1px solid ${bCol};border-radius:6px;padding:3px 10px;font-size:11px">
+        return `<div style="margin-top:6px;align-self:flex-start;display:inline-flex;align-items:center;gap:6px;background:#18181b;border:1px solid ${bCol};border-radius:6px;padding:3px 10px;font-size:11px;white-space:nowrap">
           <span style="width:10px;height:10px;border:${sW} solid ${sB};border-top-color:${sT};border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0;display:inline-block"></span>
           <span style="color:${lCol}">${isQueued ? 'In Queue' : 'In Progress'}</span>
           <span style="color:#e3b341">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)}</span>
@@ -1862,6 +1871,18 @@ window.addEventListener('message', (event) => {
         }
         // No push to cleanStories — only added when user checks Force
         return; // skip normal checkbox wiring below
+      } else if (msg.lastPromoWarning?.status === 'Merge Conflict') {
+        // Story passes all other checks but has an active merge conflict — include in promote list with a warning note.
+        forcePromoStoryNames.delete(msg.storyName);
+        const entry = {
+          name: msg.storyName, id: msg.storyId,
+          projectId: msg.projectId, credentialId: msg.credentialId,
+          projectName: msg.projectName ?? '',
+          separate: false, skipped: false,
+          developer: msg.storyDeveloper ?? '',
+          mergeConflict: { name: msg.lastPromoWarning.name, id: msg.lastPromoWarning.id },
+        };
+        cleanStories.push(entry);
       }
     } else if (dependencyBlocked) {
       // Story is otherwise eligible but a parent story is not yet ahead in the pipeline.
