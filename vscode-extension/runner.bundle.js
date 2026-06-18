@@ -125097,6 +125097,79 @@ var fetchEnvType = args["env-type"] ?? "QA";
 var fetchStatus = args["fetch-status"] ?? "";
 var fetchEnvs = args["fetch-envs"] ?? "";
 var fetchReadyToPromote = args["fetch-ready-to-promote"] !== "false";
+var fetchFiltersJson = args["filters"] ?? "";
+var doDescribeObject = args["describe-object"] ?? "";
+function buildFilterClause(filters) {
+  if (!filters || !Array.isArray(filters.rows) || filters.rows.length === 0) return "";
+  const logic = filters.logic === "OR" ? " OR " : " AND ";
+  const safe = (v) => (v || "").replace(/'/g, "\\'");
+  const fragments = [];
+  for (const row of filters.rows) {
+    const { field, op, value } = row;
+    if (!field || !op) continue;
+    const vals = (value || "").split(",").map((v) => v.trim()).filter(Boolean);
+    let frag = "";
+    switch (op) {
+      case "equals": {
+        const parts = (value || "").split(",").map((v) => v.trim()).filter(Boolean);
+        frag = parts.length > 1 ? `${field} IN (${parts.map((v) => `'${safe(v)}'`).join(",")})` : `${field} = '${safe(parts[0] ?? value)}'`;
+        break;
+      }
+      case "not_equal": {
+        const parts = (value || "").split(",").map((v) => v.trim()).filter(Boolean);
+        frag = parts.length > 1 ? `${field} NOT IN (${parts.map((v) => `'${safe(v)}'`).join(",")})` : `${field} != '${safe(parts[0] ?? value)}'`;
+        break;
+      }
+      case "contains": {
+        const parts = (value || "").split(",").map((v) => v.trim()).filter(Boolean);
+        frag = parts.length > 1 ? `(${parts.map((v) => `${field} LIKE '%${safe(v)}%'`).join(" OR ")})` : `${field} LIKE '%${safe(value)}%'`;
+        break;
+      }
+      case "not_contains": {
+        const parts = (value || "").split(",").map((v) => v.trim()).filter(Boolean);
+        frag = parts.length > 1 ? `(${parts.map((v) => `(NOT ${field} LIKE '%${safe(v)}%')`).join(" AND ")})` : `(NOT ${field} LIKE '%${safe(value)}%')`;
+        break;
+      }
+      case "starts_with": {
+        const parts = (value || "").split(",").map((v) => v.trim()).filter(Boolean);
+        frag = parts.length > 1 ? `(${parts.map((v) => `${field} LIKE '${safe(v)}%'`).join(" OR ")})` : `${field} LIKE '${safe(value)}%'`;
+        break;
+      }
+      case "in":
+        frag = vals.length ? `${field} IN (${vals.map((v) => `'${safe(v)}'`).join(",")})` : "";
+        break;
+      case "not_in":
+        frag = vals.length ? `${field} NOT IN (${vals.map((v) => `'${safe(v)}'`).join(",")})` : "";
+        break;
+      case "is_null":
+        frag = `${field} = null`;
+        break;
+      case "not_null":
+        frag = `${field} != null`;
+        break;
+      case "equals_true":
+        frag = `${field} = true`;
+        break;
+      case "equals_false":
+        frag = `${field} = false`;
+        break;
+      case "gt":
+        frag = `${field} > ${parseFloat(value) || 0}`;
+        break;
+      case "lt":
+        frag = `${field} < ${parseFloat(value) || 0}`;
+        break;
+      case "gte":
+        frag = `${field} >= ${parseFloat(value) || 0}`;
+        break;
+      case "lte":
+        frag = `${field} <= ${parseFloat(value) || 0}`;
+        break;
+    }
+    if (frag) fragments.push(frag);
+  }
+  return fragments.length ? fragments.join(logic) : "";
+}
 function repoNameFromUri(uri) {
   if (!uri) return "";
   return uri.replace(/\.git$/, "").split(/[/:]/).pop() ?? "";
@@ -125143,15 +125216,41 @@ async function main() {
     emit({ type: "fatal", message: `Auth failed for "${orgAlias}": ${String(err)}` });
     process.exit(1);
   }
+  if (doDescribeObject) {
+    try {
+      const meta = await conn.describe(doDescribeObject);
+      const NUM_TYPES = /* @__PURE__ */ new Set(["int", "double", "currency", "percent", "long"]);
+      const fields = meta.fields.map((f) => ({
+        label: f.label,
+        api: f.name,
+        type: f.type === "boolean" ? "bool" : NUM_TYPES.has(f.type) ? "num" : "text"
+      })).sort((a, b2) => a.label.localeCompare(b2.label));
+      emit({ type: "fields", fields });
+    } catch (err) {
+      emit({ type: "fields-error", message: String(err) });
+    }
+    process.exit(0);
+  }
   if (doFetchReady) {
     emit({ type: "fetch-start", envType: fetchEnvType });
-    const effectiveStatus = fetchStatus || (fetchEnvType === "UAT" ? "Ready for UAT deployment" : "Ready for QA deployment");
-    const safeStatus = effectiveStatus.replace(/'/g, "\\'");
-    const envList = fetchEnvs.split(",").map((e) => e.trim()).filter(Boolean);
-    const envClause = envList.length > 0 ? ` AND copado__Org_Credential__r.Name IN (${envList.map((e) => `'${e.replace(/'/g, "\\'")}'`).join(",")})` : "";
-    const readyToPromoteClause = fetchReadyToPromote ? ` AND copado__Promote_Change__c = true` : "";
-    const soql = `SELECT Id, Name FROM copado__User_Story__c WHERE copado__Status__c = '${safeStatus}'${readyToPromoteClause}${envClause} ORDER BY Name`;
-    emit({ type: "debug", message: `fetch args received: status="${effectiveStatus}" envs="${fetchEnvs}" readyToPromote=${fetchReadyToPromote}` });
+    let whereClause = "";
+    if (fetchFiltersJson) {
+      try {
+        const filters = JSON.parse(fetchFiltersJson);
+        whereClause = buildFilterClause(filters);
+      } catch {
+      }
+    }
+    if (!whereClause) {
+      const effectiveStatus = fetchStatus || (fetchEnvType === "UAT" ? "Ready for UAT deployment" : "Ready for QA deployment");
+      const safeStatus = effectiveStatus.replace(/'/g, "\\'");
+      const envList = fetchEnvs.split(",").map((e) => e.trim()).filter(Boolean);
+      const envClause = envList.length > 0 ? ` AND copado__Org_Credential__r.Name IN (${envList.map((e) => `'${e.replace(/'/g, "\\'")}'`).join(",")})` : "";
+      const readyToPromoteClause = fetchReadyToPromote ? ` AND copado__Promote_Change__c = true` : "";
+      whereClause = `copado__Status__c = '${safeStatus}'${readyToPromoteClause}${envClause}`;
+    }
+    const soql = `SELECT Id, Name FROM copado__User_Story__c WHERE ${whereClause} ORDER BY Name`;
+    emit({ type: "debug", message: `fetch filters: ${fetchFiltersJson ? "dynamic" : "legacy"}` });
     emit({ type: "debug", message: `fetch SOQL: ${soql}` });
     let storyIds = [], storyNames2 = [];
     try {
@@ -125413,6 +125512,7 @@ async function main() {
     detectedRepoName = repoNameFromUri(repoUri);
     detectedPipelineId = rec?.copado__Project__r?.copado__Deployment_Flow__c ?? "";
     detectedPipelineName = rec?.copado__Project__r?.copado__Deployment_Flow__r?.Name ?? "";
+    if (repoUri) emit({ type: "git-repo-url", url: toHttpsUrl(repoUri).replace(/\.git$/, "") });
   } catch {
   }
   let effectiveRepoPath = repoPath;
@@ -125536,13 +125636,17 @@ async function main() {
     } catch {
     }
     let storyMetadataNames = /* @__PURE__ */ new Set();
+    let xmlTypeMetadata = [];
     try {
       const metaResult = await conn.query(
-        `SELECT copado__Metadata_API_Name__c FROM copado__User_Story_Metadata__c WHERE copado__User_Story__c = '${story.Id}'`
+        `SELECT copado__Metadata_API_Name__c, copado__Type__c FROM copado__User_Story_Metadata__c WHERE copado__User_Story__c = '${story.Id}'`
       );
       storyMetadataNames = new Set(
         metaResult.records.map((r2) => r2.copado__Metadata_API_Name__c?.toLowerCase()).filter(Boolean)
       );
+      xmlTypeMetadata = metaResult.records.filter((r2) => (r2.copado__Type__c ?? "").toLowerCase() === "xml").map((r2) => r2.copado__Metadata_API_Name__c ?? "Unknown");
+      if (xmlTypeMetadata.length > 0)
+        emit({ type: "debug", message: `${story.Name}: ${xmlTypeMetadata.length} metadata record(s) with Type=xml \u2014 will block promotion: ${xmlTypeMetadata.join(", ")}` });
     } catch {
     }
     let storyTests = [];
@@ -125945,6 +126049,7 @@ async function main() {
       dstEnvName,
       baseBranch: (story.copado__Base_Branch__c ?? "").trim() || null,
       dependencies,
+      xmlTypeMetadata,
       verdict
     });
   }

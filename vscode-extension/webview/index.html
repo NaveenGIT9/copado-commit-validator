@@ -376,6 +376,8 @@ let verifiedStoryNames = new Set(); // all story names that came back from verif
 let storyWarningMap    = new Map(); // upperName → lastPromoWarning | null, for sibling tag rendering
 let currentOrg         = '';
 let instanceUrl        = '';
+let gitRepoUrl         = '';   // GitHub HTTPS base URL (no trailing slash, no .git)
+let storyIdMap         = {};   // storyName → Salesforce record ID
 let runCompleted       = false;
 let inPromoteMode      = false;
 let mergeDeployResults = [];   // [{success, promotionId, jobId?, error?}]
@@ -438,7 +440,7 @@ function updatePromoteList() {
       return `<div style="display:flex;align-items:center;gap:0;padding:4px 6px;border-radius:4px;background:${rowBg};margin-bottom:1px">
         <input type="checkbox" class="pl-include-cb" data-story="${s.name}" ${included ? 'checked' : ''}
                style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0;margin-right:9px" />
-        <span style="font-family:monospace;font-size:11px;font-weight:500;color:${nameCol};${strike}">${s.name}</span>
+        ${sfStoryLink(s.name, s.id, `font-family:monospace;font-size:11px;font-weight:500;color:${nameCol}`)}
         ${s.forcePromo ? `<span style="font-size:9px;font-weight:700;color:#f59e0b;margin-left:4px;padding:1px 4px;border:1px solid rgba(245,158,11,0.4);border-radius:2px">⚠ FORCE</span>` : ''}
         ${dev}
         ${s.promoWarning ? `<span style="font-size:9px;color:#94a3b8;margin-left:8px;flex-shrink:0">In Promotion · ${s.promoWarning.name} · ${s.promoWarning.status}</span>` : ''}
@@ -977,6 +979,22 @@ function openUrl(url) {
   vscode.postMessage({ command: 'openUrl', url });
 }
 
+function sfStoryLink(name, id, style) {
+  if (!instanceUrl || !id) return `<span style="${style || ''}">${name}</span>`;
+  const s = style ? ` style="${style};text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25);cursor:pointer"` : ` style="text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25);cursor:pointer"`;
+  return `<a href="#" onclick="openUrl('${instanceUrl}/lightning/r/copado__User_Story__c/${id}/view');return false;"${s}>${name}</a>`;
+}
+
+function sfPromoLink(name, id) {
+  if (!instanceUrl || !id) return name;
+  return `<a href="#" onclick="openUrl('${instanceUrl}/lightning/r/copado__Promotion__c/${id}/view');return false;" style="color:inherit;text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25);cursor:pointer">${name}</a>`;
+}
+
+function ghBranchLink(branch) {
+  if (!gitRepoUrl || !branch) return branch || '—';
+  return `<a href="#" onclick="openUrl('${gitRepoUrl}/tree/${encodeURIComponent(branch)}');return false;" style="color:#2a6a8a;text-decoration:underline;text-decoration-color:rgba(42,106,138,0.4);cursor:pointer">${branch}</a>`;
+}
+
 function setStatus(type, msg, spinner = false) {
   const bar = document.getElementById('statusBar');
   bar.style.display = 'flex';
@@ -1100,7 +1118,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       rows.push(kv(`${label}:`, `<span style="${col}">${ok ? '✓' : '✗'} ${t.status || '—'}</span>`));
     });
     if (lastPromoWarning && !isMergeConflict && !isAlreadyInProg) {
-      const { status, name } = lastPromoWarning;
+      const { status, name, id: promoId } = lastPromoWarning;
       let badgeSpan;
       if (status === 'Completed with errors') {
         badgeSpan = `<span style="color:#f59e0b;font-size:11px">✗ Failed — no fix commit</span>`;
@@ -1111,7 +1129,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       } else {
         badgeSpan = `<span style="color:#f59e0b;font-size:11px">⚠ Conflicts resolved — re-initiate promotion</span>`;
       }
-      rows.push(kv('Last promo:', `${badgeSpan}<br><span style="color:#94a3b8;font-size:10px">${name}</span>`));
+      rows.push(kv('Last promo:', `${badgeSpan}<br><span style="color:#94a3b8;font-size:10px">${sfPromoLink(name, promoId)}</span>`));
       const sibs = lastPromoWarning.siblingStories ?? [];
       if (sibs.length > 0) {
         const sibLines = sibs.map(s => {
@@ -1130,14 +1148,14 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
             `</div>`;
         }).join('');
         rows.push(`<div style="margin-top:6px;padding:8px 12px;background:rgba(217,119,6,0.07);border-left:2px solid #b45309;border-radius:0 4px 4px 0">` +
-          `<div style="color:#d97706;font-size:10px;font-weight:700;letter-spacing:0.4px;margin-bottom:2px">Also in promotion — ${name}</div>` +
+          `<div style="color:#d97706;font-size:10px;font-weight:700;letter-spacing:0.4px;margin-bottom:2px">Also in promotion — ${sfPromoLink(name, promoId)}</div>` +
           sibLines +
           `</div>`);
       }
     }
     if (stalePromoInfo) {
-      const { status: staleStatus, name: staleName } = stalePromoInfo;
-      rows.push(kv('Last promo:', `<span style="color:#34d399;font-size:11px">✓ Fix committed after last ${staleStatus}</span><br><span style="color:#94a3b8;font-size:10px">${staleName}</span>`));
+      const { status: staleStatus, name: staleName, id: staleId } = stalePromoInfo;
+      rows.push(kv('Last promo:', `<span style="color:#34d399;font-size:11px">✓ Fix committed after last ${staleStatus}</span><br><span style="color:#94a3b8;font-size:10px">${sfPromoLink(staleName, staleId)}</span>`));
     }
     if (dependencies.length > 0) {
       const depLines = dependencies.map(d => {
@@ -1175,7 +1193,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     let notEligibleBadge = '';
     if (isMergeConflict && !isInnocentConflict) {
       notEligibleBadge = `<span style="display:inline-block;background:#451a03;border:1px solid #d97706;color:#fbbf24;font-size:10px;padding:2px 8px;border-radius:4px;white-space:nowrap;margin-top:4px">` +
-        `⚠ Merge Conflict — ${lastPromoWarning.name}</span>`;
+        `⚠ Merge Conflict — ${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)}</span>`;
     } else if (isAlreadyInProg) {
       const jeStatus   = lastPromoWarning.jeStatus ?? 'In Progress';
       const isQueued   = jeStatus === 'Queued';
@@ -1190,7 +1208,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         `<span style="display:inline-flex;align-items:center;gap:6px;background:#18181b;border:1px solid ${borderCol};border-radius:6px;padding:3px 10px;font-size:11px;white-space:nowrap;margin-top:4px">` +
         `<span style="width:10px;height:10px;border:${spinWidth} solid ${spinBorder};border-top-color:${spinTop};border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0;display:inline-block"></span>` +
         `<span style="color:${lblCol};font-weight:${weight}">${label}</span>` +
-        `<span style="color:#e3b341;font-weight:500">${lastPromoWarning.name}</span>` +
+        `<span style="color:#e3b341;font-weight:500">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)}</span>` +
         `</span>`;
     }
 
@@ -1207,9 +1225,10 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
             : `<span style="background:#052e16;color:#4ade80;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin:0 3px">[No Conflicts]</span>`)
         : '';
 
-      const mergeLabel = merged === true  ? `✓ ${storyName} Merged into ${lastPromoWarning.name}${conflictStatusBadge}`
-                       : merged === false ? `ℹ ${storyName} Not yet merged in ${lastPromoWarning.name}`
-                       : `ℹ ${storyName} Merge order unknown in ${lastPromoWarning.name}`;
+      const iPromoLink = sfPromoLink(lastPromoWarning.name, lastPromoWarning.id);
+      const mergeLabel = merged === true  ? `✓ ${storyName} Merged into ${iPromoLink}${conflictStatusBadge}`
+                       : merged === false ? `ℹ ${storyName} Not yet merged in ${iPromoLink}`
+                       : `ℹ ${storyName} Merge order unknown in ${iPromoLink}`;
       // data-culprit used by done handler to append "(also in this list — not eligible)" if culprit verified
       innocentBadge =
         `<span data-innocent-badge data-culprit="${culprit}" style="display:inline-block;background:#0c2340;border:1px solid #1ab8e8;color:#7fc9e0;font-size:10px;padding:2px 8px;border-radius:4px;white-space:nowrap;margin-top:4px">` +
@@ -1339,9 +1358,9 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 
   const rowId = 'row-' + storyName.replace(/[^a-z0-9]/gi, '_');
   return `
-    <td><strong style="color:#e0f4ff">${storyName}</strong></td>
+    <td><strong>${sfStoryLink(storyName, storyIdMap[storyName], 'color:#e0f4ff')}</strong></td>
     <td style="font-size:11px;color:#5a8a9f;white-space:nowrap">${envLabel}</td>
-    <td style="font-family:monospace;font-size:11px;color:#2a6a8a">${branch || '—'}</td>
+    <td style="font-family:monospace;font-size:11px">${ghBranchLink(branch)}</td>
     <td>${copadoHtml}</td>
     <td>${storyByHtml}</td>
     <td>${extraHtml}</td>
@@ -1533,6 +1552,7 @@ window.addEventListener('message', (event) => {
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
 
+    if (msg.storyId) storyIdMap[msg.storyName] = msg.storyId;
     verifiedStoryNames.add(msg.storyName.toUpperCase());
     storyWarningMap.set(msg.storyName.toUpperCase(), msg.lastPromoWarning ?? null);
 
@@ -1898,6 +1918,10 @@ window.addEventListener('message', (event) => {
       </div>`;
 
     bar.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  else if (msg.type === 'git-repo-url') {
+    gitRepoUrl = msg.url ?? '';
   }
 
   else if (msg.type === 'instance-url') {
