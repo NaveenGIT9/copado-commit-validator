@@ -1431,25 +1431,23 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     : (lastPromoWarning?.status ?? '');
 
   const promoHistoryHtml = showPromoPanel ? `
-    <div class="card-promo" style="border-left:1px solid #1e2d3d;background:${isFailedPromo ? '#110a0a' : '#0e100a'}">
-      <div style="font-size:12px;color:${promoStatusColor};font-weight:700;margin-bottom:2px">${lastPromoWarning.name ? sfPromoLink(lastPromoWarning.name, lastPromoWarning.id) : ''} — ${promoStatusLabel}</div>
-      <div style="font-size:10px;color:#64748b;margin-bottom:4px">${siblingStories.length} other stor${siblingStories.length === 1 ? 'y' : 'ies'} in this promo</div>
-      <div style="display:flex;flex-direction:column;gap:5px">
+    <div class="card-promo" style="border-left:1px solid rgba(26,184,232,0.15);background:#0a1520">
+      <div style="font-size:13px;color:${promoStatusColor};font-weight:700;margin-bottom:3px">${lastPromoWarning.name ? sfPromoLink(lastPromoWarning.name, lastPromoWarning.id) : ''} — ${promoStatusLabel}</div>
+      <div style="font-size:10px;color:#3a6a8a;margin-bottom:6px;letter-spacing:0.3px">${siblingStories.length} other stor${siblingStories.length === 1 ? 'y' : 'ies'} in this promotion</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
         ${siblingStories.map(s => {
-          const inList   = verifiedStoryNames.has((s.name ?? '').toUpperCase());
-          const eligible = inList && cleanStories.some(c => c.name.toUpperCase() === (s.name ?? '').toUpperCase());
+          const sKey     = (s.name ?? '').toUpperCase();
+          const inList   = verifiedStoryNames.has(sKey);
+          const eligible = inList && cleanStories.some(c => c.name.toUpperCase() === sKey);
           const statusTag = inList
             ? (eligible
-                ? `<span data-sib-tag="${(s.name ?? '').toUpperCase()}" style="color:#4ade80;font-size:10px;margin-left:5px">● eligible</span>`
-                : `<span data-sib-tag="${(s.name ?? '').toUpperCase()}" style="color:#fbbf24;font-size:10px;margin-left:5px">● also in our list</span>`)
-            : `<span data-sib-tag="${(s.name ?? '').toUpperCase()}" style="color:#475569;font-size:10px;margin-left:5px">● not in list</span>`;
-          return `<div style="background:#0a0505;border:1px solid #2a1818;border-radius:4px;padding:6px 9px">
-            <div style="display:flex;align-items:center;flex-wrap:wrap">
-              <span style="font-family:monospace;font-size:11px;color:#fbbf24;font-weight:600">${s.name ?? ''}</span>
-              ${s.credential ? `<span style="color:#7dd3fc;font-size:10px;margin-left:5px">· ${s.credential}</span>` : ''}
-              ${s.developer  ? `<span style="color:#64748b;font-size:10px;margin-left:5px">· ${s.developer}</span>` : ''}
-              ${statusTag}
-            </div>
+                ? `<span data-sib-tag="${sKey}" style="display:inline-flex;align-items:center;gap:4px;font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.25);color:#4ade80">✓ In list · Eligible</span>`
+                : `<span data-sib-tag="${sKey}" style="display:inline-flex;align-items:center;gap:4px;font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.22);color:#fbbf24">✓ In list · Not yet promotable</span>`)
+            : `<span data-sib-tag="${sKey}" style="display:inline-flex;align-items:center;gap:4px;font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(71,85,105,0.15);border:1px solid rgba(71,85,105,0.3);color:#64748b">Not verified yet</span>`;
+          return `<div style="background:#0d1f35;border:1px solid rgba(26,184,232,0.12);border-radius:7px;padding:9px 11px">
+            <div style="font-family:monospace;font-size:13px;color:#e0f4ff;font-weight:700">${s.name ?? ''}</div>
+            ${(s.credential || s.developer) ? `<div style="font-size:10px;color:#3a6a8a;margin-top:3px">${[s.credential, s.developer].filter(Boolean).join(' · ')}</div>` : ''}
+            <div style="margin-top:6px">${statusTag}</div>
           </div>`;
         }).join('')}
       </div>
@@ -1464,7 +1462,9 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 
   // ── Merge conflict culprit / in-progress spinner badge ──
   const notEligibleInlineHtml = (isMergeConflict && !isInnocentConflict)
-    ? `<div style="margin-top:6px;padding:4px 9px;background:#451a03;border:1px solid #d97706;border-radius:4px;font-size:10px;color:#fbbf24">⚠ Merge Conflict — ${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)}</div>`
+    ? `<div style="margin-top:7px;display:inline-flex;align-items:center;gap:8px;background:rgba(251,146,60,0.07);border:1px solid rgba(251,146,60,0.22);border-radius:6px;padding:5px 12px;font-size:11px;color:#c9a065">
+        <span style="font-size:13px;color:#fb923c">⚠</span> Merge Conflict — ${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)}
+      </div>`
     : isAlreadyInProg ? (() => {
         const jeStatus  = lastPromoWarning.jeStatus ?? 'In Progress';
         const isQueued  = jeStatus === 'Queued';
@@ -1556,7 +1556,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
           <span style="font-size:11px;font-weight:600;color:#a78bfa">${dstEnvName ? dstEnvName.toUpperCase() : '?'}</span>
         </div>` : ''}
         ${devName ? `<div style="font-size:10px;color:#64748b;margin-top:2px">👤 ${devName}</div>` : ''}
-        ${baseBranch ? `<div style="font-size:9px;color:#fbbf24;margin-top:3px">Base: ${baseBranch}${parentStory?.credential ? ` · <span style="color:#7dd3fc">${parentStory.credential}</span>` : ''}</div>` : ''}
+        ${baseBranch ? `<div style="font-size:11px;color:#f59e0b;font-weight:600;margin-top:4px">Base: <span style="color:#fbbf24">${baseBranch}</span>${parentStory?.credential ? `<span style="color:#7dd3fc;font-weight:400"> · ${parentStory.credential}</span>` : ''}</div>` : ''}
       </div>
       <div class="card-timeline${showPromoPanel ? ' has-border' : ''}">
         ${tlItems.join('')}
@@ -1996,20 +1996,34 @@ window.addEventListener('message', (event) => {
       const inList  = verifiedStoryNames.has(sibName);
       const eligible = inList && eligibleNames.has(sibName);
       if (inList && eligible) {
-        span.style.color = '#34d399';
-        span.textContent = '● eligible';
+        span.style.background = 'rgba(74,222,128,0.12)';
+        span.style.border = '1px solid rgba(74,222,128,0.3)';
+        span.style.color = '#4ade80';
+        span.style.borderRadius = '12px';
+        span.style.padding = '2px 8px';
+        span.style.fontSize = '10px';
+        span.textContent = '✓ In list · Eligible';
       } else if (inList) {
         const warn = storyWarningMap.get(sibName);
+        span.style.background = 'rgba(251,191,36,0.1)';
+        span.style.border = '1px solid rgba(251,191,36,0.3)';
+        span.style.color = '#fbbf24';
+        span.style.borderRadius = '12px';
+        span.style.padding = '2px 8px';
+        span.style.fontSize = '10px';
         if (warn?.status === 'In Progress' && warn?.name) {
-          span.style.color = '#f59e0b';
-          span.textContent = `● In Progress — ${warn.name}`;
+          span.textContent = `✓ In list · In Progress — ${warn.name}`;
         } else {
-          span.style.color = '#fbbf24';
-          span.textContent = '● also in our list';
+          span.textContent = '✓ In list · Not yet promotable';
         }
       } else {
-        span.style.color = '#475569';
-        span.textContent = '● not in list';
+        span.style.background = 'rgba(71,85,105,0.15)';
+        span.style.border = '1px solid rgba(71,85,105,0.3)';
+        span.style.color = '#94a3b8';
+        span.style.borderRadius = '12px';
+        span.style.padding = '2px 8px';
+        span.style.fontSize = '10px';
+        span.textContent = 'Not verified yet';
       }
     });
 
