@@ -201,6 +201,44 @@
   .tag-verifying      { background: rgba(26,184,232,0.1);  color: #1ab8e8; border: 1px solid rgba(26,184,232,0.3); }
   .tag-promoted       { background: rgba(13,122,181,0.15); color: #1ab8e8; border: 1px solid rgba(26,184,232,0.35); }
 
+  /* ── Card-based results layout ── */
+  .results-cards { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+  .story-card-wrapper {}
+  .story-card {
+    background: #0f1923; border: 1px solid #1e2d3d; border-radius: 10px 10px 0 0;
+    overflow: hidden; display: grid; grid-template-columns: 210px 1fr;
+  }
+  .story-card.has-promo { grid-template-columns: 210px 1fr 270px; }
+  .card-identity {
+    padding: 14px 16px; border-right: 1px solid #1e2d3d;
+    display: flex; flex-direction: column; gap: 6px; justify-content: center;
+  }
+  .card-timeline {
+    padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; justify-content: center;
+  }
+  .card-timeline.has-border { border-right: 1px solid #1e2d3d; }
+  .card-promo { padding: 12px 14px; display: flex; flex-direction: column; gap: 5px; }
+  .card-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 16px; background: #0a1420;
+    border: 1px solid #1e2d3d; border-top: 1px solid #162230; border-radius: 0 0 10px 10px;
+  }
+  .tl-row { display: flex; align-items: center; gap: 10px; }
+  .tl-dot {
+    width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; flex-shrink: 0;
+  }
+  .tl-dot.ok   { background: #052e16; border: 2px solid #166534; color: #4ade80; }
+  .tl-dot.err  { background: #3b0d0d; border: 2px solid #7f1d1d; color: #f87171; }
+  .tl-dot.warn { background: #431407; border: 2px solid #9a3412; color: #fb923c; }
+  .tl-dot.idle { background: #0f1923; border: 2px solid #1e2d3d; color: #475569; }
+  .tl-label { font-size: 11px; color: #64748b; flex: 1; min-width: 80px; }
+  .project-header-card {
+    background: rgba(13,122,181,0.1); border: 1px solid rgba(26,184,232,0.18);
+    border-radius: 6px; padding: 6px 12px;
+  }
+
   .hash-list { font-family: 'Cascadia Code','Fira Code',monospace; font-size:11px; color:#2a6a8a; word-break:break-all; }
   .hash-list .bad { color: #f85149; }
 
@@ -319,30 +357,10 @@
   <div id="debugLog" style="display:none;margin-top:4px;padding:8px 12px;background:#0d1b26;border:1px solid #1ab8e833;border-radius:6px;font-family:monospace;font-size:11px;color:#5a9abf;max-height:160px;overflow-y:auto;white-space:pre-wrap"></div>
 </div>
 
-<!-- Results table -->
+<!-- Results cards -->
 <div id="results-section">
   <div class="section-title">Verification Results</div>
-  <div style="overflow-x:auto;width:100%">
-  <table style="min-width:max-content">
-    <thead>
-      <tr>
-        <th>Story</th>
-        <th>Source → Target</th>
-        <th>Branch</th>
-        <th>Copado Commits</th>
-        <th>Committed By</th>
-        <th>Branch Commits</th>
-        <th>Unregistered By</th>
-        <th>Unregistered Detail</th>
-        <th>Verdict</th>
-        <th>Promotable</th>
-        <th style="width:60px">Skip</th>
-        <th style="width:120px">Separate Promo</th>
-      </tr>
-    </thead>
-    <tbody id="resultsBody"></tbody>
-  </table>
-  </div><!-- /overflow-x:auto -->
+  <div id="resultsBody" class="results-cards"></div>
 
   <div id="promote-section">
     <div class="btn-row">
@@ -1005,42 +1023,43 @@ function setStatus(type, msg, spinner = false) {
 // Ensure project section header exists; returns the header element
 function ensureProjectSection(projectId, projectName) {
   if (projectHeaderMap[projectId]) return;
-  const tbody = document.getElementById('resultsBody');
-  const hdr   = document.createElement('tr');
+  const container = document.getElementById('resultsBody');
+  const hdr   = document.createElement('div');
   hdr.id        = 'proj-hdr-' + projectId;
-  hdr.className = 'project-header-row';
-  hdr.innerHTML = `<td colspan="20"><div class="project-hdr"><span class="project-dot"></span>${projectName || 'Unknown Project'}</div></td>`;
-  tbody.appendChild(hdr);
+  hdr.className = 'project-header-card';
+  hdr.innerHTML = `<div class="project-hdr"><span class="project-dot"></span>${projectName || 'Unknown Project'}</div>`;
+  container.appendChild(hdr);
   projectHeaderMap[projectId] = hdr;
   projectLastRow[projectId]   = hdr;
 }
 
-// Move/update a story row into its project section
+// Move/update a story card into its project section
 function insertGroupedRow(storyName, projectId, html) {
-  const tbody = document.getElementById('resultsBody');
+  const container = document.getElementById('resultsBody');
   const rowId = 'row-' + storyName.replace(/[^a-z0-9]/gi, '_');
   let row = document.getElementById(rowId);
   if (!row) {
-    row = document.createElement('tr');
+    row = document.createElement('div');
     row.id = rowId;
+    row.className = 'story-card-wrapper';
   }
   row.innerHTML = html;
-  // Move row to right after the last element in this project section
   const insertAfter = projectLastRow[projectId];
-  tbody.insertBefore(row, insertAfter.nextSibling);
+  container.insertBefore(row, insertAfter.nextSibling);
   projectLastRow[projectId] = row;
 }
 
 // Plain in-place upsert (for verifying/error states — no project grouping)
 function upsertRow(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy) {
-  const tbody = document.getElementById('resultsBody');
+  const container = document.getElementById('resultsBody');
   const rowId = 'row-' + storyName.replace(/[^a-z0-9]/gi, '_');
   let row = document.getElementById(rowId);
   const html = buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy);
   if (!row) {
-    row = document.createElement('tr');
+    row = document.createElement('div');
     row.id = rowId;
-    tbody.appendChild(row);
+    row.className = 'story-card-wrapper';
+    container.appendChild(row);
   }
   row.innerHTML = html;
 }
@@ -1309,68 +1328,249 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   // no warning, OR Conflicts Resolved, OR innocent Merge Conflict. Only these get interactive checkboxes.
   const willBePromoted = isPromotable && !isForcePromo && !isForceDepBlocked && (!lastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo);
 
-  // Skip: only for stories that will actually be promoted
   const showSkip = willBePromoted;
-  const skipTd = (isForcePromo || isForceDepBlocked)
-    ? `<td style="text-align:center;vertical-align:middle">
-         <label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer"
-                title="${isForceDepBlocked ? 'Parent story not yet ahead in pipeline. Check to force-promote anyway.' : 'Last promotion failed with no fix commit. Check to force-promote anyway.'}">
-           <input type="checkbox" class="force-promote-cb" data-story="${storyName}"
-             style="width:13px;height:13px;accent-color:#f59e0b;cursor:pointer" />
-           <span style="font-size:9px;color:#f59e0b;font-weight:600">Force</span>
-         </label>
-       </td>`
-    : showSkip
-    ? `<td style="text-align:center;vertical-align:middle">
-         <label style="display:flex;align-items:center;justify-content:center;cursor:pointer">
-           <input type="checkbox" class="skip-story-cb" data-story="${storyName}"
-             style="width:13px;height:13px;accent-color:#f59e0b;cursor:pointer" />
-         </label>
-       </td>`
-    : `<td></td>`;
-  // Separate Promo: shown for normal eligible stories and innocent Merge Conflict stories.
-  // Innocent conflict stories show the checkbox unchecked — user decides whether to promote separately.
-  // CR multi-story stories get a hidden cell that the done handler reveals only when some siblings are missing.
-  const separateTd = (willBePromoted && (!lastPromoWarning || isInnocentConflict))
-    ? `<td style="text-align:center;vertical-align:middle">
-         <label style="display:flex;align-items:center;justify-content:center;cursor:pointer">
-           <input type="checkbox" class="separate-promo-cb" data-story="${storyName}"
-             style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer" />
-         </label>
-       </td>`
-    : (isCRMultiStory && isPromotable)
-    ? `<td style="text-align:center;vertical-align:middle">
-         <label style="display:inline-flex;flex-direction:column;align-items:center;cursor:pointer;gap:3px;
-                       border:1px solid ${lastPromoWarning?.resolutionsStale ? '#4a1a1a' : '#2a4a5a'};border-radius:4px;padding:4px 6px;background:#0a1a26">
-           <input type="checkbox" class="separate-promo-cb" data-story="${storyName}"
-             style="width:13px;height:13px;accent-color:#1ab8e8;cursor:pointer" />
-           <span style="font-size:8px;color:${lastPromoWarning?.resolutionsStale ? '#f87171' : '#5a8a9f'};text-align:center;max-width:90px;white-space:normal;line-height:1.2">
-             ${lastPromoWarning?.resolutionsStale ? '[resolutions stale — not copied]' : '[resolution attachments will be copied for this US if any]'}
-           </span>
-         </label>
-         <div data-cr-sibling-note style="display:none;font-size:8px;color:#f97316;margin-top:4px;max-width:110px;white-space:normal;line-height:1.3;text-align:center"></div>
-       </td>`
-    : `<td></td>`;
 
-  const envLabel = srcEnvName
-    ? (dstEnvName ? `${srcEnvName.toUpperCase()} → ${dstEnvName.toUpperCase()}` : srcEnvName.toUpperCase())
-    : '—';
-
+  // ── Card layout helpers ──
   const rowId = 'row-' + storyName.replace(/[^a-z0-9]/gi, '_');
+
+  function tlRow(dot, label, val) {
+    const icon = dot === 'ok' ? '✓' : dot === 'err' ? '✗' : dot === 'warn' ? '⚠' : '·';
+    return `<div class="tl-row"><div class="tl-dot ${dot}">${icon}</div><span class="tl-label">${label}</span>${val}</div>`;
+  }
+
+  // Build timeline check rows
+  const tlItems = [];
+  if (!isVerifying) {
+    // Commits
+    const commitsDot = noCommitsNoTasks ? 'err' : commitOk ? 'ok' : 'warn';
+    const commitsVal = noCommitsNoTasks
+      ? `<span style="color:#f87171;font-size:11px">No commits or tasks</span>`
+      : copadoCommits !== null
+      ? `<span style="color:#cbd5e1;font-size:11px;font-weight:500">${copadoCommits.length} Copado · ${extraCommits !== null ? extraCommits.length : '?'} Branch</span>`
+      : '<span style="color:#475569">—</span>';
+    tlItems.push(tlRow(commitsDot, 'Commits', commitsVal));
+
+    // Unregistered
+    if (!noCommits && copadoCommits !== null) {
+      const nUnreg = (unregisteredDetail || []).filter(d => !d.copadoAuto && !d._errorMsg).length;
+      tlItems.push(tlRow(nUnreg > 0 ? 'err' : 'ok', 'Unregistered',
+        nUnreg > 0
+          ? `<span style="color:#f87171;font-size:11px">${nUnreg} file${nUnreg > 1 ? 's' : ''}</span>`
+          : `<span style="color:#4ade80;font-size:11px">None</span>`));
+    }
+
+    // PR
+    if (!noCommits && prBlocked !== undefined) {
+      tlItems.push(tlRow(effectivePrBlock ? 'err' : 'ok', 'Pull Request',
+        effectivePrBlock
+          ? `<span style="color:#f87171;font-size:11px">Not approved</span>`
+          : `<span style="color:#4ade80;font-size:11px">Approved</span>`));
+    }
+
+    // Apex Tests
+    if ((tests || []).length > 0) {
+      const failedT  = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
+      const pendingT = (tests || []).filter(t => t.status !== 'Success' && t.status !== 'Failed' && t.status !== 'Error');
+      const testDot  = failedT.length > 0 ? 'err' : pendingT.length > 0 ? 'warn' : 'ok';
+      const testVal  = failedT.length > 0
+        ? `<span style="color:#f87171;font-size:11px">${failedT.length} failed</span>`
+        : pendingT.length > 0
+        ? `<span style="color:#fb923c;font-size:11px">Pending</span>`
+        : `<span style="color:#4ade80;font-size:11px">Passed</span>`;
+      tlItems.push(tlRow(testDot, 'Apex Tests', testVal));
+    } else if (!noCommits && hasApexCode && !hasApexTest) {
+      tlItems.push(tlRow('err', 'Apex Tests', `<span style="color:#f87171;font-size:11px">No test record</span>`));
+    }
+
+    // Last promo
+    if (isAlreadyInProg) {
+      const lbl = (lastPromoWarning.jeStatus ?? 'In Progress') === 'Queued' ? 'Queued' : 'In Progress';
+      tlItems.push(tlRow('warn', 'Last Promo', `<span style="color:#1ab8e8;font-size:10px;font-family:monospace">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — ${lbl}</span>`));
+    } else if (isMergeConflict) {
+      tlItems.push(tlRow(isInnocentConflict ? 'warn' : 'err', 'Last Promo', `<span style="color:#fb923c;font-size:10px;font-family:monospace">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — Conflict</span>`));
+    } else if (isFailedPromo) {
+      tlItems.push(tlRow('err', 'Last Promo', `<span style="color:#f87171;font-size:10px;font-family:monospace">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — Failed</span>`));
+    } else if (isConflictsResolved) {
+      tlItems.push(tlRow('warn', 'Last Promo', `<span style="color:#fb923c;font-size:10px;font-family:monospace">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — Conflicts Resolved</span>`));
+    } else if (isValidatedPromo) {
+      tlItems.push(tlRow('warn', 'Last Promo', `<span style="color:#fb923c;font-size:10px;font-family:monospace">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — Validated only</span>`));
+    } else if (stalePromoInfo) {
+      tlItems.push(tlRow('ok', 'Last Promo', `<span style="color:#4ade80;font-size:10px">Fix committed — ${sfPromoLink(stalePromoInfo.name, stalePromoInfo.id)}</span>`));
+    }
+
+    // Parent blocked
+    if (parentBlocked) {
+      tlItems.push(tlRow('err', 'Parent', `<span style="color:#f87171;font-size:10px">⛔ ${parentStory.name} not yet deployed</span>`));
+    }
+
+    // Dependencies
+    if (dependencies.length > 0) {
+      const hasBlocked = dependencies.some(d => !d.parentAhead && !d.parentInSamePromo);
+      const depNames = dependencies.map(d => {
+        const col = d.parentInSamePromo ? '#1ab8e8' : d.parentAhead ? '#4ade80' : '#fb923c';
+        return sfStoryLink(d.parentName, d.parentId, `color:${col};font-size:10px`);
+      }).join(', ');
+      tlItems.push(tlRow(hasBlocked ? 'warn' : 'ok', 'Parent Dep', `<span style="font-size:10px">${depNames}</span>`));
+    }
+
+    // XML type issues
+    if (xmlTypeMetadata.length > 0) {
+      tlItems.push(tlRow('err', 'Metadata', `<span style="color:#f87171;font-size:10px">⛔ ${xmlTypeMetadata.length} xml-type issue${xmlTypeMetadata.length > 1 ? 's' : ''}</span>`));
+    }
+  }
+
+  // ── Promo history right panel ──
+  const siblingStories = lastPromoWarning?.siblingStories ?? [];
+  const showPromoPanel = !isVerifying && lastPromoWarning && siblingStories.length > 0;
+  const promoStatusColor = isFailedPromo ? '#f87171' : '#fb923c';
+  const promoStatusLabel = isFailedPromo ? '✗ Failed'
+    : isMergeConflict ? '⚠ Conflict'
+    : isConflictsResolved ? '✓ Conflicts Resolved'
+    : isAlreadyInProg ? '● In Progress'
+    : isValidatedPromo ? '✓ Validated'
+    : (lastPromoWarning?.status ?? '');
+
+  const promoHistoryHtml = showPromoPanel ? `
+    <div class="card-promo" style="border-left:1px solid #1e2d3d;background:${isFailedPromo ? '#110a0a' : '#0e100a'}">
+      <div style="font-size:9px;color:${promoStatusColor};text-transform:uppercase;letter-spacing:1px;font-weight:700">${lastPromoWarning.name ? sfPromoLink(lastPromoWarning.name, lastPromoWarning.id) : ''} — ${promoStatusLabel}</div>
+      <div style="font-size:9px;color:#475569;margin-bottom:2px">${siblingStories.length} other stor${siblingStories.length === 1 ? 'y' : 'ies'} in this promo</div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        ${siblingStories.map(s => {
+          const inList   = verifiedStoryNames.has((s.name ?? '').toUpperCase());
+          const eligible = inList && cleanStories.some(c => c.name.toUpperCase() === (s.name ?? '').toUpperCase());
+          const statusTag = inList
+            ? (eligible
+                ? `<span data-sib-tag="${(s.name ?? '').toUpperCase()}" style="color:#4ade80;font-size:9px;margin-left:5px">● eligible</span>`
+                : `<span data-sib-tag="${(s.name ?? '').toUpperCase()}" style="color:#f87171;font-size:9px;margin-left:5px">● not eligible</span>`)
+            : `<span data-sib-tag="${(s.name ?? '').toUpperCase()}" style="color:#475569;font-size:9px;margin-left:5px">● not in list</span>`;
+          return `<div style="background:#0a0505;border:1px solid #2a1818;border-radius:4px;padding:5px 8px">
+            <div style="display:flex;align-items:center;flex-wrap:wrap">
+              <span style="font-family:monospace;font-size:10px;color:#fbbf24;font-weight:600">${s.name ?? ''}</span>
+              ${s.credential ? `<span style="color:#7dd3fc;font-size:9px;margin-left:5px">· ${s.credential}</span>` : ''}
+              ${s.developer  ? `<span style="color:#475569;font-size:9px;margin-left:5px">· ${s.developer}</span>` : ''}
+              ${statusTag}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
+  // ── Innocent conflict inline badge (preserves data-innocent-badge for JS handler) ──
+  const innocentInlineHtml = isInnocentConflict ? `
+    <div style="margin-top:6px;padding:5px 9px;background:rgba(26,184,232,0.05);border-left:2px solid #1ab8e8;border-radius:0 4px 4px 0;font-size:10px;color:#7fc9e0">
+      <span data-innocent-badge data-culprit="${lastPromoWarning.conflictCulprit ?? 'unknown'}"
+            style="display:block">Conflict caused by <strong>${lastPromoWarning.conflictCulprit ?? 'unknown'}</strong><span class="culprit-in-list-note"></span></span>
+    </div>` : '';
+
+  // ── Merge conflict culprit / in-progress spinner badge ──
+  const notEligibleInlineHtml = (isMergeConflict && !isInnocentConflict)
+    ? `<div style="margin-top:6px;padding:4px 9px;background:#451a03;border:1px solid #d97706;border-radius:4px;font-size:10px;color:#fbbf24">⚠ Merge Conflict — ${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)}</div>`
+    : isAlreadyInProg ? (() => {
+        const jeStatus  = lastPromoWarning.jeStatus ?? 'In Progress';
+        const isQueued  = jeStatus === 'Queued';
+        const bCol = isQueued ? '#d97706' : '#10b981';
+        const lCol = isQueued ? '#fbbf24' : '#34d399';
+        const sB   = isQueued ? '#92400e' : '#065f46';
+        const sT   = isQueued ? '#f59e0b' : '#10b981';
+        const sW   = isQueued ? '1.5px'   : '2.5px';
+        return `<div style="margin-top:6px;display:inline-flex;align-items:center;gap:6px;background:#18181b;border:1px solid ${bCol};border-radius:6px;padding:3px 10px;font-size:11px">
+          <span style="width:10px;height:10px;border:${sW} solid ${sB};border-top-color:${sT};border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0;display:inline-block"></span>
+          <span style="color:${lCol}">${isQueued ? 'In Queue' : 'In Progress'}</span>
+          <span style="color:#e3b341">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)}</span>
+        </div>`;
+      })()
+    : '';
+
+  // ── Action footer ──
+  const footerStatusHtml = isVerifying ? '' :
+    (isForcePromo || isForceDepBlocked || !isPromotable)
+      ? `<span style="font-size:10px;color:#5a8a9f">✗ Not Promotable</span>`
+      : `<span style="font-size:10px;color:#34d399">✓ Promotable</span>`;
+
+  const forceCbHtml = (isForcePromo || isForceDepBlocked) ? `
+    <label style="display:flex;align-items:center;gap:6px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.22);border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#b8884a;text-transform:uppercase"
+           title="${isForceDepBlocked ? 'Parent story not yet ahead in pipeline. Check to force-promote anyway.' : 'Last promotion failed with no fix commit. Check to force-promote anyway.'}">
+      <input type="checkbox" class="force-promote-cb" data-story="${storyName}" style="width:12px;height:12px;accent-color:#f59e0b;cursor:pointer" />
+      Force
+    </label>` : '';
+
+  const skipCbHtml = showSkip ? `
+    <label style="display:flex;align-items:center;gap:6px;background:rgba(26,184,232,0.04);border:1px solid rgba(26,184,232,0.18);border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#5a8a9f;text-transform:uppercase">
+      <input type="checkbox" class="skip-story-cb" data-story="${storyName}" style="width:12px;height:12px;accent-color:#f59e0b;cursor:pointer" />
+      Skip
+    </label>` : '';
+
+  const sepCbHtml = (willBePromoted && (!lastPromoWarning || isInnocentConflict))
+    ? `<label style="display:flex;align-items:center;gap:6px;background:rgba(26,184,232,0.04);border:1px solid rgba(26,184,232,0.18);border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#5a8a9f;text-transform:uppercase">
+         <input type="checkbox" class="separate-promo-cb" data-story="${storyName}" style="width:12px;height:12px;accent-color:#1ab8e8;cursor:pointer" />
+         Separate Promo
+       </label>`
+    : (isCRMultiStory && isPromotable)
+    ? `<label style="display:inline-flex;flex-direction:column;align-items:center;cursor:pointer;gap:2px;border:1px solid ${lastPromoWarning?.resolutionsStale ? '#4a1a1a' : 'rgba(26,184,232,0.18)'};border-radius:20px;padding:5px 14px;background:rgba(26,184,232,0.04)">
+         <span style="display:flex;align-items:center;gap:6px;font-size:10px;color:#5a8a9f;text-transform:uppercase">
+           <input type="checkbox" class="separate-promo-cb" data-story="${storyName}" style="width:12px;height:12px;accent-color:#1ab8e8;cursor:pointer" />
+           Separate Promo
+         </span>
+         <span style="font-size:8px;color:${lastPromoWarning?.resolutionsStale ? '#f87171' : '#5a8a9f'};line-height:1.2">
+           ${lastPromoWarning?.resolutionsStale ? '[resolutions stale]' : '[resolutions copied]'}
+         </span>
+       </label>
+       <div data-cr-sibling-note style="display:none;font-size:8px;color:#f97316;margin-top:4px;max-width:110px;white-space:normal;line-height:1.3;text-align:center"></div>`
+    : '';
+
+  // ── Developer label ──
+  const devName = (storyCommittedBy || []).length > 0 ? storyCommittedBy[0] : null;
+
+  // ── Verifying state card ──
+  if (isVerifying) {
+    return `
+      <div class="story-card">
+        <div class="card-identity">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <strong style="font-size:14px">${sfStoryLink(storyName, storyIdMap[storyName], 'color:#e0f4ff')}</strong>
+            <span id="verdict-${rowId}"><span class="tag tag-verifying">Verifying...</span></span>
+          </div>
+        </div>
+        <div class="card-timeline" style="align-items:flex-start;justify-content:center">
+          <div style="display:flex;align-items:center;gap:8px;color:#2a6a8a;font-size:11px">
+            <div style="width:14px;height:14px;border:2px solid #1e2d3d;border-top-color:#1ab8e8;border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0"></div>
+            Verifying story...
+          </div>
+        </div>
+      </div>
+      <div class="card-footer"></div>`;
+  }
+
+  // ── Full card ──
   return `
-    <td><strong>${sfStoryLink(storyName, storyIdMap[storyName], 'color:#e0f4ff')}</strong></td>
-    <td style="font-size:11px;color:#5a8a9f;white-space:nowrap">${envLabel}</td>
-    <td style="font-family:monospace;font-size:11px">${ghBranchLink(branch)}</td>
-    <td>${copadoHtml}</td>
-    <td>${storyByHtml}</td>
-    <td>${extraHtml}</td>
-    <td>${extraByHtml}</td>
-    <td>${unregHtml}</td>
-    <td id="verdict-${rowId}">${verdictHtml}</td>
-    <td>${promotableHtml}</td>
-    ${skipTd}
-    ${separateTd}
-  `;
+    <div class="story-card${showPromoPanel ? ' has-promo' : ''}">
+      <div class="card-identity">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+          <strong style="font-size:14px">${sfStoryLink(storyName, storyIdMap[storyName], 'color:#e0f4ff')}</strong>
+          <span id="verdict-${rowId}">${verdictHtml}</span>
+        </div>
+        ${branch ? `<div style="font-family:monospace;font-size:9px;color:#2a6a8a;word-break:break-all;margin-top:2px">${ghBranchLink(branch)}</div>` : ''}
+        ${srcEnvName ? `<div style="display:flex;align-items:center;gap:5px;margin-top:4px">
+          <span style="font-size:11px;font-weight:600;color:#7dd3fc">${srcEnvName.toUpperCase()}</span>
+          <span style="color:#334155;font-size:13px">→</span>
+          <span style="font-size:11px;font-weight:600;color:#a78bfa">${dstEnvName ? dstEnvName.toUpperCase() : '?'}</span>
+        </div>` : ''}
+        ${devName ? `<div style="font-size:10px;color:#64748b;margin-top:2px">👤 ${devName}</div>` : ''}
+        ${baseBranch ? `<div style="font-size:9px;color:#fbbf24;margin-top:3px">Base: ${baseBranch}${parentStory?.credential ? ` · <span style="color:#7dd3fc">${parentStory.credential}</span>` : ''}</div>` : ''}
+      </div>
+      <div class="card-timeline${showPromoPanel ? ' has-border' : ''}">
+        ${tlItems.join('')}
+        ${innocentInlineHtml}
+        ${notEligibleInlineHtml}
+      </div>
+      ${promoHistoryHtml}
+    </div>
+    <div class="card-footer">
+      ${footerStatusHtml}
+      <div style="display:flex;gap:8px;align-items:center">
+        ${forceCbHtml}${skipCbHtml}${sepCbHtml}
+      </div>
+    </div>`;
 }
 
 window.addEventListener('message', (event) => {
@@ -1837,13 +2037,21 @@ window.addEventListener('message', (event) => {
     const verdictCell = document.getElementById('verdict-' + rowId);
     if (msg.success) {
       if (verdictCell) verdictCell.innerHTML = `<span class="tag tag-promoted">✓ Promoted</span>`;
-      if (row) row.style.background = 'rgba(52,211,153,0.07)';
+      if (row) {
+        const innerCard = row.querySelector('.story-card');
+        if (innerCard) innerCard.style.background = 'rgba(52,211,153,0.05)';
+        const innerFooter = row.querySelector('.card-footer');
+        if (innerFooter) innerFooter.style.background = 'rgba(52,211,153,0.03)';
+      }
       const idx = cleanStories.findIndex(s => s.name === msg.storyName);
       if (idx !== -1) cleanStories.splice(idx, 1);
     } else {
       const errMsg = msg.error || 'Unknown error';
       if (verdictCell) verdictCell.innerHTML = `<span class="tag tag-error">✗ Promote failed</span>`;
-      if (row) row.style.background = 'rgba(248,81,73,0.07)';
+      if (row) {
+        const innerCard = row.querySelector('.story-card');
+        if (innerCard) innerCard.style.background = 'rgba(248,81,73,0.06)';
+      }
       setStatus('error', `Promote failed: ${errMsg}`);
     }
   }
