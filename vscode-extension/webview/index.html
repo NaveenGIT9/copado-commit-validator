@@ -1541,6 +1541,7 @@ window.addEventListener('message', (event) => {
         resolutionsStale: !effectiveLcd || !pmd || new Date(effectiveLcd) >= new Date(pmd),
       };
     }
+    if (msg.storyId) storyIdMap[msg.storyName] = msg.storyId;
     const html = buildRowHtml(
       msg.storyName, msg.branch, msg.copadoCommits, msg.extraCommits,
       msg.unregisteredDetail, msg.verdict, msg.storyCommittedBy, msg.extraCommittedBy,
@@ -1551,8 +1552,6 @@ window.addEventListener('message', (event) => {
     );
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html);
-
-    if (msg.storyId) storyIdMap[msg.storyName] = msg.storyId;
     verifiedStoryNames.add(msg.storyName.toUpperCase());
     storyWarningMap.set(msg.storyName.toUpperCase(), msg.lastPromoWarning ?? null);
 
