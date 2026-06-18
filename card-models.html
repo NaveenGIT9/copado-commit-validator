@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Card Layout Models</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1117; color: #e0f4ff; font-family: 'Segoe UI', system-ui, sans-serif; padding: 24px; }
+  h1 { color: #7dd3fc; font-size: 14px; letter-spacing: 1px; margin-bottom: 24px; text-transform: uppercase; }
+  .section { margin-bottom: 40px; }
+  .section-label { color: #475569; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; padding-left: 2px; }
+
+  /* SHARED TOKENS */
+  .badge-clean { background: #052e16; color: #4ade80; border: 1px solid #166534; border-radius: 20px; padding: 2px 10px; font-size: 10px; font-weight: 700; }
+  .badge-no { background: #3b0d0d; color: #f87171; border: 1px solid #7f1d1d; border-radius: 20px; padding: 2px 10px; font-size: 10px; font-weight: 700; }
+  .badge-yes { background: #052e16; color: #4ade80; border: 1px solid #166534; border-radius: 20px; padding: 2px 10px; font-size: 10px; font-weight: 700; }
+  .badge-conflict { background: #431407; color: #fb923c; border: 1px solid #9a3412; border-radius: 20px; padding: 2px 10px; font-size: 10px; font-weight: 700; }
+  .badge-inprog { background: #1c1f2e; color: #93c5fd; border: 1px solid #1d4ed8; border-radius: 20px; padding: 2px 8px; font-size: 10px; font-weight: 700; }
+  .chip { display: inline-flex; align-items: center; gap: 3px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 4px; padding: 2px 7px; font-size: 10px; color: #94a3b8; }
+  .chip.ok { color: #4ade80; }
+  .chip.err { color: #f87171; }
+  .chip.warn { color: #fbbf24; }
+  .env-arrow { color: #475569; margin: 0 4px; }
+  .env-src { color: #7dd3fc; font-size: 11px; font-weight: 600; }
+  .env-dst { color: #a78bfa; font-size: 11px; font-weight: 600; }
+  .story-num { color: #e0f4ff; font-weight: 700; font-size: 13px; font-family: monospace; }
+  .branch-txt { color: #2a6a8a; font-size: 10px; font-family: monospace; }
+  .kv-label { color: #475569; font-size: 9px; text-transform: uppercase; letter-spacing: 0.6px; }
+  .kv-val { color: #cbd5e1; font-size: 11px; font-weight: 500; }
+  .divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 8px 0; }
+</style>
+</head>
+<body>
+
+<h1>Copado Commit Validator — Card Layout Models (9 Concepts)</h1>
+
+<!-- ═══════════════════════════════════════════════════════ MODEL 1 ═══ -->
+<div class="section">
+<div class="section-label">Model 1 — Side-accent strip with inline meta</div>
+<div style="display:flex;flex-direction:column;gap:6px;max-width:860px">
+
+  <!-- story 1 -->
+  <div style="display:flex;border-left:3px solid #166534;background:#0f1923;border-radius:0 6px 6px 0;padding:10px 14px;gap:16px;align-items:center">
+    <div style="min-width:90px">
+      <div class="story-num">US-0019794</div>
+      <div style="margin-top:3px"><span class="env-src">RBKDEV4</span><span class="env-arrow">→</span><span class="env-dst">RBKQA</span></div>
+    </div>
+    <div style="flex:1;font-family:monospace;font-size:10px;color:#2a6a8a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">feature/US-0019794</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+      <span class="chip">📦 6 commits</span>
+      <span class="chip">👤 VijayKumar-KR</span>
+      <span class="chip ok">PR ✓</span>
+      <span class="chip ok">Apex ✓</span>
+      <span class="chip err">Promo ✗</span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+      <span class="badge-clean">✓ Clean</span>
+      <span class="badge-no">✗ No</span>
+    </div>
+  </div>
+
+  <!-- story 2 -->
+  <div style="display:flex;border-left:3px solid #9a3412;background:#0f1923;border-radius:0 6px 6px 0;padding:10px 14px;gap:16px;align-items:center">
+    <div style="min-width:90px">
+      <div class="story-num">US-0022794</div>
+      <div style="margin-top:3px"><span class="env-src">RBKDEV4</span><span class="env-arrow">→</span><span class="env-dst">RBKQA</span></div>
+    </div>
+    <div style="flex:1;font-family:monospace;font-size:10px;color:#2a6a8a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">feature/US-0022794</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+      <span class="chip">📦 25 commits</span>
+      <span class="chip">👤 VijayKumar-KR</span>
+      <span class="chip ok">PR ✓</span>
+      <span class="chip err">Apex ✗</span>
+      <span class="chip warn">Promo ~</span>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+      <span class="badge-clean">✓ Clean</span>
+      <span class="badge-conflict">⚠ Conflict</span>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ MODEL 2 ═══ -->
+<div class="section">
+<div class="section-label">Model 2 — Two-column card: identity left, stats right</div>
+<div style="display:flex;flex-direction:column;gap:8px;max-width:860px">
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;background:#0f1923;border:1px solid #1e293b;border-radius:8px;overflow:hidden">
+    <div style="padding:12px 16px;border-right:1px solid #1e293b">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span class="story-num">US-0019794</span>
+        <span class="badge-clean" style="font-size:9px">✓ Clean</span>
+      </div>
+      <div class="branch-txt" style="margin-bottom:8px">feature/US-0019794</div>
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+        <span class="env-src">RBKDEV4</span>
+        <span style="color:#475569">→</span>
+        <span class="env-dst">RBKQA</span>
+      </div>
+      <div style="font-size:10px;color:#64748b">👤 VijayKumar-KR</div>
+    </div>
+    <div style="padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><div class="kv-label">Copado Commits</div><div class="kv-val">6</div></div>
+      <div><div class="kv-label">Branch Commits</div><div class="kv-val">6</div></div>
+      <div><div class="kv-label">Unregistered</div><div class="kv-val" style="color:#4ade80">None</div></div>
+      <div><div class="kv-label">Last Promo</div><div class="kv-val" style="color:#f87171">✗ Failed</div></div>
+      <div><div class="kv-label">PR</div><div class="kv-val" style="color:#4ade80">✓ Approved</div></div>
+      <div><div class="kv-label">Apex Tests</div><div class="kv-val" style="color:#4ade80">✓ Passed</div></div>
+      <div style="grid-column:1/-1;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:10px;color:#64748b">Also in promo: <span style="color:#fbbf24">US-0025076</span></span>
+        <span class="badge-no">✗ Not Promotable</span>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;background:#0f1923;border:1px solid #1e293b;border-radius:8px;overflow:hidden">
+    <div style="padding:12px 16px;border-right:1px solid #1e293b">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span class="story-num">US-0022794</span>
+        <span class="badge-clean" style="font-size:9px">✓ Clean</span>
+      </div>
+      <div class="branch-txt" style="margin-bottom:8px">feature/US-0022794</div>
+      <div style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+        <span class="env-src">RBKDEV4</span><span style="color:#475569">→</span><span class="env-dst">RBKQA</span>
+      </div>
+      <div style="font-size:10px;color:#64748b">👤 VijayKumar-KR</div>
+    </div>
+    <div style="padding:12px 16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><div class="kv-label">Copado Commits</div><div class="kv-val">25</div></div>
+      <div><div class="kv-label">Branch Commits</div><div class="kv-val">25</div></div>
+      <div><div class="kv-label">Unregistered</div><div class="kv-val" style="color:#4ade80">None</div></div>
+      <div><div class="kv-label">Last Promo</div><div class="kv-val" style="color:#fb923c">⚠ Conflict</div></div>
+      <div><div class="kv-label">PR</div><div class="kv-val" style="color:#4ade80">✓ Approved</div></div>
+      <div><div class="kv-label">Apex Tests</div><div class="kv-val" style="color:#f87171">✗ Not Started</div></div>
+      <div style="grid-column:1/-1;text-align:right"><span class="badge-yes">✓ Promotable</span></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ MODEL 3 ═══ -->
+<div class="section">
+<div class="section-label">Model 3 — Header bar + pill row + status footer</div>
+<div style="display:flex;flex-direction:column;gap:8px;max-width:860px">
+
+  <div style="background:#0f1923;border:1px solid #1e293b;border-radius:8px;overflow:hidden">
+    <!-- header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#0a1420;border-bottom:1px solid #1e293b">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="story-num">US-0019794</span>
+        <span class="branch-txt">feature/US-0019794</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="env-src">RBKDEV4</span><span style="color:#475569;font-size:12px">→</span><span class="env-dst">RBKQA</span>
+        <span style="color:#475569;margin:0 4px">|</span>
+        <span style="font-size:10px;color:#64748b">VijayKumar-KR</span>
+      </div>
+    </div>
+    <!-- pill row -->
+    <div style="padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap">
+      <span class="chip">📦 Copado: 6</span>
+      <span class="chip">🌿 Branch: 6</span>
+      <span class="chip ok">Unregistered: None</span>
+      <span class="chip ok">PR: ✓ Approved</span>
+      <span class="chip ok">Apex: ✓ Passed</span>
+      <span class="chip err">Last Promo: ✗ Failed</span>
+      <span class="chip warn">Also in: US-0025076</span>
+    </div>
+    <!-- footer -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(246,70,70,0.04);border-top:1px solid rgba(248,113,113,0.15)">
+      <span class="badge-clean">✓ Clean</span>
+      <span class="badge-no">✗ Not Promotable — Also in another promotion</span>
+    </div>
+  </div>
+
+  <div style="background:#0f1923;border:1px solid #1e293b;border-radius:8px;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#0a1420;border-bottom:1px solid #1e293b">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="story-num">US-0022794</span>
+        <span class="branch-txt">feature/US-0022794</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="env-src">RBKDEV4</span><span style="color:#475569;font-size:12px">→</span><span class="env-dst">RBKQA</span>
+        <span style="color:#475569;margin:0 4px">|</span>
+        <span style="font-size:10px;color:#64748b">VijayKumar-KR</span>
+      </div>
+    </div>
+    <div style="padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap">
+      <span class="chip">📦 Copado: 25</span>
+      <span class="chip">🌿 Branch: 25</span>
+      <span class="chip ok">Unregistered: None</span>
+      <span class="chip ok">PR: ✓ Approved</span>
+      <span class="chip err">Apex: ✗ Not Started</span>
+      <span class="chip warn">Last Promo: ⚠ Conflict</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:rgba(74,222,128,0.04);border-top:1px solid rgba(74,222,128,0.12)">
+      <span class="badge-clean">✓ Clean</span>
+      <span class="badge-conflict">⚠ Merge Conflict — Separate Promo</span>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ MODEL 4 ═══ -->
+<div class="section">
+<div class="section-label">Model 4 — Compact 3-section card (identity | checklist | verdict)</div>
+<div style="display:flex;flex-direction:column;gap:6px;max-width:860px">
+
+  <div style="display:grid;grid-template-columns:200px 1fr auto;background:#0f1923;border:1px solid #1e293b;border-radius:8px;overflow:hidden">
+    <!-- identity -->
+    <div style="padding:12px;border-right:1px solid #1e293b;display:flex;flex-direction:column;justify-content:center;gap:4px">
+      <div class="story-num">US-0019794</div>
+      <div class="branch-txt">feature/US-0019794</div>
+      <div style="margin-top:4px;display:flex;align-items:center;gap:3px">
+        <span class="env-src" style="font-size:10px">RBKDEV4</span>
+        <span style="color:#475569;font-size:10px">→</span>
+        <span class="env-dst" style="font-size:10px">RBKQA</span>
+      </div>
+      <div style="font-size:9px;color:#64748b;margin-top:2px">VijayKumar-KR</div>
+    </div>
+    <!-- checklist -->
+    <div style="padding:12px 16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;align-content:center">
+      <div style="font-size:10px"><span style="color:#4ade80">✓</span> <span style="color:#94a3b8">Copado: 6</span></div>
+      <div style="font-size:10px"><span style="color:#4ade80">✓</span> <span style="color:#94a3b8">Branch: 6</span></div>
+      <div style="font-size:10px"><span style="color:#4ade80">✓</span> <span style="color:#94a3b8">Unreg: None</span></div>
+      <div style="font-size:10px"><span style="color:#4ade80">✓</span> <span style="color:#94a3b8">PR Approved</span></div>
+      <div style="font-size:10px"><span style="color:#4ade80">✓</span> <span style="color:#94a3b8">Apex Passed</span></div>
+      <div style="font-size:10px"><span style="color:#f87171">✗</span> <span style="color:#94a3b8">Last Failed</span></div>
+      <div style="font-size:10px;color:#fbbf24;grid-column:1/-1">⚠ Also in promo: US-0025076</div>
+    </div>
+    <!-- verdict -->
+    <div style="padding:12px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border-left:1px solid #1e293b;min-width:110px">
+      <span class="badge-clean">✓ Clean</span>
+      <span class="badge-no">✗ No</span>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:200px 1fr auto;background:#0f1923;border:1px solid #1e293b;border-radius:8px;overflow:hidden">
+    <div style="padding:12px;border-right:1px solid #1e293b;display:flex;flex-direction:column;justify-content:center;gap:4px">
+      <div class="story-num">US-0022794</div>
+      <div class="branch-txt">feature/US-0022794</div>
+      <div style="margin-top:4px;display:flex;align-items:center;gap:3px">
+        <span class="env-src" style="font-size:10px">RBKDEV4</span>
+        <span style="color:#475569;font-size:10px">→</span>
+        <span class="env-dst" style="font-size:10px">RBKQA</span>
+      </div>
+      <div style="font-size:9px;color:#64748b;margin-top:2px">VijayKumar-KR</div>
+    </div>
+    <div style="padding:12px 16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;align-content:center">
+      <div style="font-size:10px"><span style="color:#4ade80">✓</span> <span style="color:#94a3b8">Copado: 25</span></div>
+      <div style="font-size:10px"><span style="color:#4ade80">✓</span> <span style="color:#94a3b8">Branch: 25</span></div>
+      <div style="font-size:10px"><span style="color:#4ade80">✓</span> <span style="color:#94a3b8">Unreg: None</span></div>
+      <div style="font-size:10px"><span style="color:#4ade80">✓</span> <span style="color:#94a3b8">PR Approved</span></div>
+      <div style="font-size:10px"><span style="color:#f87171">✗</span> <span style="color:#94a3b8">Apex: N/A</span></div>
+      <div style="font-size:10px"><span style="color:#fb923c">⚠</span> <span style="color:#94a3b8">Merge Conflict</span></div>
+    </div>
+    <div style="padding:12px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border-left:1px solid #1e293b;min-width:110px">
+      <span class="badge-clean">✓ Clean</span>
+      <span class="badge-yes">✓ Yes</span>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ MODEL 5 ═══ -->
+<div class="section">
+<div class="section-label">Model 5 — Pipeline progress bar + details below</div>
+<div style="display:flex;flex-direction:column;gap:8px;max-width:860px">
+
+  <div style="background:#0f1923;border:1px solid #1e293b;border-radius:8px;padding:14px 16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="story-num">US-0019794</span>
+        <span class="badge-clean">✓ Clean</span>
+        <span class="badge-no">✗ Not Promotable</span>
+      </div>
+      <span style="font-size:10px;color:#64748b">VijayKumar-KR · feature/US-0019794</span>
+    </div>
+    <!-- pipeline progress -->
+    <div style="display:flex;align-items:center;gap:0;margin-bottom:12px">
+      <div style="background:#1d4ed8;border-radius:4px 0 0 4px;padding:4px 12px;font-size:10px;font-weight:700;color:#bfdbfe">RBKDEV4</div>
+      <div style="width:40px;height:2px;background:linear-gradient(to right,#1d4ed8,#7c3aed)"></div>
+      <div style="width:8px;height:8px;background:#7c3aed;border-radius:50%;flex-shrink:0"></div>
+      <div style="width:40px;height:2px;background:linear-gradient(to right,#7c3aed,#166534)"></div>
+      <div style="background:#166534;padding:4px 12px;font-size:10px;font-weight:700;color:#bbf7d0;border-radius:0 4px 4px 0">RBKQA</div>
+      <div style="width:40px;height:2px;background:#1e293b"></div>
+      <div style="background:#1e293b;padding:4px 12px;font-size:10px;color:#475569;border-radius:4px">RBKSTAGE</div>
+      <div style="width:40px;height:2px;background:#1e293b"></div>
+      <div style="background:#1e293b;padding:4px 12px;font-size:10px;color:#475569;border-radius:4px">PROD</div>
+    </div>
+    <!-- stats row -->
+    <div style="display:flex;gap:20px;flex-wrap:wrap">
+      <div><span class="kv-label">Copado</span><br><span class="kv-val">6 commits</span></div>
+      <div><span class="kv-label">Branch</span><br><span class="kv-val">6 commits</span></div>
+      <div><span class="kv-label">Unregistered</span><br><span class="kv-val" style="color:#4ade80">None</span></div>
+      <div><span class="kv-label">PR</span><br><span class="kv-val" style="color:#4ade80">✓ Approved</span></div>
+      <div><span class="kv-label">Apex Tests</span><br><span class="kv-val" style="color:#4ade80">✓ Passed</span></div>
+      <div><span class="kv-label">Last Promo</span><br><span class="kv-val" style="color:#f87171">✗ Failed</span></div>
+      <div><span class="kv-label">Also In</span><br><span class="kv-val" style="color:#fbbf24">US-0025076</span></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ MODEL 6 ═══ -->
+<div class="section">
+<div class="section-label">Model 6 — Ultra-compact single line with hover-expand concept</div>
+<div style="display:flex;flex-direction:column;gap:4px;max-width:860px">
+
+  <div style="background:#0f1923;border:1px solid #166534;border-radius:6px;padding:8px 14px;display:flex;align-items:center;gap:12px">
+    <span class="story-num" style="min-width:90px">US-0019794</span>
+    <span style="color:#475569;font-size:11px;min-width:130px"><span class="env-src" style="font-size:10px">RBKDEV4</span> → <span class="env-dst" style="font-size:10px">RBKQA</span></span>
+    <span class="branch-txt" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">feature/US-0019794</span>
+    <div style="display:flex;gap:5px;align-items:center">
+      <span title="Copado commits" class="chip">📦 6</span>
+      <span title="PR Approved" class="chip ok">PR ✓</span>
+      <span title="Apex Passed" class="chip ok">Apex ✓</span>
+      <span title="No unregistered" class="chip ok">Unreg ✓</span>
+      <span title="Last promo failed" class="chip err">Promo ✗</span>
+      <span title="Also in another promotion" class="chip warn">+1 promo</span>
+    </div>
+    <div style="display:flex;gap:5px;flex-shrink:0">
+      <span class="badge-clean" style="font-size:9px">✓ Clean</span>
+      <span class="badge-no" style="font-size:9px">✗ No</span>
+    </div>
+  </div>
+
+  <div style="background:#0f1923;border:1px solid #166534;border-radius:6px;padding:8px 14px;display:flex;align-items:center;gap:12px">
+    <span class="story-num" style="min-width:90px">US-0022794</span>
+    <span style="color:#475569;font-size:11px;min-width:130px"><span class="env-src" style="font-size:10px">RBKDEV4</span> → <span class="env-dst" style="font-size:10px">RBKQA</span></span>
+    <span class="branch-txt" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">feature/US-0022794</span>
+    <div style="display:flex;gap:5px;align-items:center">
+      <span class="chip">📦 25</span>
+      <span class="chip ok">PR ✓</span>
+      <span class="chip err">Apex ✗</span>
+      <span class="chip ok">Unreg ✓</span>
+      <span class="chip warn">Conflict ⚠</span>
+    </div>
+    <div style="display:flex;gap:5px;flex-shrink:0">
+      <span class="badge-clean" style="font-size:9px">✓ Clean</span>
+      <span class="badge-conflict" style="font-size:9px">⚠ Conflict</span>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ MODEL 7 ═══ -->
+<div class="section">
+<div class="section-label">Model 7 — Card grid: large verdict badge + metadata below</div>
+<div style="display:flex;gap:12px;flex-wrap:wrap;max-width:860px">
+
+  <div style="background:#0f1923;border:1px solid #1e293b;border-radius:10px;width:260px;overflow:hidden">
+    <div style="padding:14px;border-bottom:1px solid #1e293b">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div class="story-num" style="font-size:15px">US-0019794</div>
+          <div class="branch-txt" style="margin-top:3px">feature/US-0019794</div>
+        </div>
+        <span class="badge-clean">✓ Clean</span>
+      </div>
+      <div style="margin-top:8px;display:flex;align-items:center;gap:4px">
+        <span class="env-src">RBKDEV4</span>
+        <span style="color:#475569">→</span>
+        <span class="env-dst">RBKQA</span>
+      </div>
+      <div style="font-size:10px;color:#64748b;margin-top:4px">VijayKumar-KR</div>
+    </div>
+    <div style="padding:10px 14px;display:flex;flex-direction:column;gap:5px">
+      <div style="display:flex;justify-content:space-between;font-size:10px"><span class="kv-label">Copado / Branch</span><span class="kv-val">6 / 6</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px"><span class="kv-label">Unregistered</span><span style="color:#4ade80;font-size:10px">None</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px"><span class="kv-label">PR</span><span style="color:#4ade80;font-size:10px">✓ Approved</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px"><span class="kv-label">Apex Tests</span><span style="color:#4ade80;font-size:10px">✓ Passed</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px"><span class="kv-label">Last Promo</span><span style="color:#f87171;font-size:10px">✗ Failed</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px"><span class="kv-label">Also In Promo</span><span style="color:#fbbf24;font-size:10px">US-0025076</span></div>
+    </div>
+    <div style="padding:10px 14px;background:rgba(248,113,113,0.06);border-top:1px solid rgba(248,113,113,0.15);text-align:center">
+      <span class="badge-no">✗ Not Promotable</span>
+    </div>
+  </div>
+
+  <div style="background:#0f1923;border:1px solid #1e293b;border-radius:10px;width:260px;overflow:hidden">
+    <div style="padding:14px;border-bottom:1px solid #1e293b">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <div>
+          <div class="story-num" style="font-size:15px">US-0022794</div>
+          <div class="branch-txt" style="margin-top:3px">feature/US-0022794</div>
+        </div>
+        <span class="badge-clean">✓ Clean</span>
+      </div>
+      <div style="margin-top:8px;display:flex;align-items:center;gap:4px">
+        <span class="env-src">RBKDEV4</span><span style="color:#475569">→</span><span class="env-dst">RBKQA</span>
+      </div>
+      <div style="font-size:10px;color:#64748b;margin-top:4px">VijayKumar-KR</div>
+    </div>
+    <div style="padding:10px 14px;display:flex;flex-direction:column;gap:5px">
+      <div style="display:flex;justify-content:space-between;font-size:10px"><span class="kv-label">Copado / Branch</span><span class="kv-val">25 / 25</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px"><span class="kv-label">Unregistered</span><span style="color:#4ade80;font-size:10px">None</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px"><span class="kv-label">PR</span><span style="color:#4ade80;font-size:10px">✓ Approved</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px"><span class="kv-label">Apex Tests</span><span style="color:#f87171;font-size:10px">✗ Not Started</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px"><span class="kv-label">Last Promo</span><span style="color:#fb923c;font-size:10px">⚠ Conflict</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px"><span class="kv-label">Also In Promo</span><span style="color:#4ade80;font-size:10px">—</span></div>
+    </div>
+    <div style="padding:10px 14px;background:rgba(74,222,128,0.05);border-top:1px solid rgba(74,222,128,0.12);text-align:center">
+      <span class="badge-conflict">⚠ Merge Conflict — Separate Promo</span>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ MODEL 8 ═══ -->
+<div class="section">
+<div class="section-label">Model 8 — Segmented card with color-coded status blocks</div>
+<div style="display:flex;flex-direction:column;gap:8px;max-width:860px">
+
+  <div style="background:#0f1923;border:1px solid #1e293b;border-radius:8px;padding:0;overflow:hidden">
+    <div style="display:flex">
+      <!-- Verdict stripe -->
+      <div style="background:#052e16;width:6px;flex-shrink:0"></div>
+      <div style="flex:1;padding:10px 14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span class="story-num">US-0019794</span>
+          <span style="color:#475569;font-size:10px">·</span>
+          <span class="env-src" style="font-size:10px">RBKDEV4</span><span style="color:#475569;font-size:10px">→</span><span class="env-dst" style="font-size:10px">RBKQA</span>
+          <span style="color:#475569;font-size:10px">·</span>
+          <span class="branch-txt">feature/US-0019794</span>
+          <span style="flex:1"></span>
+          <span style="font-size:10px;color:#64748b">VijayKumar-KR</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <div style="background:#0d1f0d;border:1px solid #166534;border-radius:5px;padding:5px 10px;font-size:10px;color:#4ade80">✓ Clean</div>
+          <div style="background:#0d1f0d;border:1px solid #166534;border-radius:5px;padding:5px 10px;font-size:10px;color:#4ade80">✓ PR Approved</div>
+          <div style="background:#0d1f0d;border:1px solid #166534;border-radius:5px;padding:5px 10px;font-size:10px;color:#4ade80">✓ Apex Passed</div>
+          <div style="background:#1a1a0d;border:1px solid #854d0e;border-radius:5px;padding:5px 10px;font-size:10px;color:#fbbf24">📦 6 commits · 6 branch</div>
+          <div style="background:#1a0d0d;border:1px solid #7f1d1d;border-radius:5px;padding:5px 10px;font-size:10px;color:#f87171">✗ Last Promo Failed</div>
+          <div style="background:#1a120d;border:1px solid #92400e;border-radius:5px;padding:5px 10px;font-size:10px;color:#fb923c">⚠ Also in US-0025076</div>
+          <div style="background:#1a0d0d;border:1px solid #7f1d1d;border-radius:5px;padding:5px 10px;font-size:10px;color:#f87171;font-weight:700">✗ Not Promotable</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:#0f1923;border:1px solid #1e293b;border-radius:8px;padding:0;overflow:hidden">
+    <div style="display:flex">
+      <div style="background:#431407;width:6px;flex-shrink:0"></div>
+      <div style="flex:1;padding:10px 14px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <span class="story-num">US-0022794</span>
+          <span style="color:#475569;font-size:10px">·</span>
+          <span class="env-src" style="font-size:10px">RBKDEV4</span><span style="color:#475569;font-size:10px">→</span><span class="env-dst" style="font-size:10px">RBKQA</span>
+          <span style="color:#475569;font-size:10px">·</span>
+          <span class="branch-txt">feature/US-0022794</span>
+          <span style="flex:1"></span>
+          <span style="font-size:10px;color:#64748b">VijayKumar-KR</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <div style="background:#0d1f0d;border:1px solid #166534;border-radius:5px;padding:5px 10px;font-size:10px;color:#4ade80">✓ Clean</div>
+          <div style="background:#0d1f0d;border:1px solid #166534;border-radius:5px;padding:5px 10px;font-size:10px;color:#4ade80">✓ PR Approved</div>
+          <div style="background:#1a0d0d;border:1px solid #7f1d1d;border-radius:5px;padding:5px 10px;font-size:10px;color:#f87171">✗ Apex Not Started</div>
+          <div style="background:#1a1a0d;border:1px solid #854d0e;border-radius:5px;padding:5px 10px;font-size:10px;color:#fbbf24">📦 25 commits · 25 branch</div>
+          <div style="background:#1a120d;border:1px solid #92400e;border-radius:5px;padding:5px 10px;font-size:10px;color:#fb923c;font-weight:700">⚠ Merge Conflict · Separate Promo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ MODEL 9 ═══ -->
+<div class="section">
+<div class="section-label">Model 9 — Dashboard tile: circular verdict + status grid (wide cards)</div>
+<div style="display:flex;flex-direction:column;gap:8px;max-width:860px">
+
+  <div style="background:#0f1923;border:1px solid #1e293b;border-radius:10px;padding:14px 18px;display:flex;gap:18px;align-items:stretch">
+    <!-- Left: identity + verdict circle -->
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-width:90px">
+      <div style="width:52px;height:52px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:18px">✓</div>
+      <div class="story-num" style="font-size:12px;text-align:center">US-0019794</div>
+      <div style="font-size:9px;color:#64748b;text-align:center">VijayKumar-KR</div>
+    </div>
+    <!-- Divider -->
+    <div style="width:1px;background:#1e293b;flex-shrink:0"></div>
+    <!-- Middle: pipeline + branch -->
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:6px;flex:1">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="env-src">RBKDEV4</span>
+        <span style="color:#475569;font-size:16px">→</span>
+        <span class="env-dst">RBKQA</span>
+      </div>
+      <div class="branch-txt" style="font-size:10px">feature/US-0019794</div>
+      <div style="margin-top:4px;display:flex;gap:5px;flex-wrap:wrap">
+        <span class="chip">📦 Copado: 6</span>
+        <span class="chip">🌿 Branch: 6</span>
+        <span class="chip ok">Unreg: None</span>
+      </div>
+    </div>
+    <!-- Divider -->
+    <div style="width:1px;background:#1e293b;flex-shrink:0"></div>
+    <!-- Right: status checks + final verdict -->
+    <div style="display:flex;flex-direction:column;justify-content:space-between;gap:6px;min-width:150px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="font-size:10px"><span style="color:#4ade80">✓</span> <span style="color:#94a3b8">PR Approved</span></div>
+        <div style="font-size:10px"><span style="color:#4ade80">✓</span> <span style="color:#94a3b8">Apex Passed</span></div>
+        <div style="font-size:10px"><span style="color:#f87171">✗</span> <span style="color:#94a3b8">Last Promo Failed</span></div>
+        <div style="font-size:10px"><span style="color:#fbbf24">⚠</span> <span style="color:#94a3b8">Also in: US-0025076</span></div>
+      </div>
+      <div style="text-align:right"><span class="badge-no">✗ Not Promotable</span></div>
+    </div>
+  </div>
+
+  <div style="background:#0f1923;border:1px solid #1e293b;border-radius:10px;padding:14px 18px;display:flex;gap:18px;align-items:stretch">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-width:90px">
+      <div style="width:52px;height:52px;border-radius:50%;background:#431407;border:2px solid #9a3412;display:flex;align-items:center;justify-content:center;font-size:18px">⚠</div>
+      <div class="story-num" style="font-size:12px;text-align:center">US-0022794</div>
+      <div style="font-size:9px;color:#64748b;text-align:center">VijayKumar-KR</div>
+    </div>
+    <div style="width:1px;background:#1e293b;flex-shrink:0"></div>
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:6px;flex:1">
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="env-src">RBKDEV4</span><span style="color:#475569;font-size:16px">→</span><span class="env-dst">RBKQA</span>
+      </div>
+      <div class="branch-txt" style="font-size:10px">feature/US-0022794</div>
+      <div style="margin-top:4px;display:flex;gap:5px;flex-wrap:wrap">
+        <span class="chip">📦 Copado: 25</span>
+        <span class="chip">🌿 Branch: 25</span>
+        <span class="chip ok">Unreg: None</span>
+      </div>
+    </div>
+    <div style="width:1px;background:#1e293b;flex-shrink:0"></div>
+    <div style="display:flex;flex-direction:column;justify-content:space-between;gap:6px;min-width:150px">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="font-size:10px"><span style="color:#4ade80">✓</span> <span style="color:#94a3b8">PR Approved</span></div>
+        <div style="font-size:10px"><span style="color:#f87171">✗</span> <span style="color:#94a3b8">Apex Not Started</span></div>
+        <div style="font-size:10px"><span style="color:#fb923c">⚠</span> <span style="color:#94a3b8">Merge Conflict</span></div>
+      </div>
+      <div style="text-align:right"><span class="badge-conflict">⚠ Separate Promo</span></div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════ MODEL 10 ══ -->
+<div class="section">
+<div class="section-label">Model 10 — Full card: identity + checks + last promo details + action row</div>
+<div style="display:flex;flex-direction:column;gap:10px;max-width:900px">
+
+  <!-- Story NOT promotable: last promo failed, also in another promo -->
+  <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;overflow:hidden">
+
+    <!-- TOP: identity bar -->
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;background:#0a1420;border-bottom:1px solid #1e2d3d">
+      <span style="font-family:monospace;font-weight:700;font-size:14px;color:#e0f4ff">US-0019794</span>
+      <span style="color:#2a6a8a;font-family:monospace;font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">feature/US-0019794</span>
+      <span style="font-size:10px;color:#7dd3fc;font-weight:600">RBKDEV4</span>
+      <span style="color:#334155;font-size:12px">→</span>
+      <span style="font-size:10px;color:#a78bfa;font-weight:600">RBKQA</span>
+      <span style="color:#334155;margin:0 4px">·</span>
+      <span style="font-size:10px;color:#64748b">VijayKumar-KR</span>
+      <span style="margin-left:auto"><span class="badge-clean">✓ Clean</span></span>
+    </div>
+
+    <!-- MIDDLE: 3 zones -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid #1e2d3d">
+
+      <!-- Zone A: Commit stats -->
+      <div style="padding:12px 16px;border-right:1px solid #1e2d3d">
+        <div style="font-size:9px;color:#475569;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Commit Stats</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;justify-content:space-between;font-size:11px">
+            <span style="color:#64748b">Copado</span><span style="color:#cbd5e1;font-weight:600">6 commits</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px">
+            <span style="color:#64748b">Branch</span><span style="color:#cbd5e1;font-weight:600">6 commits</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px">
+            <span style="color:#64748b">Unregistered</span><span style="color:#4ade80;font-weight:600">None</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Zone B: Status checks -->
+      <div style="padding:12px 16px;border-right:1px solid #1e2d3d">
+        <div style="font-size:9px;color:#475569;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Status Checks</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px">
+            <span style="color:#4ade80;font-size:13px">✓</span><span style="color:#94a3b8">PR Approved</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px">
+            <span style="color:#4ade80;font-size:13px">✓</span><span style="color:#94a3b8">Apex Tests Passed</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px">
+            <span style="color:#4ade80;font-size:13px">✓</span><span style="color:#94a3b8">No Apex-Only Changes</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Zone C: Last Promo expanded -->
+      <div style="padding:12px 16px;background:rgba(239,68,68,0.04)">
+        <div style="font-size:9px;color:#f87171;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Last Promotion — ✗ Failed</div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-family:monospace;font-size:11px;color:#f87171;font-weight:700">P28829</span>
+            <span style="font-size:9px;color:#7f1d1d;background:#3b0d0d;border:1px solid #7f1d1d;border-radius:3px;padding:1px 6px">FAILED</span>
+          </div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:2px">Also included:</div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <div style="font-size:10px;display:flex;align-items:center;gap:5px">
+              <span style="color:#fbbf24;font-family:monospace">US-0025076</span>
+              <span style="color:#475569">·</span>
+              <span style="color:#7dd3fc;font-size:9px">RBKDEV4 → RBKQA</span>
+            </div>
+            <div style="font-size:10px;display:flex;align-items:center;gap:5px">
+              <span style="color:#fbbf24;font-family:monospace">US-0024381</span>
+              <span style="color:#475569">·</span>
+              <span style="color:#7dd3fc;font-size:9px">RBKDEV4 → RBKQA</span>
+            </div>
+          </div>
+          <div style="font-size:9px;color:#64748b;margin-top:2px">No fix commit since failure</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM: not promotable → FORCE only -->
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#080e16;padding:8px 16px">
+      <span style="font-size:10px;color:#f87171">✗ Not Promotable — failed promo, no fix commit</span>
+      <label style="display:flex;align-items:center;gap:6px;background:#1a0e00;border:1px solid #854d0e;border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#fbbf24;letter-spacing:1px;text-transform:uppercase">
+        <input type="checkbox" style="accent-color:#f59e0b;width:12px;height:12px"> Force
+      </label>
+    </div>
+  </div>
+
+  <!-- Story PROMOTABLE with conflict — SKIP + SEPARATE PROMO -->
+  <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;overflow:hidden">
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;background:#0a1420;border-bottom:1px solid #1e2d3d">
+      <span style="font-family:monospace;font-weight:700;font-size:14px;color:#e0f4ff">US-0022794</span>
+      <span style="color:#2a6a8a;font-family:monospace;font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">feature/US-0022794</span>
+      <span style="font-size:10px;color:#7dd3fc;font-weight:600">RBKDEV4</span>
+      <span style="color:#334155;font-size:12px">→</span>
+      <span style="font-size:10px;color:#a78bfa;font-weight:600">RBKQA</span>
+      <span style="color:#334155;margin:0 4px">·</span>
+      <span style="font-size:10px;color:#64748b">VijayKumar-KR</span>
+      <span style="margin-left:auto"><span class="badge-clean">✓ Clean</span></span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid #1e2d3d">
+      <div style="padding:12px 16px;border-right:1px solid #1e2d3d">
+        <div style="font-size:9px;color:#475569;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Commit Stats</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#64748b">Copado</span><span style="color:#cbd5e1;font-weight:600">25 commits</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#64748b">Branch</span><span style="color:#cbd5e1;font-weight:600">25 commits</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#64748b">Unregistered</span><span style="color:#4ade80;font-weight:600">None</span></div>
+        </div>
+      </div>
+      <div style="padding:12px 16px;border-right:1px solid #1e2d3d">
+        <div style="font-size:9px;color:#475569;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Status Checks</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><span style="color:#4ade80">✓</span><span style="color:#94a3b8">PR Approved</span></div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><span style="color:#f87171">✗</span><span style="color:#94a3b8">Apex Not Started</span></div>
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px"><span style="color:#4ade80">✓</span><span style="color:#94a3b8">No Unregistered</span></div>
+        </div>
+      </div>
+      <div style="padding:12px 16px;background:rgba(251,146,60,0.04)">
+        <div style="font-size:9px;color:#fb923c;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Last Promotion — ⚠ Conflict</div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-family:monospace;font-size:11px;color:#fb923c;font-weight:700">P28815</span>
+            <span style="font-size:9px;color:#92400e;background:#431407;border:1px solid #9a3412;border-radius:3px;padding:1px 6px">CONFLICT</span>
+          </div>
+          <div style="font-size:10px;color:#94a3b8;margin-top:2px">Conflict caused by:</div>
+          <div style="font-size:10px;display:flex;align-items:center;gap:5px">
+            <span style="color:#f87171;font-family:monospace">US-0021903</span>
+            <span style="color:#475569">·</span>
+            <span style="color:#7dd3fc;font-size:9px">RBKDEV3 → RBKQA</span>
+          </div>
+          <div style="font-size:10px;display:flex;align-items:center;gap:5px">
+            <span style="color:#fbbf24;font-family:monospace">US-0022794</span>
+            <span style="color:#475569">·</span>
+            <span style="font-size:9px;color:#4ade80">✓ Merged before conflict</span>
+          </div>
+          <div style="font-size:9px;color:#64748b;margin-top:2px">Eligible — auto Separate Promo</div>
+        </div>
+      </div>
+    </div>
+    <!-- promotable → SKIP + SEPARATE PROMO -->
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#080e16;padding:8px 16px">
+      <span style="font-size:10px;color:#4ade80">✓ Promotable — auto Separate Promo queued</span>
+      <div style="display:flex;gap:8px">
+        <label style="display:flex;align-items:center;gap:6px;background:#0d1926;border:1px solid #1e3a5f;border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#94a3b8;letter-spacing:1px;text-transform:uppercase">
+          <input type="checkbox" style="accent-color:#3b82f6;width:12px;height:12px"> Skip
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;background:#0d1926;border:1px solid #1e3a5f;border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#94a3b8;letter-spacing:0.5px;text-transform:uppercase">
+          <input type="checkbox" style="accent-color:#3b82f6;width:12px;height:12px"> Separate Promo
+        </label>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ MODEL 11 ══ -->
+<div class="section">
+<div class="section-label">Model 11 — Horizontal card with prominent action toggles on the right</div>
+<div style="display:flex;flex-direction:column;gap:8px;max-width:900px">
+
+  <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;display:flex;overflow:hidden">
+
+    <!-- Left color accent -->
+    <div style="width:5px;background:#166534;flex-shrink:0"></div>
+
+    <!-- Main content -->
+    <div style="flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+
+      <!-- Row 1: identity -->
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-family:monospace;font-weight:700;font-size:14px;color:#e0f4ff">US-0019794</span>
+        <span style="color:#2a6a8a;font-family:monospace;font-size:10px">feature/US-0019794</span>
+        <span style="flex:1"></span>
+        <span style="font-size:10px;font-weight:600;color:#7dd3fc">RBKDEV4</span>
+        <span style="color:#475569">→</span>
+        <span style="font-size:10px;font-weight:600;color:#a78bfa">RBKQA</span>
+        <span style="color:#475569;margin:0 6px">·</span>
+        <span style="font-size:10px;color:#64748b">VijayKumar-KR</span>
+        <span class="badge-clean" style="margin-left:8px">✓ Clean</span>
+      </div>
+
+      <!-- Row 2: status pills -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span style="background:#0d1f0d;border:1px solid #166534;border-radius:4px;padding:3px 8px;font-size:10px;color:#4ade80">✓ PR Approved</span>
+        <span style="background:#0d1f0d;border:1px solid #166534;border-radius:4px;padding:3px 8px;font-size:10px;color:#4ade80">✓ Apex Passed</span>
+        <span style="background:#0d1f0d;border:1px solid #166534;border-radius:4px;padding:3px 8px;font-size:10px;color:#4ade80">✓ No Unregistered</span>
+        <span style="background:#162032;border:1px solid #1e3a5f;border-radius:4px;padding:3px 8px;font-size:10px;color:#93c5fd">📦 6 Copado · 6 Branch</span>
+      </div>
+
+      <!-- Row 3: Last promo detail -->
+      <div style="background:#1a0d0d;border:1px solid #4c1111;border-radius:6px;padding:8px 12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:9px;color:#f87171;text-transform:uppercase;letter-spacing:1px;font-weight:700">✗ Last Promo Failed</span>
+          <span style="font-family:monospace;font-size:12px;color:#fca5a5;font-weight:700">P28829</span>
+          <span style="flex:1"></span>
+          <span style="font-size:9px;color:#64748b">3 stories were in this promo</span>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:5px;background:#0d0808;border:1px solid #3b1515;border-radius:4px;padding:4px 8px">
+            <span style="font-family:monospace;font-size:10px;color:#fca5a5">US-0019794</span>
+            <span style="font-size:9px;color:#475569">RBKDEV4→RBKQA</span>
+            <span style="font-size:9px;color:#f87171">← this story</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;background:#0d0808;border:1px solid #3b1515;border-radius:4px;padding:4px 8px">
+            <span style="font-family:monospace;font-size:10px;color:#fbbf24">US-0025076</span>
+            <span style="font-size:9px;color:#475569">RBKDEV4→RBKQA</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;background:#0d0808;border:1px solid #3b1515;border-radius:4px;padding:4px 8px">
+            <span style="font-family:monospace;font-size:10px;color:#fbbf24">US-0024381</span>
+            <span style="font-size:9px;color:#475569">RBKDEV3→RBKQA</span>
+          </div>
+        </div>
+        <div style="margin-top:5px;font-size:9px;color:#7f1d1d">No fix commit recorded since failure · promote separately to retry</div>
+      </div>
+
+    </div>
+
+    <!-- Right: action panel — not promotable → FORCE only -->
+    <div style="width:130px;flex-shrink:0;border-left:1px solid #1e2d3d;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:14px;background:#0e0800">
+      <div style="font-size:9px;color:#f87171;text-align:center;margin-bottom:4px">✗ Not Promotable</div>
+      <label style="display:flex;align-items:center;gap:6px;background:#1a0e00;border:1px solid #854d0e;border-radius:20px;padding:6px 14px;cursor:pointer;font-size:10px;color:#fbbf24;letter-spacing:1px;text-transform:uppercase">
+        <input type="checkbox" style="accent-color:#f59e0b;width:13px;height:13px"> Force
+      </label>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ MODEL 12 ══ -->
+<div class="section">
+<div class="section-label">Model 12 — Layered card: top summary band + expandable last-promo block + inline action chips</div>
+<div style="display:flex;flex-direction:column;gap:10px;max-width:900px">
+
+  <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;overflow:hidden">
+
+    <!-- Summary band -->
+    <div style="display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:16px;padding:12px 16px;border-bottom:1px solid #1e2d3d">
+      <div>
+        <div style="font-family:monospace;font-weight:700;font-size:14px;color:#e0f4ff">US-0019794</div>
+        <div style="font-family:monospace;font-size:9px;color:#2a6a8a;margin-top:2px">feature/US-0019794</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:10px;color:#7dd3fc;font-weight:600">RBKDEV4 → RBKQA</span>
+        <span style="color:#334155">·</span>
+        <span style="font-size:10px;color:#64748b">VijayKumar-KR</span>
+        <span style="color:#334155">·</span>
+        <span style="font-size:10px;color:#64748b">📦 6 commits</span>
+      </div>
+      <span class="badge-clean">✓ Clean</span>
+      <div style="display:flex;gap:5px">
+        <span style="font-size:10px;color:#4ade80">✓ PR</span>
+        <span style="font-size:10px;color:#4ade80">✓ Apex</span>
+        <span style="font-size:10px;color:#4ade80">✓ Unreg</span>
+      </div>
+    </div>
+
+    <!-- Last promo block — highlighted red -->
+    <div style="background:#120808;border-bottom:1px solid #4c1111;padding:10px 16px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#f87171">Last Promotion</span>
+        <span style="font-family:monospace;font-size:13px;font-weight:700;color:#fca5a5">P28829</span>
+        <span style="font-size:9px;background:#3b0d0d;color:#f87171;border:1px solid #7f1d1d;border-radius:3px;padding:1px 7px">✗ FAILED — no fix commit since</span>
+        <span style="flex:1"></span>
+        <span style="font-size:9px;color:#475569">Also included 2 other stories in this promo:</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <!-- current story card -->
+        <div style="background:#0a0404;border:1px solid #5c1a1a;border-radius:5px;padding:6px 10px;min-width:160px">
+          <div style="font-size:9px;color:#f87171;margin-bottom:3px">THIS STORY</div>
+          <div style="font-family:monospace;font-size:11px;color:#fca5a5;font-weight:700">US-0019794</div>
+          <div style="font-size:9px;color:#64748b;margin-top:2px">RBKDEV4 → RBKQA</div>
+          <div style="font-size:9px;color:#64748b">Now at: <span style="color:#7dd3fc">RBKDEV4</span></div>
+        </div>
+        <!-- sibling story 1 -->
+        <div style="background:#0a0404;border:1px solid #3b1515;border-radius:5px;padding:6px 10px;min-width:160px">
+          <div style="font-size:9px;color:#64748b;margin-bottom:3px">SIBLING</div>
+          <div style="font-family:monospace;font-size:11px;color:#fbbf24;font-weight:700">US-0025076</div>
+          <div style="font-size:9px;color:#64748b;margin-top:2px">RBKDEV4 → RBKQA</div>
+          <div style="font-size:9px;color:#64748b">Now at: <span style="color:#7dd3fc">RBKDEV4</span></div>
+        </div>
+        <!-- sibling story 2 -->
+        <div style="background:#0a0404;border:1px solid #3b1515;border-radius:5px;padding:6px 10px;min-width:160px">
+          <div style="font-size:9px;color:#64748b;margin-bottom:3px">SIBLING</div>
+          <div style="font-family:monospace;font-size:11px;color:#fbbf24;font-weight:700">US-0024381</div>
+          <div style="font-size:9px;color:#64748b;margin-top:2px">RBKDEV3 → RBKQA</div>
+          <div style="font-size:9px;color:#64748b">Now at: <span style="color:#a78bfa">RBKSTAGE</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action row — not promotable → FORCE only -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#080e16">
+      <span style="font-size:10px;color:#f87171">✗ Not Promotable — failed promo, no fix commit since</span>
+      <label style="display:flex;align-items:center;gap:5px;background:#1a0e00;border:1px solid #854d0e;border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#fbbf24;letter-spacing:0.5px;text-transform:uppercase">
+        <input type="checkbox" style="accent-color:#f59e0b;width:11px;height:11px"> Force
+      </label>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ MODEL 13 ══ -->
+<div class="section">
+<div class="section-label">Model 13 — Timeline card: top bar + vertical status timeline + action footer</div>
+<div style="display:flex;flex-direction:column;gap:10px;max-width:900px">
+
+  <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;overflow:hidden;display:grid;grid-template-columns:1fr 300px">
+
+    <!-- Left main -->
+    <div style="border-right:1px solid #1e2d3d">
+
+      <!-- top -->
+      <div style="padding:12px 16px;border-bottom:1px solid #1e2d3d;display:flex;align-items:center;gap:10px">
+        <div>
+          <span style="font-family:monospace;font-weight:700;font-size:15px;color:#e0f4ff">US-0022794</span>
+          <div style="font-family:monospace;font-size:9px;color:#2a6a8a;margin-top:2px">feature/US-0022794</div>
+        </div>
+        <span style="flex:1"></span>
+        <span style="font-size:10px;color:#7dd3fc;font-weight:600">RBKDEV4</span>
+        <span style="font-size:16px;color:#334155">→</span>
+        <span style="font-size:10px;color:#a78bfa;font-weight:600">RBKQA</span>
+        <span style="color:#334155;margin:0 6px">·</span>
+        <span style="font-size:10px;color:#64748b">VijayKumar-KR</span>
+        <span class="badge-clean" style="margin-left:8px">✓ Clean</span>
+      </div>
+
+      <!-- timeline checks -->
+      <div style="padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:10px;color:#4ade80;flex-shrink:0">✓</div>
+          <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:11px;color:#94a3b8">Commits registered</span>
+            <span style="font-size:10px;color:#cbd5e1;font-weight:600">25 Copado · 25 Branch</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:10px;color:#4ade80;flex-shrink:0">✓</div>
+          <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:11px;color:#94a3b8">No unregistered commits</span>
+            <span style="font-size:10px;color:#4ade80">Clear</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:10px;color:#4ade80;flex-shrink:0">✓</div>
+          <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:11px;color:#94a3b8">Pull Request</span>
+            <span style="font-size:10px;color:#4ade80">Approved</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#3b0d0d;border:2px solid #7f1d1d;display:flex;align-items:center;justify-content:center;font-size:10px;color:#f87171;flex-shrink:0">✗</div>
+          <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:11px;color:#94a3b8">Apex Tests</span>
+            <span style="font-size:10px;color:#f87171">Not Started</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#431407;border:2px solid #9a3412;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fb923c;flex-shrink:0">⚠</div>
+          <div style="flex:1;display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:11px;color:#94a3b8">Last Promotion</span>
+            <span style="font-size:10px;color:#fb923c;font-family:monospace">P28815 — Conflict</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- action footer — promotable (innocent conflict) → SKIP + SEPARATE PROMO only -->
+      <div style="display:flex;align-items:center;gap:0;border-top:1px solid #1e2d3d;background:#080e16">
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#64748b;cursor:pointer;padding:9px;border-right:1px solid #1e2d3d">
+          <input type="checkbox" style="accent-color:#3b82f6"> Skip
+        </label>
+        <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;cursor:pointer;padding:9px">
+          <input type="checkbox" style="accent-color:#3b82f6" checked> Separate Promo
+        </label>
+      </div>
+    </div>
+
+    <!-- Right: Last promo deep detail -->
+    <div style="padding:14px 16px;background:#0e1008">
+      <div style="font-size:9px;color:#fb923c;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:10px">Promotion History — P28815</div>
+
+      <div style="background:#0a0c05;border:1px solid #1c1f09;border-radius:6px;padding:10px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span style="font-family:monospace;font-size:13px;color:#fb923c;font-weight:700">P28815</span>
+          <span style="font-size:9px;color:#9a3412;background:#431407;border:1px solid #7c2d12;border-radius:3px;padding:1px 7px">⚠ MERGE CONFLICT</span>
+        </div>
+        <div style="font-size:9px;color:#64748b;margin-bottom:8px">3 stories · Conflict from US-0021903</div>
+
+        <!-- story rows in that promo -->
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <div style="background:#0d0f06;border:1px solid #fb923c40;border-radius:4px;padding:5px 8px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-family:monospace;font-size:10px;color:#fbbf24;font-weight:600">US-0022794</span>
+              <span style="font-size:9px;color:#4ade80">✓ merged before conflict</span>
+            </div>
+            <div style="font-size:9px;color:#475569;margin-top:1px">RBKDEV4 → RBKQA</div>
+          </div>
+          <div style="background:#0d0f06;border:1px solid #3d1f0840;border-radius:4px;padding:5px 8px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-family:monospace;font-size:10px;color:#f87171;font-weight:600">US-0021903</span>
+              <span style="font-size:9px;color:#f87171">⚠ conflict culprit</span>
+            </div>
+            <div style="font-size:9px;color:#475569;margin-top:1px">RBKDEV3 → RBKQA</div>
+          </div>
+          <div style="background:#0d0f06;border:1px solid #1e293b;border-radius:4px;padding:5px 8px">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-family:monospace;font-size:10px;color:#94a3b8;font-weight:600">US-0020541</span>
+              <span style="font-size:9px;color:#64748b">not yet attempted</span>
+            </div>
+            <div style="font-size:9px;color:#475569;margin-top:1px">RBKDEV4 → RBKQA</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:9px;color:#4ade80;background:#051a05;border:1px solid #166534;border-radius:5px;padding:6px 10px">
+        ✓ Eligible — auto Separate Promo<br>
+        <span style="color:#64748b">You merged before the conflict. Safe to promote independently.</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+
+<!-- ════════════════════════════════════════ HYBRID SECTION HEADER ═══ -->
+<div style="border-top:2px solid #1e3a5f;margin:20px 0 32px;padding-top:20px">
+  <h1 style="color:#7dd3fc;font-size:13px;letter-spacing:2px">HYBRID MODELS — COMBINING MODEL 2 + MODEL 13</h1>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ MODEL 14 ══ -->
+<div class="section">
+<div class="section-label">Model 14 — Identity left (M2) · Timeline checks centre (M13) · Promo history right (M13)</div>
+<div style="display:flex;flex-direction:column;gap:10px;max-width:1000px">
+
+  <!-- NOT PROMOTABLE -->
+  <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;overflow:hidden;display:grid;grid-template-columns:210px 1fr 280px">
+
+    <!-- Left: M2 identity -->
+    <div style="padding:16px;border-right:1px solid #1e2d3d;display:flex;flex-direction:column;justify-content:center;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:monospace;font-weight:700;font-size:15px;color:#e0f4ff">US-0019794</span>
+        <span class="badge-clean" style="font-size:9px">✓ Clean</span>
+      </div>
+      <div style="font-family:monospace;font-size:9px;color:#2a6a8a">feature/US-0019794</div>
+      <div style="display:flex;align-items:center;gap:5px;margin-top:4px">
+        <span style="font-size:11px;font-weight:600;color:#7dd3fc">RBKDEV4</span>
+        <span style="color:#334155;font-size:14px">→</span>
+        <span style="font-size:11px;font-weight:600;color:#a78bfa">RBKQA</span>
+      </div>
+      <div style="font-size:10px;color:#64748b">👤 VijayKumar-KR</div>
+    </div>
+
+    <!-- Centre: M13 timeline checks -->
+    <div style="padding:16px;border-right:1px solid #1e2d3d;display:flex;flex-direction:column;justify-content:center;gap:9px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">✓</div>
+        <span style="font-size:11px;color:#94a3b8;flex:1">Commits registered</span>
+        <span style="font-size:11px;color:#cbd5e1;font-weight:600">6 Copado · 6 Branch</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">✓</div>
+        <span style="font-size:11px;color:#94a3b8;flex:1">No unregistered commits</span>
+        <span style="font-size:11px;color:#4ade80">None</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">✓</div>
+        <span style="font-size:11px;color:#94a3b8;flex:1">Pull Request</span>
+        <span style="font-size:11px;color:#4ade80">Approved</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">✓</div>
+        <span style="font-size:11px;color:#94a3b8;flex:1">Apex Tests</span>
+        <span style="font-size:11px;color:#4ade80">Passed</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;background:#3b0d0d;border:2px solid #7f1d1d;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;color:#f87171">✗</div>
+        <span style="font-size:11px;color:#94a3b8;flex:1">Last Promotion</span>
+        <span style="font-size:11px;color:#f87171;font-family:monospace;font-weight:600">P28829 — Failed</span>
+      </div>
+    </div>
+
+    <!-- Right: M13 promo history -->
+    <div style="padding:14px;background:#120808;display:flex;flex-direction:column;gap:8px">
+      <div style="font-size:9px;color:#f87171;text-transform:uppercase;letter-spacing:1px;font-weight:700">Last Promo — P28829 ✗ Failed</div>
+      <div style="font-size:9px;color:#64748b;margin-bottom:2px">2 other stories in this promo:</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <div style="background:#0a0404;border:1px solid #5c1a1a;border-radius:5px;padding:6px 9px">
+          <div style="display:flex;justify-content:space-between"><span style="font-family:monospace;font-size:10px;color:#fca5a5;font-weight:700">US-0019794</span><span style="font-size:9px;color:#f87171">← this</span></div>
+          <div style="font-size:9px;color:#475569;margin-top:1px">RBKDEV4 → RBKQA</div>
+        </div>
+        <div style="background:#0a0404;border:1px solid #3b1515;border-radius:5px;padding:6px 9px">
+          <div style="font-family:monospace;font-size:10px;color:#fbbf24;font-weight:700">US-0025076</div>
+          <div style="font-size:9px;color:#475569;margin-top:1px">RBKDEV4 → RBKQA</div>
+        </div>
+        <div style="background:#0a0404;border:1px solid #3b1515;border-radius:5px;padding:6px 9px">
+          <div style="font-family:monospace;font-size:10px;color:#fbbf24;font-weight:700">US-0024381</div>
+          <div style="font-size:9px;color:#475569;margin-top:1px">RBKDEV3 → RBKQA</div>
+        </div>
+      </div>
+      <div style="font-size:9px;color:#7f1d1d;margin-top:2px">No fix commit since failure</div>
+    </div>
+  </div>
+  <!-- action: not promotable → force only -->
+  <div style="background:#080e16;border:1px solid #1e2d3d;border-radius:0 0 10px 10px;margin-top:-10px;padding:9px 16px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:10px;color:#f87171">✗ Not Promotable</span>
+    <label style="display:flex;align-items:center;gap:6px;background:#1a0e00;border:1px solid #854d0e;border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#fbbf24;text-transform:uppercase">
+      <input type="checkbox" style="accent-color:#f59e0b;width:11px;height:11px"> Force
+    </label>
+  </div>
+
+  <!-- PROMOTABLE with conflict -->
+  <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;overflow:hidden;display:grid;grid-template-columns:210px 1fr 280px">
+    <div style="padding:16px;border-right:1px solid #1e2d3d;display:flex;flex-direction:column;justify-content:center;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:monospace;font-weight:700;font-size:15px;color:#e0f4ff">US-0022794</span>
+        <span class="badge-clean" style="font-size:9px">✓ Clean</span>
+      </div>
+      <div style="font-family:monospace;font-size:9px;color:#2a6a8a">feature/US-0022794</div>
+      <div style="display:flex;align-items:center;gap:5px;margin-top:4px">
+        <span style="font-size:11px;font-weight:600;color:#7dd3fc">RBKDEV4</span>
+        <span style="color:#334155;font-size:14px">→</span>
+        <span style="font-size:11px;font-weight:600;color:#a78bfa">RBKQA</span>
+      </div>
+      <div style="font-size:10px;color:#64748b">👤 VijayKumar-KR</div>
+    </div>
+    <div style="padding:16px;border-right:1px solid #1e2d3d;display:flex;flex-direction:column;justify-content:center;gap:9px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">✓</div>
+        <span style="font-size:11px;color:#94a3b8;flex:1">Commits registered</span>
+        <span style="font-size:11px;color:#cbd5e1;font-weight:600">25 Copado · 25 Branch</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">✓</div>
+        <span style="font-size:11px;color:#94a3b8;flex:1">No unregistered commits</span>
+        <span style="font-size:11px;color:#4ade80">None</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">✓</div>
+        <span style="font-size:11px;color:#94a3b8;flex:1">Pull Request</span>
+        <span style="font-size:11px;color:#4ade80">Approved</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;background:#3b0d0d;border:2px solid #7f1d1d;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;color:#f87171">✗</div>
+        <span style="font-size:11px;color:#94a3b8;flex:1">Apex Tests</span>
+        <span style="font-size:11px;color:#f87171">Not Started</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:50%;background:#431407;border:2px solid #9a3412;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;color:#fb923c">⚠</div>
+        <span style="font-size:11px;color:#94a3b8;flex:1">Last Promotion</span>
+        <span style="font-size:11px;color:#fb923c;font-family:monospace;font-weight:600">P28815 — Conflict</span>
+      </div>
+    </div>
+    <div style="padding:14px;background:#0e1008;display:flex;flex-direction:column;gap:6px">
+      <div style="font-size:9px;color:#fb923c;text-transform:uppercase;letter-spacing:1px;font-weight:700">Promo P28815 — ⚠ Conflict</div>
+      <div style="font-size:9px;color:#64748b;margin-bottom:2px">3 stories · caused by US-0021903</div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="background:#0d0f06;border:1px solid #fb923c40;border-radius:4px;padding:5px 8px">
+          <div style="display:flex;justify-content:space-between"><span style="font-family:monospace;font-size:10px;color:#fbbf24;font-weight:700">US-0022794</span><span style="font-size:9px;color:#4ade80">✓ merged first</span></div>
+          <div style="font-size:9px;color:#475569">RBKDEV4 → RBKQA</div>
+        </div>
+        <div style="background:#0d0f06;border:1px solid #7f1d1d60;border-radius:4px;padding:5px 8px">
+          <div style="display:flex;justify-content:space-between"><span style="font-family:monospace;font-size:10px;color:#f87171;font-weight:700">US-0021903</span><span style="font-size:9px;color:#f87171">⚠ culprit</span></div>
+          <div style="font-size:9px;color:#475569">RBKDEV3 → RBKQA</div>
+        </div>
+        <div style="background:#0d0f06;border:1px solid #1e293b;border-radius:4px;padding:5px 8px">
+          <div style="display:flex;justify-content:space-between"><span style="font-family:monospace;font-size:10px;color:#94a3b8;font-weight:700">US-0020541</span><span style="font-size:9px;color:#64748b">not attempted</span></div>
+          <div style="font-size:9px;color:#475569">RBKDEV4 → RBKQA</div>
+        </div>
+      </div>
+      <div style="font-size:9px;color:#4ade80;background:#051a05;border:1px solid #166534;border-radius:4px;padding:4px 8px;margin-top:2px">✓ Eligible — auto Separate Promo</div>
+    </div>
+  </div>
+  <div style="background:#080e16;border:1px solid #1e2d3d;border-radius:0 0 10px 10px;margin-top:-10px;padding:9px 16px;display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:10px;color:#4ade80">✓ Promotable</span>
+    <div style="display:flex;gap:8px">
+      <label style="display:flex;align-items:center;gap:6px;background:#0d1926;border:1px solid #1e3a5f;border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#94a3b8;text-transform:uppercase"><input type="checkbox" style="accent-color:#3b82f6;width:11px;height:11px"> Skip</label>
+      <label style="display:flex;align-items:center;gap:6px;background:#0d1926;border:1px solid #1e3a5f;border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#94a3b8;text-transform:uppercase"><input type="checkbox" checked style="accent-color:#3b82f6;width:11px;height:11px"> Separate Promo</label>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ MODEL 15 ══ -->
+<div class="section">
+<div class="section-label">Model 15 — Thin identity top bar (M13) · M2 KV grid left · M13 promo history right · action footer</div>
+<div style="display:flex;flex-direction:column;gap:10px;max-width:1000px">
+
+  <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;overflow:hidden">
+    <!-- M13-style top bar -->
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;background:#0a1420;border-bottom:1px solid #1e2d3d">
+      <div>
+        <span style="font-family:monospace;font-weight:700;font-size:14px;color:#e0f4ff">US-0019794</span>
+        <span style="font-family:monospace;font-size:9px;color:#2a6a8a;margin-left:10px">feature/US-0019794</span>
+      </div>
+      <span style="flex:1"></span>
+      <span style="font-size:10px;font-weight:600;color:#7dd3fc">RBKDEV4</span>
+      <span style="color:#334155;font-size:13px">→</span>
+      <span style="font-size:10px;font-weight:600;color:#a78bfa">RBKQA</span>
+      <span style="color:#334155;margin:0 6px">·</span>
+      <span style="font-size:10px;color:#64748b">VijayKumar-KR</span>
+      <span class="badge-clean" style="margin-left:8px">✓ Clean</span>
+    </div>
+
+    <!-- Body: M2 KV grid left | M13 promo history right -->
+    <div style="display:grid;grid-template-columns:1fr 300px">
+      <!-- M2 KV grid -->
+      <div style="padding:14px 18px;border-right:1px solid #1e2d3d;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:center">
+        <div><div class="kv-label">Copado Commits</div><div class="kv-val" style="font-size:13px;margin-top:2px">6</div></div>
+        <div><div class="kv-label">Branch Commits</div><div class="kv-val" style="font-size:13px;margin-top:2px">6</div></div>
+        <div><div class="kv-label">Unregistered</div><div style="color:#4ade80;font-size:13px;font-weight:600;margin-top:2px">None</div></div>
+        <div><div class="kv-label">Last Promo</div><div style="color:#f87171;font-size:12px;font-weight:600;margin-top:2px">✗ P28829 Failed</div></div>
+        <div><div class="kv-label">PR</div><div style="color:#4ade80;font-size:12px;font-weight:600;margin-top:2px">✓ Approved</div></div>
+        <div><div class="kv-label">Apex Tests</div><div style="color:#4ade80;font-size:12px;font-weight:600;margin-top:2px">✓ Passed</div></div>
+      </div>
+      <!-- M13 promo history -->
+      <div style="padding:14px;background:#120808">
+        <div style="font-size:9px;color:#f87171;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px">Promo P28829 — ✗ Failed</div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="background:#0a0404;border:1px solid #5c1a1a;border-radius:4px;padding:5px 9px">
+            <div style="display:flex;justify-content:space-between"><span style="font-family:monospace;font-size:10px;color:#fca5a5;font-weight:700">US-0019794</span><span style="font-size:9px;color:#f87171">← this</span></div>
+            <div style="font-size:9px;color:#475569">RBKDEV4 → RBKQA · Now at RBKDEV4</div>
+          </div>
+          <div style="background:#0a0404;border:1px solid #3b1515;border-radius:4px;padding:5px 9px">
+            <div style="font-family:monospace;font-size:10px;color:#fbbf24;font-weight:700">US-0025076</div>
+            <div style="font-size:9px;color:#475569">RBKDEV4 → RBKQA · Now at RBKDEV4</div>
+          </div>
+          <div style="background:#0a0404;border:1px solid #3b1515;border-radius:4px;padding:5px 9px">
+            <div style="font-family:monospace;font-size:10px;color:#fbbf24;font-weight:700">US-0024381</div>
+            <div style="font-size:9px;color:#475569">RBKDEV3 → RBKQA · Now at RBKSTAGE</div>
+          </div>
+        </div>
+        <div style="font-size:9px;color:#7f1d1d;margin-top:6px">No fix commit since failure</div>
+      </div>
+    </div>
+
+    <!-- Action footer -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 16px;background:#080e16;border-top:1px solid #1e2d3d">
+      <span style="font-size:10px;color:#f87171">✗ Not Promotable</span>
+      <label style="display:flex;align-items:center;gap:6px;background:#1a0e00;border:1px solid #854d0e;border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#fbbf24;text-transform:uppercase"><input type="checkbox" style="accent-color:#f59e0b;width:11px;height:11px"> Force</label>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ MODEL 16 ══ -->
+<div class="section">
+<div class="section-label">Model 16 — M2 identity left · M13 timeline stacked over M2 KV right · promo mini-card bottom-right</div>
+<div style="display:flex;flex-direction:column;gap:10px;max-width:1000px">
+
+  <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;overflow:hidden;display:grid;grid-template-columns:220px 1fr">
+
+    <!-- Left: M2 identity (taller, centred) -->
+    <div style="padding:20px 16px;border-right:1px solid #1e2d3d;display:flex;flex-direction:column;gap:8px;justify-content:center">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-family:monospace;font-weight:700;font-size:16px;color:#e0f4ff">US-0022794</span>
+        <span class="badge-clean">✓ Clean</span>
+      </div>
+      <div style="font-family:monospace;font-size:9px;color:#2a6a8a">feature/US-0022794</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+        <span style="font-size:12px;font-weight:700;color:#7dd3fc">RBKDEV4</span>
+        <span style="color:#334155;font-size:16px">→</span>
+        <span style="font-size:12px;font-weight:700;color:#a78bfa">RBKQA</span>
+      </div>
+      <div style="font-size:10px;color:#64748b;margin-top:2px">👤 VijayKumar-KR</div>
+      <div style="margin-top:8px;padding-top:8px;border-top:1px solid #1e2d3d">
+        <div class="kv-label" style="margin-bottom:4px">Commits</div>
+        <div style="font-size:12px;color:#cbd5e1;font-weight:600">25 Copado · 25 Branch</div>
+      </div>
+      <div>
+        <div class="kv-label" style="margin-bottom:4px">Unregistered</div>
+        <div style="font-size:12px;color:#4ade80;font-weight:600">None</div>
+      </div>
+    </div>
+
+    <!-- Right: M13 timeline top + M13 promo history bottom -->
+    <div style="display:flex;flex-direction:column">
+
+      <!-- Timeline checks -->
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid #1e2d3d">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0">✓</div>
+          <span style="font-size:11px;color:#94a3b8;flex:1">Pull Request</span><span style="font-size:11px;color:#4ade80">Approved</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#3b0d0d;border:2px solid #7f1d1d;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;color:#f87171">✗</div>
+          <span style="font-size:11px;color:#94a3b8;flex:1">Apex Tests</span><span style="font-size:11px;color:#f87171">Not Started</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#431407;border:2px solid #9a3412;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;color:#fb923c">⚠</div>
+          <span style="font-size:11px;color:#94a3b8;flex:1">Last Promotion</span><span style="font-size:11px;color:#fb923c;font-family:monospace;font-weight:600">P28815 — Conflict</span>
+        </div>
+      </div>
+
+      <!-- Promo history (compact horizontal) -->
+      <div style="padding:12px 18px;background:#0e1008;border-bottom:1px solid #1e2d3d">
+        <div style="font-size:9px;color:#fb923c;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:6px">P28815 — 3 Stories · Conflict from US-0021903</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <div style="background:#0d0f06;border:1px solid #fb923c40;border-radius:4px;padding:4px 10px;font-size:10px"><span style="color:#fbbf24;font-family:monospace;font-weight:600">US-0022794</span> <span style="color:#4ade80">✓ merged first</span><div style="color:#475569;font-size:9px">RBKDEV4→RBKQA</div></div>
+          <div style="background:#0d0f06;border:1px solid #7f1d1d60;border-radius:4px;padding:4px 10px;font-size:10px"><span style="color:#f87171;font-family:monospace;font-weight:600">US-0021903</span> <span style="color:#f87171">⚠ culprit</span><div style="color:#475569;font-size:9px">RBKDEV3→RBKQA</div></div>
+          <div style="background:#0d0f06;border:1px solid #1e293b;border-radius:4px;padding:4px 10px;font-size:10px"><span style="color:#94a3b8;font-family:monospace;font-weight:600">US-0020541</span> <span style="color:#64748b">not attempted</span><div style="color:#475569;font-size:9px">RBKDEV4→RBKQA</div></div>
+        </div>
+      </div>
+
+      <!-- Action footer -->
+      <div style="padding:9px 18px;background:#080e16;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:10px;color:#4ade80">✓ Promotable — auto Separate Promo</span>
+        <div style="display:flex;gap:8px">
+          <label style="display:flex;align-items:center;gap:6px;background:#0d1926;border:1px solid #1e3a5f;border-radius:20px;padding:5px 12px;cursor:pointer;font-size:10px;color:#94a3b8;text-transform:uppercase"><input type="checkbox" style="accent-color:#3b82f6;width:11px;height:11px"> Skip</label>
+          <label style="display:flex;align-items:center;gap:6px;background:#0d1926;border:1px solid #1e3a5f;border-radius:20px;padding:5px 12px;cursor:pointer;font-size:10px;color:#94a3b8;text-transform:uppercase"><input type="checkbox" checked style="accent-color:#3b82f6;width:11px;height:11px"> Separate Promo</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ MODEL 17 ══ -->
+<div class="section">
+<div class="section-label">Model 17 — M13 top bar · M2 KV grid (compact, 3-col) · M13 promo inline strip · action footer</div>
+<div style="display:flex;flex-direction:column;gap:10px;max-width:1000px">
+
+  <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;overflow:hidden">
+
+    <!-- Top bar (M13) -->
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;background:#0a1420;border-bottom:1px solid #1e2d3d">
+      <span style="font-family:monospace;font-weight:700;font-size:14px;color:#e0f4ff">US-0022794</span>
+      <span style="font-family:monospace;font-size:9px;color:#2a6a8a">feature/US-0022794</span>
+      <span style="flex:1"></span>
+      <span style="font-size:10px;font-weight:600;color:#7dd3fc">RBKDEV4</span><span style="color:#334155;font-size:13px;margin:0 3px">→</span><span style="font-size:10px;font-weight:600;color:#a78bfa">RBKQA</span>
+      <span style="color:#334155;margin:0 6px">·</span>
+      <span style="font-size:10px;color:#64748b">VijayKumar-KR</span>
+      <span class="badge-clean" style="margin-left:8px">✓ Clean</span>
+    </div>
+
+    <!-- M2 KV grid (3 columns) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr;padding:12px 16px;gap:12px;border-bottom:1px solid #1e2d3d">
+      <div><div class="kv-label">Copado</div><div class="kv-val" style="font-size:13px;margin-top:3px">25</div></div>
+      <div><div class="kv-label">Branch</div><div class="kv-val" style="font-size:13px;margin-top:3px">25</div></div>
+      <div><div class="kv-label">Unregistered</div><div style="color:#4ade80;font-size:12px;font-weight:600;margin-top:3px">None</div></div>
+      <div><div class="kv-label">PR</div><div style="color:#4ade80;font-size:12px;font-weight:600;margin-top:3px">✓ Approved</div></div>
+      <div><div class="kv-label">Apex Tests</div><div style="color:#f87171;font-size:12px;font-weight:600;margin-top:3px">✗ Not Started</div></div>
+      <div><div class="kv-label">Last Promo</div><div style="color:#fb923c;font-size:12px;font-weight:600;margin-top:3px;font-family:monospace">P28815 ⚠</div></div>
+    </div>
+
+    <!-- M13 promo inline strip -->
+    <div style="padding:10px 16px;background:#0e1008;border-bottom:1px solid #1e2d3d;display:flex;gap:10px;align-items:flex-start">
+      <div style="font-size:9px;color:#fb923c;text-transform:uppercase;letter-spacing:1px;font-weight:700;white-space:nowrap;padding-top:2px">P28815 Conflict</div>
+      <div style="width:1px;background:#92400e;flex-shrink:0;align-self:stretch"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;flex:1">
+        <div style="background:#0d0f06;border:1px solid #fb923c40;border-radius:4px;padding:4px 10px;font-size:10px;display:flex;align-items:center;gap:6px"><span style="color:#fbbf24;font-family:monospace;font-weight:700">US-0022794</span><span style="color:#475569">RBKDEV4→RBKQA</span><span style="color:#4ade80;font-size:9px">✓ merged first</span></div>
+        <div style="background:#0d0f06;border:1px solid #7f1d1d60;border-radius:4px;padding:4px 10px;font-size:10px;display:flex;align-items:center;gap:6px"><span style="color:#f87171;font-family:monospace;font-weight:700">US-0021903</span><span style="color:#475569">RBKDEV3→RBKQA</span><span style="color:#f87171;font-size:9px">⚠ culprit</span></div>
+        <div style="background:#0d0f06;border:1px solid #1e293b;border-radius:4px;padding:4px 10px;font-size:10px;display:flex;align-items:center;gap:6px"><span style="color:#94a3b8;font-family:monospace;font-weight:700">US-0020541</span><span style="color:#475569">RBKDEV4→RBKQA</span><span style="color:#64748b;font-size:9px">not attempted</span></div>
+      </div>
+    </div>
+
+    <!-- Action footer -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 16px;background:#080e16">
+      <span style="font-size:10px;color:#4ade80">✓ Promotable — Separate Promo (merged before conflict)</span>
+      <div style="display:flex;gap:8px">
+        <label style="display:flex;align-items:center;gap:6px;background:#0d1926;border:1px solid #1e3a5f;border-radius:20px;padding:5px 12px;cursor:pointer;font-size:10px;color:#94a3b8;text-transform:uppercase"><input type="checkbox" style="accent-color:#3b82f6;width:11px;height:11px"> Skip</label>
+        <label style="display:flex;align-items:center;gap:6px;background:#0d1926;border:1px solid #1e3a5f;border-radius:20px;padding:5px 12px;cursor:pointer;font-size:10px;color:#94a3b8;text-transform:uppercase"><input type="checkbox" checked style="accent-color:#3b82f6;width:11px;height:11px"> Separate Promo</label>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ MODEL 18 ══ -->
+<div class="section">
+<div class="section-label">Model 18 — M13 top bar · M13 timeline left · M2 KV centre · M13 promo history right · action footer</div>
+<div style="display:flex;flex-direction:column;gap:10px;max-width:1000px">
+
+  <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px;overflow:hidden">
+
+    <!-- Top bar -->
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 16px;background:#0a1420;border-bottom:1px solid #1e2d3d">
+      <div>
+        <span style="font-family:monospace;font-weight:700;font-size:14px;color:#e0f4ff">US-0019794</span>
+        <span style="font-family:monospace;font-size:9px;color:#2a6a8a;margin-left:10px">feature/US-0019794</span>
+      </div>
+      <span style="flex:1"></span>
+      <span style="font-size:10px;font-weight:600;color:#7dd3fc">RBKDEV4</span><span style="color:#334155;font-size:13px;margin:0 3px">→</span><span style="font-size:10px;font-weight:600;color:#a78bfa">RBKQA</span>
+      <span style="color:#334155;margin:0 6px">·</span>
+      <span style="font-size:10px;color:#64748b">VijayKumar-KR</span>
+      <span class="badge-clean" style="margin-left:8px">✓ Clean</span>
+    </div>
+
+    <!-- 3-zone body -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 260px">
+
+      <!-- M13 timeline left -->
+      <div style="padding:14px 18px;border-right:1px solid #1e2d3d;display:flex;flex-direction:column;gap:9px;justify-content:center">
+        <div style="font-size:9px;color:#475569;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Status Checks</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0">✓</div>
+          <span style="font-size:11px;color:#94a3b8;flex:1">Commits registered</span><span style="font-size:11px;color:#cbd5e1;font-weight:500">6 · 6</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0">✓</div>
+          <span style="font-size:11px;color:#94a3b8;flex:1">No unregistered</span><span style="font-size:11px;color:#4ade80">None</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0">✓</div>
+          <span style="font-size:11px;color:#94a3b8;flex:1">Pull Request</span><span style="font-size:11px;color:#4ade80">Approved</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0">✓</div>
+          <span style="font-size:11px;color:#94a3b8;flex:1">Apex Tests</span><span style="font-size:11px;color:#4ade80">Passed</span>
+        </div>
+      </div>
+
+      <!-- M2 KV centre -->
+      <div style="padding:14px 18px;border-right:1px solid #1e2d3d;display:flex;flex-direction:column;gap:10px;justify-content:center">
+        <div style="font-size:9px;color:#475569;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Last Promotion</div>
+        <div style="background:#120808;border:1px solid #4c1111;border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:5px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-family:monospace;font-size:13px;color:#fca5a5;font-weight:700">P28829</span>
+            <span style="font-size:9px;background:#3b0d0d;color:#f87171;border:1px solid #7f1d1d;border-radius:3px;padding:1px 7px">✗ FAILED</span>
+          </div>
+          <div style="font-size:9px;color:#64748b">3 stories included · no fix commit since</div>
+          <div style="display:flex;flex-direction:column;gap:3px;margin-top:2px">
+            <div style="font-size:10px;display:flex;gap:6px;align-items:center"><span style="font-family:monospace;color:#fca5a5">US-0019794</span><span style="color:#475569">RBKDEV4→RBKQA</span><span style="color:#f87171;font-size:9px">← this</span></div>
+            <div style="font-size:10px;display:flex;gap:6px;align-items:center"><span style="font-family:monospace;color:#fbbf24">US-0025076</span><span style="color:#475569">RBKDEV4→RBKQA</span></div>
+            <div style="font-size:10px;display:flex;gap:6px;align-items:center"><span style="font-family:monospace;color:#fbbf24">US-0024381</span><span style="color:#475569">RBKDEV3→RBKQA</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- M2 KV stats right -->
+      <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px;justify-content:center;align-items:center">
+        <div style="font-size:9px;color:#475569;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Verdict</div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+          <span class="badge-clean" style="font-size:11px;padding:4px 14px">✓ Clean</span>
+          <span class="badge-no" style="font-size:11px;padding:4px 14px">✗ Not Promotable</span>
+        </div>
+        <div style="margin-top:8px;width:100%">
+          <label style="display:flex;align-items:center;justify-content:center;gap:6px;background:#1a0e00;border:1px solid #854d0e;border-radius:20px;padding:7px 0;cursor:pointer;font-size:10px;color:#fbbf24;text-transform:uppercase;width:100%">
+            <input type="checkbox" style="accent-color:#f59e0b;width:12px;height:12px"> Force Promote
+          </label>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PROMOTABLE STATUS PLACEMENT — 3 OPTIONS
+     ═══════════════════════════════════════════════════════════════ -->
+<div style="padding:32px;background:#060e18;border-top:2px solid rgba(26,184,232,0.2);margin-top:40px">
+  <h2 style="color:#1ab8e8;font-family:sans-serif;margin:0 0 6px">Promotable Status — Placement Options</h2>
+  <p style="color:#3a6a8a;font-family:sans-serif;font-size:13px;margin:0 0 32px">
+    Same card, same data — three different placements for ✓ Promotable / ✗ Not Promotable
+  </p>
+
+  <!-- OPTION A — Badge at the bottom of the identity panel -->
+  <h3 style="color:#94a3b8;font-family:sans-serif;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px">Option A — End of identity panel (below Base: master)</h3>
+  <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:36px">
+
+    <!-- Promotable card -->
+    <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px 10px 0 0;overflow:hidden;display:grid;grid-template-columns:210px 1fr">
+      <div style="padding:14px 16px;border-right:1px solid #1e2d3d;display:flex;flex-direction:column;gap:6px;justify-content:center">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+          <strong style="font-size:14px;color:#e0f4ff">US-0024587</strong>
+          <span style="background:#052e16;border:1px solid #166534;color:#4ade80;font-size:10px;border-radius:4px;padding:2px 7px;font-weight:600">✓ Clean</span>
+        </div>
+        <div style="font-family:monospace;font-size:9px;color:#2a6a8a">feature/US-0024587</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+          <span style="font-size:11px;font-weight:600;color:#7dd3fc">RBKDEV4</span>
+          <span style="color:#334155;font-size:13px">→</span>
+          <span style="font-size:11px;font-weight:600;color:#a78bfa">RBKQA</span>
+        </div>
+        <div style="font-size:10px;color:#64748b">👤 Sidharth Ahuja</div>
+        <div style="font-size:11px;color:#f59e0b;font-weight:600">Base: <span style="color:#fbbf24">master</span></div>
+        <!-- STATUS AT THE END -->
+        <div style="margin-top:6px">
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#4ade80;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:4px;padding:2px 8px">✓ Promotable</span>
+        </div>
+      </div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;justify-content:center">
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Commits</span><span style="color:#cbd5e1;font-size:11px">2 Copado · 2 Branch</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Unregistered</span><span style="color:#4ade80;font-size:11px">None</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Pull Request</span><span style="color:#4ade80;font-size:11px">Approved</span></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;padding:6px 14px;background:#0a1420;border:1px solid #1e2d3d;border-top:1px solid #162230;border-radius:0 0 10px 10px">
+      <div style="display:flex;gap:8px">
+        <label style="display:flex;align-items:center;gap:6px;background:rgba(26,184,232,0.04);border:1px solid rgba(26,184,232,0.18);border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#5a8a9f;text-transform:uppercase"><input type="checkbox" style="accent-color:#f59e0b;width:12px;height:12px"> Skip</label>
+        <label style="display:flex;align-items:center;gap:6px;background:rgba(26,184,232,0.04);border:1px solid rgba(26,184,232,0.18);border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#5a8a9f;text-transform:uppercase"><input type="checkbox" style="accent-color:#1ab8e8;width:12px;height:12px"> Separate Promo</label>
+      </div>
+    </div>
+
+    <!-- Not Promotable card -->
+    <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px 10px 0 0;overflow:hidden;display:grid;grid-template-columns:210px 1fr">
+      <div style="padding:14px 16px;border-right:1px solid #1e2d3d;display:flex;flex-direction:column;gap:6px;justify-content:center">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+          <strong style="font-size:14px;color:#e0f4ff">US-0024457</strong>
+          <span style="background:#052e16;border:1px solid #166534;color:#4ade80;font-size:10px;border-radius:4px;padding:2px 7px;font-weight:600">✓ Clean</span>
+        </div>
+        <div style="font-family:monospace;font-size:9px;color:#2a6a8a">feature/US-0024457</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+          <span style="font-size:11px;font-weight:600;color:#7dd3fc">RBKSALEDEV</span>
+          <span style="color:#334155;font-size:13px">→</span>
+          <span style="font-size:11px;font-weight:600;color:#a78bfa">RBKQA</span>
+        </div>
+        <div style="font-size:10px;color:#64748b">👤 Pavanaja Yellajosyula</div>
+        <div style="font-size:11px;color:#f59e0b;font-weight:600">Base: <span style="color:#fbbf24">master</span></div>
+        <!-- STATUS AT THE END -->
+        <div style="margin-top:6px">
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#64748b;background:rgba(100,116,139,0.08);border:1px solid rgba(100,116,139,0.2);border-radius:4px;padding:2px 8px">✗ Not Promotable</span>
+        </div>
+      </div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;justify-content:center">
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Unregistered</span><span style="color:#4ade80;font-size:11px">None</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Pull Request</span><span style="color:#4ade80;font-size:11px">Approved</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Apex Tests</span><span style="color:#4ade80;font-size:11px">Passed</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#3b0d0d;border:2px solid #7f1d1d;color:#f87171;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✗</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Last Promo</span><span style="color:#f87171;font-size:12px;font-weight:600;font-family:monospace">P28739 — Failed</span></div>
+      </div>
+    </div>
+    <div style="padding:6px 14px;background:#0a1420;border:1px solid #1e2d3d;border-top:1px solid #162230;border-radius:0 0 10px 10px;min-height:28px"></div>
+  </div>
+
+  <!-- OPTION B — Colored left accent border on identity panel -->
+  <h3 style="color:#94a3b8;font-family:sans-serif;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px">Option B — Colored left border accent on identity panel</h3>
+  <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:36px">
+
+    <!-- Promotable card -->
+    <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px 10px 0 0;overflow:hidden;display:grid;grid-template-columns:210px 1fr">
+      <div style="padding:14px 16px;border-right:1px solid #1e2d3d;border-left:3px solid #4ade80;display:flex;flex-direction:column;gap:6px;justify-content:center">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+          <strong style="font-size:14px;color:#e0f4ff">US-0024587</strong>
+          <span style="background:#052e16;border:1px solid #166534;color:#4ade80;font-size:10px;border-radius:4px;padding:2px 7px;font-weight:600">✓ Clean</span>
+        </div>
+        <div style="font-family:monospace;font-size:9px;color:#2a6a8a">feature/US-0024587</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+          <span style="font-size:11px;font-weight:600;color:#7dd3fc">RBKDEV4</span>
+          <span style="color:#334155;font-size:13px">→</span>
+          <span style="font-size:11px;font-weight:600;color:#a78bfa">RBKQA</span>
+        </div>
+        <div style="font-size:10px;color:#64748b">👤 Sidharth Ahuja</div>
+        <div style="font-size:11px;color:#f59e0b;font-weight:600">Base: <span style="color:#fbbf24">master</span></div>
+      </div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;justify-content:center">
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Commits</span><span style="color:#cbd5e1;font-size:11px">2 Copado · 2 Branch</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Unregistered</span><span style="color:#4ade80;font-size:11px">None</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Pull Request</span><span style="color:#4ade80;font-size:11px">Approved</span></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;padding:6px 14px;background:#0a1420;border:1px solid #1e2d3d;border-top:1px solid #162230;border-radius:0 0 10px 10px">
+      <div style="display:flex;gap:8px">
+        <label style="display:flex;align-items:center;gap:6px;background:rgba(26,184,232,0.04);border:1px solid rgba(26,184,232,0.18);border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#5a8a9f;text-transform:uppercase"><input type="checkbox" style="accent-color:#f59e0b;width:12px;height:12px"> Skip</label>
+      </div>
+    </div>
+
+    <!-- Not Promotable card -->
+    <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px 10px 0 0;overflow:hidden;display:grid;grid-template-columns:210px 1fr">
+      <div style="padding:14px 16px;border-right:1px solid #1e2d3d;border-left:3px solid #475569;display:flex;flex-direction:column;gap:6px;justify-content:center">
+        <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+          <strong style="font-size:14px;color:#e0f4ff">US-0024457</strong>
+          <span style="background:#052e16;border:1px solid #166534;color:#4ade80;font-size:10px;border-radius:4px;padding:2px 7px;font-weight:600">✓ Clean</span>
+        </div>
+        <div style="font-family:monospace;font-size:9px;color:#2a6a8a">feature/US-0024457</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+          <span style="font-size:11px;font-weight:600;color:#7dd3fc">RBKSALEDEV</span>
+          <span style="color:#334155;font-size:13px">→</span>
+          <span style="font-size:11px;font-weight:600;color:#a78bfa">RBKQA</span>
+        </div>
+        <div style="font-size:10px;color:#64748b">👤 Pavanaja Yellajosyula</div>
+        <div style="font-size:11px;color:#f59e0b;font-weight:600">Base: <span style="color:#fbbf24">master</span></div>
+      </div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;justify-content:center">
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Apex Tests</span><span style="color:#4ade80;font-size:11px">Passed</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#3b0d0d;border:2px solid #7f1d1d;color:#f87171;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✗</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Last Promo</span><span style="color:#f87171;font-size:12px;font-weight:600;font-family:monospace">P28739 — Failed</span></div>
+      </div>
+    </div>
+    <div style="padding:6px 14px;background:#0a1420;border:1px solid #1e2d3d;border-top:1px solid #162230;border-radius:0 0 10px 10px;min-height:28px"></div>
+  </div>
+
+  <!-- OPTION C — Verdict badge upgraded to include promotability (replaces "✓ Clean" solo) -->
+  <h3 style="color:#94a3b8;font-family:sans-serif;font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px">Option C — Second badge next to ✓ Clean verdict (top of identity panel)</h3>
+  <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:36px">
+
+    <!-- Promotable card -->
+    <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px 10px 0 0;overflow:hidden;display:grid;grid-template-columns:210px 1fr">
+      <div style="padding:14px 16px;border-right:1px solid #1e2d3d;display:flex;flex-direction:column;gap:6px;justify-content:center">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <strong style="font-size:14px;color:#e0f4ff">US-0024587</strong>
+          <span style="background:#052e16;border:1px solid #166534;color:#4ade80;font-size:10px;border-radius:4px;padding:2px 7px;font-weight:600">✓ Clean</span>
+          <!-- PROMOTABLE BADGE NEXT TO VERDICT -->
+          <span style="background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.25);color:#4ade80;font-size:10px;border-radius:4px;padding:2px 7px;font-weight:600">✓ Promotable</span>
+        </div>
+        <div style="font-family:monospace;font-size:9px;color:#2a6a8a">feature/US-0024587</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+          <span style="font-size:11px;font-weight:600;color:#7dd3fc">RBKDEV4</span>
+          <span style="color:#334155;font-size:13px">→</span>
+          <span style="font-size:11px;font-weight:600;color:#a78bfa">RBKQA</span>
+        </div>
+        <div style="font-size:10px;color:#64748b">👤 Sidharth Ahuja</div>
+        <div style="font-size:11px;color:#f59e0b;font-weight:600">Base: <span style="color:#fbbf24">master</span></div>
+      </div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;justify-content:center">
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Commits</span><span style="color:#cbd5e1;font-size:11px">2 Copado · 2 Branch</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Unregistered</span><span style="color:#4ade80;font-size:11px">None</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Pull Request</span><span style="color:#4ade80;font-size:11px">Approved</span></div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;padding:6px 14px;background:#0a1420;border:1px solid #1e2d3d;border-top:1px solid #162230;border-radius:0 0 10px 10px">
+      <div style="display:flex;gap:8px">
+        <label style="display:flex;align-items:center;gap:6px;background:rgba(26,184,232,0.04);border:1px solid rgba(26,184,232,0.18);border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#5a8a9f;text-transform:uppercase"><input type="checkbox" style="accent-color:#f59e0b;width:12px;height:12px"> Skip</label>
+      </div>
+    </div>
+
+    <!-- Not Promotable card -->
+    <div style="background:#0f1923;border:1px solid #1e2d3d;border-radius:10px 10px 0 0;overflow:hidden;display:grid;grid-template-columns:210px 1fr">
+      <div style="padding:14px 16px;border-right:1px solid #1e2d3d;display:flex;flex-direction:column;gap:6px;justify-content:center">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <strong style="font-size:14px;color:#e0f4ff">US-0024457</strong>
+          <span style="background:#052e16;border:1px solid #166534;color:#4ade80;font-size:10px;border-radius:4px;padding:2px 7px;font-weight:600">✓ Clean</span>
+          <!-- NOT PROMOTABLE BADGE NEXT TO VERDICT -->
+          <span style="background:rgba(100,116,139,0.1);border:1px solid rgba(100,116,139,0.25);color:#64748b;font-size:10px;border-radius:4px;padding:2px 7px;font-weight:600">✗ Not Promotable</span>
+        </div>
+        <div style="font-family:monospace;font-size:9px;color:#2a6a8a">feature/US-0024457</div>
+        <div style="display:flex;align-items:center;gap:5px;margin-top:2px">
+          <span style="font-size:11px;font-weight:600;color:#7dd3fc">RBKSALEDEV</span>
+          <span style="color:#334155;font-size:13px">→</span>
+          <span style="font-size:11px;font-weight:600;color:#a78bfa">RBKQA</span>
+        </div>
+        <div style="font-size:10px;color:#64748b">👤 Pavanaja Yellajosyula</div>
+        <div style="font-size:11px;color:#f59e0b;font-weight:600">Base: <span style="color:#fbbf24">master</span></div>
+      </div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;justify-content:center">
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#052e16;border:2px solid #166534;color:#4ade80;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✓</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Apex Tests</span><span style="color:#4ade80;font-size:11px">Passed</span></div>
+        <div style="display:flex;align-items:center;gap:8px"><div style="width:18px;height:18px;border-radius:50%;background:#3b0d0d;border:2px solid #7f1d1d;color:#f87171;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0">✗</div><span style="font-size:11px;color:#64748b;width:98px;flex-shrink:0">Last Promo</span><span style="color:#f87171;font-size:12px;font-weight:600;font-family:monospace">P28739 — Failed</span></div>
+      </div>
+    </div>
+    <div style="padding:6px 14px;background:#0a1420;border:1px solid #1e2d3d;border-top:1px solid #162230;border-radius:0 0 10px 10px;min-height:28px"></div>
+  </div>
+
+</div>
+
+</body>
+</html>

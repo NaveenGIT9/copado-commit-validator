@@ -1518,11 +1518,15 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       })()
     : '';
 
-  // ── Action footer ──
-  const footerStatusHtml = isVerifying ? '' :
+  // ── Identity panel status badge + left border accent ──
+  const identityBorderColor = isVerifying ? '#1e2d3d'
+    : (isForcePromo || isForceDepBlocked || !isPromotable) ? '#f87171'
+    : '#4ade80';
+
+  const identityStatusBadge = isVerifying ? '' :
     (isForcePromo || isForceDepBlocked || !isPromotable)
-      ? `<span style="font-size:10px;color:#5a8a9f">✗ Not Promotable</span>`
-      : `<span style="font-size:10px;color:#34d399">✓ Promotable</span>`;
+      ? `<div style="margin-top:8px"><span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#f87171;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.25);border-radius:4px;padding:3px 10px">✗ Not Promotable</span></div>`
+      : `<div style="margin-top:8px"><span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#4ade80;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.25);border-radius:4px;padding:3px 10px">✓ Promotable</span></div>`;
 
   const forceCbHtml = (isForcePromo || isForceDepBlocked) ? `
     <label style="display:flex;align-items:center;gap:6px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.22);border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#b8884a;text-transform:uppercase"
@@ -1581,7 +1585,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   // ── Full card ──
   return `
     <div class="story-card${showPromoPanel ? ' has-promo' : ''}">
-      <div class="card-identity">
+      <div class="card-identity" style="border-left:3px solid ${identityBorderColor}">
         <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
           <strong style="font-size:14px">${sfStoryLink(storyName, storyIdMap[storyName], 'color:#e0f4ff')}</strong>
           <span id="verdict-${rowId}">${verdictHtml}</span>
@@ -1594,6 +1598,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         </div>` : ''}
         ${devName ? `<div style="font-size:10px;color:#64748b;margin-top:2px">👤 ${devName}</div>` : ''}
         ${baseBranch ? `<div style="font-size:11px;color:#f59e0b;font-weight:600;margin-top:4px">Base: <span style="color:#fbbf24">${baseBranch}</span>${parentStory?.credential ? `<span style="color:#7dd3fc;font-weight:400"> · ${parentStory.credential}</span>` : ''}</div>` : ''}
+        ${identityStatusBadge}
       </div>
       <div class="card-timeline${showPromoPanel ? ' has-border' : ''}">
         ${tlItems.join('')}
@@ -1603,8 +1608,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       ${promoHistoryHtml}
     </div>
     <div class="card-footer">
-      ${footerStatusHtml}
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
         ${forceCbHtml}${skipCbHtml}${sepCbHtml}
       </div>
     </div>`;
@@ -2105,6 +2109,8 @@ window.addEventListener('message', (event) => {
         if (innerCard) innerCard.style.background = 'rgba(52,211,153,0.05)';
         const innerFooter = row.querySelector('.card-footer');
         if (innerFooter) innerFooter.style.background = 'rgba(52,211,153,0.03)';
+        const identity = row.querySelector('.card-identity');
+        if (identity) identity.style.borderLeftColor = '#34d399';
       }
       const idx = cleanStories.findIndex(s => s.name === msg.storyName);
       if (idx !== -1) cleanStories.splice(idx, 1);
