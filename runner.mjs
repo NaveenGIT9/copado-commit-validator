@@ -1164,7 +1164,7 @@ async function main() {
     let dependencies = [];
     try {
       const depRes = await conn.query(
-        `SELECT Id, copado__Relationship_Type__c, ` +
+        `SELECT Id, copado__Relationship_Type__c, copado__Provider_User_Story__c, ` +
         `copado__Provider_User_Story__r.Name, ` +
         `copado__Provider_User_Story__r.copado__Org_Credential__r.Name, ` +
         `copado__Provider_User_Story__r.copado__Developer__r.Name ` +
@@ -1180,6 +1180,7 @@ async function main() {
         return {
           relationshipType:  r.copado__Relationship_Type__c ?? '',
           parentName,
+          parentId:          r.copado__Provider_User_Story__c ?? '',
           parentEnv,
           parentDeveloper:   r.copado__Provider_User_Story__r?.copado__Developer__r?.Name ?? null,
           parentAhead:       parentLevel > childLevel,

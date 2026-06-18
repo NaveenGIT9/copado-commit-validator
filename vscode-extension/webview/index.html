@@ -1168,7 +1168,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
           ? `<span style="color:#1ab8e8;font-size:9px;margin-left:6px">· in ${d.promoName}</span>`
           : '';
         return `<div style="margin-top:4px;display:flex;align-items:baseline;gap:0;flex-wrap:wrap">` +
-          `<span style="color:#f8fafc;font-size:11px;font-weight:600">${d.parentName}</span>` +
+          sfStoryLink(d.parentName, d.parentId, 'color:#f8fafc;font-size:11px;font-weight:600') +
           (d.parentEnv      ? `<span style="color:${envCol};font-size:10px"> · ${envIcon} ${d.parentEnv}</span>` : '') +
           (d.parentDeveloper ? `<span style="color:#94a3b8;font-size:10px"> · ${d.parentDeveloper}</span>` : '') +
           relLabel + samePromoNote +
