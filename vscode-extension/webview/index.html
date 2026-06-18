@@ -1355,8 +1355,31 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       const nUnreg = (unregisteredDetail || []).filter(d => !d.copadoAuto && !d._errorMsg).length;
       tlItems.push(tlRow(nUnreg > 0 ? 'err' : 'ok', 'Unregistered',
         nUnreg > 0
-          ? `<span style="color:#f87171;font-size:11px">${nUnreg} file${nUnreg > 1 ? 's' : ''}</span>`
+          ? `<span style="color:#f87171;font-size:11px">${nUnreg} extra commit${nUnreg > 1 ? 's' : ''}</span>`
           : `<span style="color:#4ade80;font-size:11px">None</span>`));
+      if (nUnreg > 0 && detail.length > 0) {
+        const detailBlocks = detail.filter(d => !d.copadoAuto && !d._errorMsg).map(d => {
+          const covered   = (d.coveredComponents   || []);
+          const uncovered = (d.uncoveredComponents || []);
+          const statusLine = d.copadoStatus && d.copadoStatus !== 'Failed'
+            ? `<div style="color:#f85149">⛔ Registered in Copado as '${d.copadoStatus}'</div>`
+            : d.copadoStatus === 'Failed'
+            ? `<div style="color:#e3b341">⚠ Copado status: Failed — checking metadata coverage</div>`
+            : '';
+          const covLine   = covered.length   > 0 ? `<div style="color:#4ade80;margin-top:2px">✓ In metadata: ${covered.join(', ')}</div>`   : '';
+          const uncovLine = uncovered.length > 0 ? `<div style="color:#f87171;margin-top:2px">✗ Not in metadata: ${uncovered.join(', ')}</div>` : '';
+          const msgLine   = d.commitMessage ? `<div style="color:#3a6a8a;font-style:italic;margin-top:2px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.commitMessage}">${d.commitMessage}</div>` : '';
+          const authLine  = d.authorMismatch ? `<div style="color:#f87171;margin-top:2px">⚠ Author: ${d.authorName || d.authorEmail}</div>` : '';
+          return `<div style="padding:6px 8px;background:#050e1a;border:1px solid rgba(26,184,232,0.1);border-radius:5px;margin-top:4px">
+            <div style="font-family:monospace;color:#1ab8e8;font-size:10px">${d.sha || ''}</div>
+            ${statusLine}${covLine}${uncovLine}${authLine}${msgLine}
+          </div>`;
+        }).join('');
+        tlItems.push(`<details style="margin-top:2px">
+          <summary style="font-size:10px;color:#3a6a8a;cursor:pointer;list-style:none;user-select:none">▶ Unregistered commit details</summary>
+          <div style="margin-top:4px">${detailBlocks}</div>
+        </details>`);
+      }
     }
 
     // PR
@@ -1385,17 +1408,17 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     // Last promo
     if (isAlreadyInProg) {
       const lbl = (lastPromoWarning.jeStatus ?? 'In Progress') === 'Queued' ? 'Queued' : 'In Progress';
-      tlItems.push(tlRow('warn', 'Last Promo', `<span style="color:#1ab8e8;font-size:10px;font-family:monospace">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — ${lbl}</span>`));
+      tlItems.push(tlRow('warn', 'Last Promo', `<span style="color:#1ab8e8;font-size:12px;font-family:monospace;font-weight:600">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — ${lbl}</span>`));
     } else if (isMergeConflict) {
-      tlItems.push(tlRow(isInnocentConflict ? 'warn' : 'err', 'Last Promo', `<span style="color:#fb923c;font-size:10px;font-family:monospace">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — Conflict</span>`));
+      tlItems.push(tlRow(isInnocentConflict ? 'warn' : 'err', 'Last Promo', `<span style="color:#fb923c;font-size:12px;font-family:monospace;font-weight:600">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — Conflict</span>`));
     } else if (isFailedPromo) {
-      tlItems.push(tlRow('err', 'Last Promo', `<span style="color:#f87171;font-size:10px;font-family:monospace">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — Failed</span>`));
+      tlItems.push(tlRow('err', 'Last Promo', `<span style="color:#f87171;font-size:12px;font-family:monospace;font-weight:600">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — Failed</span>`));
     } else if (isConflictsResolved) {
-      tlItems.push(tlRow('warn', 'Last Promo', `<span style="color:#fb923c;font-size:10px;font-family:monospace">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — Conflicts Resolved</span>`));
+      tlItems.push(tlRow('warn', 'Last Promo', `<span style="color:#fb923c;font-size:12px;font-family:monospace;font-weight:600">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — Conflicts Resolved</span>`));
     } else if (isValidatedPromo) {
-      tlItems.push(tlRow('warn', 'Last Promo', `<span style="color:#fb923c;font-size:10px;font-family:monospace">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — Validated only</span>`));
+      tlItems.push(tlRow('warn', 'Last Promo', `<span style="color:#fb923c;font-size:12px;font-family:monospace;font-weight:600">${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)} — Validated only</span>`));
     } else if (stalePromoInfo) {
-      tlItems.push(tlRow('ok', 'Last Promo', `<span style="color:#4ade80;font-size:10px">Fix committed — ${sfPromoLink(stalePromoInfo.name, stalePromoInfo.id)}</span>`));
+      tlItems.push(tlRow('ok', 'Last Promo', `<span style="color:#4ade80;font-size:12px;font-weight:600">Fix committed — ${sfPromoLink(stalePromoInfo.name, stalePromoInfo.id)}</span>`));
     }
 
     // Parent blocked
@@ -1462,8 +1485,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 
   // ── Merge conflict culprit / in-progress spinner badge ──
   const notEligibleInlineHtml = (isMergeConflict && !isInnocentConflict)
-    ? `<div style="margin-top:7px;display:inline-flex;align-items:center;gap:8px;background:rgba(251,146,60,0.07);border:1px solid rgba(251,146,60,0.22);border-radius:6px;padding:5px 12px;font-size:11px;color:#c9a065">
-        <span style="font-size:13px;color:#fb923c">⚠</span> Merge Conflict — ${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)}
+    ? `<div style="margin-top:7px;align-self:flex-start;display:inline-flex;align-items:center;gap:6px;background:rgba(251,146,60,0.07);border:1px solid rgba(251,146,60,0.22);border-radius:6px;padding:4px 10px;font-size:11px;color:#c9a065;white-space:nowrap">
+        <span style="font-size:12px;color:#fb923c">⚠</span> Merge Conflict — ${sfPromoLink(lastPromoWarning.name, lastPromoWarning.id)}
       </div>`
     : isAlreadyInProg ? (() => {
         const jeStatus  = lastPromoWarning.jeStatus ?? 'In Progress';
