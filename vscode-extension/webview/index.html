@@ -1070,7 +1070,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   const noApexTestClass  = hasApexCode && !hasApexTest;
   const noCommits           = verdict === 'skip-no-commits';
   const noCommitsNoTasks    = noCommits && !hasDeploymentTasks;
-  const commitOk            = (verdict === 'clean' || verdict === 'skip-covered-same-author' || noCommits) && !noCommitsNoTasks;
+  const commitOk            = (verdict === 'clean' || verdict === 'skip-covered-same-author' || verdict === 'skip-needs-verify' || noCommits) && !noCommitsNoTasks;
   const effectivePrBlock    = noCommits ? false : prBlocked;
   const isVerifying         = verdict === 'verifying' || tests === undefined;
   const parentBlocked       = parentStory && !parentStory.promoted;
@@ -1352,11 +1352,16 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 
     // Unregistered
     if (!noCommits && copadoCommits !== null) {
-      const nUnreg = (unregisteredDetail || []).filter(d => !d.copadoAuto && !d._errorMsg).length;
-      tlItems.push(tlRow(nUnreg > 0 ? 'err' : 'ok', 'Unregistered',
-        nUnreg > 0
-          ? `<span style="color:#f87171;font-size:11px">${nUnreg} extra commit${nUnreg > 1 ? 's' : ''}</span>`
-          : `<span style="color:#4ade80;font-size:11px">None</span>`));
+      const effUnreg   = (unregisteredDetail || []).filter(d => !d.copadoAuto && !d._errorMsg);
+      const nUnreg     = effUnreg.length;
+      const allInMeta  = nUnreg === 0 || effUnreg.every(d => (d.uncoveredComponents || []).length === 0);
+      const unregDot   = nUnreg === 0 ? 'ok' : allInMeta ? 'warn' : 'err';
+      const unregVal   = nUnreg === 0
+        ? `<span style="color:#4ade80;font-size:11px">None</span>`
+        : allInMeta
+        ? `<span style="color:#fb923c;font-size:11px">${nUnreg} extra · all in metadata</span>`
+        : `<span style="color:#f87171;font-size:11px">${nUnreg} extra · not in metadata</span>`;
+      tlItems.push(tlRow(unregDot, 'Unregistered', unregVal));
       if (nUnreg > 0 && detail.length > 0) {
         const detailBlocks = detail.filter(d => !d.copadoAuto && !d._errorMsg).map(d => {
           const covered   = (d.coveredComponents   || []);
@@ -1787,7 +1792,7 @@ window.addEventListener('message', (event) => {
                                 && msg.lastPromoWarning?.isConflictOnCurrentStory === false;
     const noCommits          = msg.verdict === 'skip-no-commits';
     const dependencyBlocked  = (msg.dependencies ?? []).some(d => !d.parentAhead && !d.parentInSamePromo);
-    const isEligible = (msg.verdict === 'clean' || msg.verdict === 'skip-covered-same-author' || noCommits)
+    const isEligible = (msg.verdict === 'clean' || msg.verdict === 'skip-covered-same-author' || msg.verdict === 'skip-needs-verify' || noCommits)
         && !noCommitsNoTasks
         && failedTests.length === 0 && !(noCommits ? false : prBlocked) && !(noCommits ? false : noApexTestClass) && !parentBlocked
         && !dependencyBlocked
