@@ -371,9 +371,8 @@
 <div id="results-section">
   <div style="display:flex;align-items:center;gap:8px">
     <div class="section-title" style="margin-bottom:0">Verification Results</div>
-    <span id="customFieldsInfoIcon" style="display:none;cursor:help;color:#1ab8e8;font-size:13px;opacity:0.7;position:relative"
-          title="">ⓘ
-      <span id="customFieldsTooltip" style="display:none;position:absolute;left:0;top:20px;width:320px;background:#0d1f35;border:1px solid rgba(26,184,232,0.3);border-radius:8px;padding:12px 14px;font-size:11px;color:#94a3b8;line-height:1.6;z-index:999;white-space:normal;pointer-events:none"></span>
+    <span id="customFieldsInfoIcon" style="cursor:help;color:#1ab8e8;font-size:13px;opacity:0.65;position:relative;user-select:none">ⓘ
+      <span id="customFieldsTooltip" style="display:none;position:absolute;left:0;top:20px;width:340px;background:#0d1f35;border:1px solid rgba(26,184,232,0.3);border-radius:8px;padding:12px 14px;font-size:11px;color:#94a3b8;line-height:1.6;z-index:999;white-space:normal;pointer-events:none"></span>
     </span>
   </div>
   <div id="destTabBar" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:10px;margin-top:8px;"></div>
@@ -421,6 +420,35 @@ let forcePromoStoryNames = new Set(); // ALL stories flagged as isFailedPromo (r
 let pipelineEnvOrder   = [];   // env names sorted by pipeline BFS level (lowest→highest)
 let activeDestTab      = null; // currently selected destination tab (null = show all)
 let customFieldDefs    = [];   // [{label, apiName}] from Promoter_Config__mdt — empty if MDT not deployed
+
+const CF_SETUP_HTML =
+  `<div style="font-size:12px;color:#e0f4ff;font-weight:600;margin-bottom:6px">Add Custom Fields to Story Cards</div>` +
+  `<div style="color:#64748b;margin-bottom:6px">Deploy a Custom Metadata Type named <code style="color:#7dd3fc">Promoter_Config</code> to your org with these fields:</div>` +
+  `<div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px">` +
+    `<div><code style="color:#a5f3fc">Field_API_Name__c</code> <span style="color:#475569">—</span> Text <span style="color:#475569;font-size:10px">(API name of the User Story field)</span></div>` +
+    `<div><code style="color:#a5f3fc">Label__c</code> <span style="color:#475569">—</span> Text <span style="color:#475569;font-size:10px">(label shown on the card)</span></div>` +
+    `<div><code style="color:#a5f3fc">Order__c</code> <span style="color:#475569">—</span> Number <span style="color:#475569;font-size:10px">(1, 2, 3… — order after fixed checks)</span></div>` +
+  `</div>` +
+  `<div style="color:#475569;font-size:10px">Each MDT record = one extra field. Fields appear at the bottom of every story card in order.</div>`;
+
+function renderCustomFieldsTooltip() {
+  const icon = document.getElementById('customFieldsInfoIcon');
+  const tip  = document.getElementById('customFieldsTooltip');
+  if (!icon || !tip) return;
+  let html = '';
+  if (customFieldDefs.length > 0) {
+    const fieldRows = customFieldDefs.map((f, i) =>
+      `<div style="margin-top:3px"><span style="color:#1ab8e8">${i + 1}.</span> <strong style="color:#e0f4ff">${f.label}</strong> — <code style="color:#7dd3fc">${f.apiName}</code></div>`
+    ).join('');
+    html  = `<div style="font-size:12px;color:#e0f4ff;font-weight:600;margin-bottom:4px">Active Custom Fields</div>` +
+            fieldRows +
+            `<div style="border-top:1px solid rgba(26,184,232,0.15);margin:8px 0"></div>`;
+  }
+  html += CF_SETUP_HTML;
+  tip.innerHTML = html;
+  icon.onmouseenter = () => { tip.style.display = 'block'; };
+  icon.onmouseleave = () => { tip.style.display = 'none'; };
+}
 
 
 function updatePromoteCount() {
@@ -610,6 +638,7 @@ if (Array.isArray(window.__orgHistory) && window.__orgHistory.length > 0) {
 
 populateDatalist('orgAliasList', 'orgAliasHistory');
 populateDatalist('repoPathList', 'repoPathHistory');
+renderCustomFieldsTooltip(); // wire up ⓘ icon on page load (MDT instructions always visible)
 
 // Apply defaults injected by panel.ts at HTML generation time.
 // Only overwrite if the field is still empty (don't clobber user input).
@@ -935,8 +964,7 @@ function verify() {
   document.getElementById('pipelineNamesBar').textContent = '';
   const _tabBar = document.getElementById('destTabBar');
   if (_tabBar) { _tabBar.style.display = 'none'; _tabBar.innerHTML = ''; }
-  const _cfIcon = document.getElementById('customFieldsInfoIcon');
-  if (_cfIcon) _cfIcon.style.display = 'none';
+  renderCustomFieldsTooltip(); // rebuild tooltip (clears active fields from prior run)
   document.getElementById('resultsBody').innerHTML = '';
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
@@ -1732,22 +1760,7 @@ window.addEventListener('message', (event) => {
 
   else if (msg.type === 'custom-fields-config') {
     customFieldDefs = (msg.fields ?? []).map(f => ({ label: f.label, apiName: f.apiName }));
-    const icon = document.getElementById('customFieldsInfoIcon');
-    const tip  = document.getElementById('customFieldsTooltip');
-    if (icon && tip && customFieldDefs.length > 0) {
-      icon.style.display = 'inline';
-      const fieldRows = customFieldDefs.map((f, i) => `<div style="margin-top:4px"><span style="color:#1ab8e8">${i + 1}.</span> <strong style="color:#e0f4ff">${f.label}</strong> — <code style="color:#7dd3fc">${f.apiName}</code></div>`).join('');
-      tip.innerHTML = `<div style="font-size:12px;color:#e0f4ff;font-weight:600;margin-bottom:6px">Custom Fields (via Promoter_Config__mdt)</div>`
-        + `<div style="margin-bottom:8px">${fieldRows}</div>`
-        + `<div style="border-top:1px solid rgba(26,184,232,0.15);padding-top:8px;font-size:10px">`
-        + `<div style="color:#64748b;margin-bottom:2px">To add your own fields, create a Custom Metadata Type named <code style="color:#7dd3fc">Promoter_Config</code> with these fields:</div>`
-        + `<div style="margin-top:4px"><code style="color:#a5f3fc">Field_API_Name__c</code> — Text (API name of the User Story field)</div>`
-        + `<div><code style="color:#a5f3fc">Label__c</code> — Text (display label shown on the card)</div>`
-        + `<div><code style="color:#a5f3fc">Order__c</code> — Number (1, 2, 3… — order they appear after fixed checks)</div>`
-        + `</div>`;
-      icon.addEventListener('mouseenter', () => { tip.style.display = 'block'; });
-      icon.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
-    }
+    renderCustomFieldsTooltip();
   }
 
   else if (msg.type === 'fields') {
