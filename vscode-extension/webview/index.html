@@ -417,7 +417,10 @@ let activeDestTab      = null; // currently selected destination tab (null = sho
 
 
 function updatePromoteCount() {
-  const count = cleanStories.filter(s => !s.skipped).length;
+  const visible = activeDestTab
+    ? cleanStories.filter(s => (s.dstEnvName ?? '').toLowerCase() === activeDestTab)
+    : cleanStories;
+  const count = visible.filter(s => !s.skipped).length;
   document.getElementById('cleanCount').textContent = count;
   updatePromoteList();
 }
@@ -427,13 +430,18 @@ function updatePromoteList() {
   if (!el) return;
   if (cleanStories.length === 0) { el.innerHTML = ''; return; }
 
-  const allIncluded  = cleanStories.every(s => !s.skipped);
-  const noneIncluded = cleanStories.every(s => s.skipped);
+  // Filter to active tab's destination when a tab is selected
+  const visibleStories = activeDestTab
+    ? cleanStories.filter(s => (s.dstEnvName ?? '').toLowerCase() === activeDestTab)
+    : cleanStories;
+
+  const allIncluded  = visibleStories.every(s => !s.skipped);
+  const noneIncluded = visibleStories.every(s => s.skipped);
 
   // Group all eligible stories (including skipped) by project
   const groupOrder = [];
   const groups = {};
-  for (const s of cleanStories) {
+  for (const s of visibleStories) {
     if (!groups[s.projectId]) {
       groups[s.projectId] = { name: s.projectName || s.projectId, stories: [] };
       groupOrder.push(s.projectId);
@@ -493,14 +501,14 @@ function updatePromoteList() {
   const selectAllCb = document.getElementById('selectAllCb');
   if (selectAllCb && !allIncluded && !noneIncluded) selectAllCb.indeterminate = true;
 
-  // Select All / Deselect All
+  // Select All / Deselect All — operates only on the currently visible (tab-filtered) stories
   selectAllCb?.addEventListener('change', () => {
     const include = selectAllCb.checked;
-    for (const s of cleanStories) {
+    for (const s of visibleStories) {
       s.skipped = !include;
       if (!include) s.separate = false;
     }
-    for (const s of cleanStories) {
+    for (const s of visibleStories) {
       const row = document.getElementById('row-' + s.name.replace(/[^a-z0-9]/gi, '_'));
       const skipCb = row?.querySelector(`.skip-story-cb[data-story="${s.name}"]`);
       const sepCb  = row?.querySelector(`.separate-promo-cb[data-story="${s.name}"]`);
@@ -1037,6 +1045,7 @@ function renderDestTabs() {
 function switchDestTab(env) {
   activeDestTab = env;
   renderDestTabs();
+  updatePromoteCount();
 }
 
 function applyDestTab(env) {
