@@ -716,20 +716,24 @@ function rebuildAllFieldSelects() {
     for (const row of container.children) {
       const id = row.id;
       if (!id) continue;
-      const sel = document.getElementById(`${id}_field`);
+      const sel    = document.getElementById(`${id}_field`);
+      const hidden = document.getElementById(`${id}_fieldapi`);
       if (!sel) continue;
-      const current = sel.value;
+      // Hidden input is authoritative — use it over what the visual select currently shows
+      const target = hidden?.value || sel.value;
       sel.innerHTML = fields.map(f =>
-        `<option value="${f.api}"${f.api === current ? ' selected' : ''}>${f.label}</option>`
+        `<option value="${f.api}"${f.api === target ? ' selected' : ''}>${f.label}</option>`
       ).join('');
-      if (!fields.find(f => f.api === current)) {
-        // Relationship/custom field not in describe results — preserve it rather than resetting
+      if (!fields.find(f => f.api === target)) {
+        // Relationship field not in describe (e.g. copado__Environment__r.Name) — add it back
+        // Use the label from static FILTER_FIELDS if available, otherwise the raw API name
+        const staticDef = FILTER_FIELDS.find(f => f.api === target);
         const opt = document.createElement('option');
-        opt.value = current;
-        opt.textContent = current;
+        opt.value = target;
+        opt.textContent = staticDef?.lbl || target;
         opt.selected = true;
         sel.appendChild(opt);
-        sel.value = current;
+        sel.value = target;
       }
     }
   });
