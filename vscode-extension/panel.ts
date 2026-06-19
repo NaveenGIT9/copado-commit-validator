@@ -106,6 +106,7 @@ export class PromoterPanel {
     envType?: string;
     filterJson?: string;
     url?: string;
+    filters?: unknown;
     groups?: Array<{ projectId: string; credentialId: string; stories: string[]; storyIds: string[] }>;
     mergeDeployAfter?: boolean;
   }): void {
@@ -120,6 +121,8 @@ export class PromoterPanel {
       this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '', msg.filterJson ?? '');
     } else if (msg.command === 'describeFields') {
       this.runDescribeFields(msg.orgAlias ?? '');
+    } else if (msg.command === 'saveFilters') {
+      void this.context.globalState.update('promoter.fetchFilters', msg.filters);
     } else if (msg.command === 'abort') {
       this.abortRun();
     } else if (msg.command === 'getDefaultOrg') {
@@ -261,9 +264,10 @@ export class PromoterPanel {
       let html = fs.readFileSync(htmlPath, 'utf8');
       const defaultOrg = this.getDefaultOrg();
       const orgHistory: string[] = this.context.globalState.get('promoter.orgHistory', []);
+      const savedFilters = this.context.globalState.get('promoter.fetchFilters', null);
       html = html.replace(
         '<script>',
-        `<script>window.__defaultOrg = ${JSON.stringify(defaultOrg)};\nwindow.__orgHistory = ${JSON.stringify(orgHistory)};\n`,
+        `<script>window.__defaultOrg = ${JSON.stringify(defaultOrg)};\nwindow.__orgHistory = ${JSON.stringify(orgHistory)};\nwindow.__savedFilters = ${JSON.stringify(savedFilters)};\n`,
       );
       return html;
     }

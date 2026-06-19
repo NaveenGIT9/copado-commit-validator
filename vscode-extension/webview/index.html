@@ -423,13 +423,13 @@ let customFieldDefs    = [];   // [{label, apiName}] from Promoter_Config__mdt �
 
 const CF_SETUP_HTML =
   `<div style="font-size:12px;color:#e0f4ff;font-weight:600;margin-bottom:6px">Add Custom Fields to Story Cards</div>` +
-  `<div style="color:#64748b;margin-bottom:6px">Deploy a Custom Metadata Type named <code style="color:#7dd3fc">Promoter_Config</code> to your org with these fields:</div>` +
-  `<div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px">` +
-    `<div><code style="color:#a5f3fc">Field_API_Name__c</code> <span style="color:#475569">—</span> Text <span style="color:#475569;font-size:10px">(API name of the User Story field)</span></div>` +
-    `<div><code style="color:#a5f3fc">Label__c</code> <span style="color:#475569">—</span> Text <span style="color:#475569;font-size:10px">(label shown on the card)</span></div>` +
-    `<div><code style="color:#a5f3fc">Order__c</code> <span style="color:#475569">—</span> Number <span style="color:#475569;font-size:10px">(1, 2, 3… — order after fixed checks)</span></div>` +
+  `<div style="color:#90b8cc;margin-bottom:6px">Deploy a Custom Metadata Type named <code style="color:#7dd3fc">Promoter_Config</code> to your org with these fields:</div>` +
+  `<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">` +
+    `<div><code style="color:#a5f3fc">Field_API_Name__c</code> <span style="color:#7fc9e0"> — </span><span style="color:#c8dde8">Text</span> <span style="color:#7a9db0;font-size:10px">(API name of the User Story field)</span></div>` +
+    `<div><code style="color:#a5f3fc">Label__c</code> <span style="color:#7fc9e0"> — </span><span style="color:#c8dde8">Text</span> <span style="color:#7a9db0;font-size:10px">(label shown on the card)</span></div>` +
+    `<div><code style="color:#a5f3fc">Order__c</code> <span style="color:#7fc9e0"> — </span><span style="color:#c8dde8">Number</span> <span style="color:#7a9db0;font-size:10px">(1, 2, 3… — order after fixed checks)</span></div>` +
   `</div>` +
-  `<div style="color:#475569;font-size:10px">Each MDT record = one extra field. Fields appear at the bottom of every story card in order.</div>`;
+  `<div style="color:#7a9db0;font-size:10px">Each MDT record = one extra field on every story card.</div>`;
 
 function renderCustomFieldsTooltip() {
   const icon = document.getElementById('customFieldsInfoIcon');
@@ -851,16 +851,15 @@ function updateFilterSummary() {
 }
 
 function saveFetchFilters() {
-  localStorage.setItem('fetchFiltersV2', JSON.stringify({
-    qa:  getFilterState('qa'),
-    uat: getFilterState('uat'),
-  }));
+  const filters = { qa: getFilterState('qa'), uat: getFilterState('uat') };
+  localStorage.setItem('fetchFiltersV2', JSON.stringify(filters));
+  vscode.postMessage({ command: 'saveFilters', filters });
   updateFilterSummary();
 }
 
 function restoreFetchFilters() {
   try {
-    const saved = JSON.parse(localStorage.getItem('fetchFiltersV2') || 'null');
+    const saved = window.__savedFilters ?? JSON.parse(localStorage.getItem('fetchFiltersV2') || 'null');
     ['qa', 'uat'].forEach(prefix => {
       const container = document.getElementById(`${prefix}FilterRows`);
       if (!container) return;
