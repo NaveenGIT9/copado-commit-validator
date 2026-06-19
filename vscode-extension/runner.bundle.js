@@ -125604,6 +125604,8 @@ async function main() {
         }
       }
     }
+    const pipelineOrderedEnvs = [...credLevel.entries()].sort((a, b2) => a[1] - b2[1]).map(([name]) => name);
+    emit({ type: "pipeline-info", envOrder: pipelineOrderedEnvs });
   } catch (pipelineErr) {
     emit({ type: "debug", message: `pipeline ERROR: ${pipelineErr}` });
   }
@@ -125997,7 +125999,7 @@ async function main() {
     let dependencies = [];
     try {
       const depRes = await conn.query(
-        `SELECT Id, copado__Relationship_Type__c, copado__Provider_User_Story__r.Name, copado__Provider_User_Story__r.copado__Org_Credential__r.Name, copado__Provider_User_Story__r.copado__Developer__r.Name FROM copado__Team_Dependency__c WHERE copado__Dependent_User_Story__c = '${story.Id}'`
+        `SELECT Id, copado__Relationship_Type__c, copado__Provider_User_Story__c, copado__Provider_User_Story__r.Name, copado__Provider_User_Story__r.copado__Org_Credential__r.Name, copado__Provider_User_Story__r.copado__Developer__r.Name FROM copado__Team_Dependency__c WHERE copado__Dependent_User_Story__c = '${story.Id}'`
       );
       const childLevel = credLevel.get(srcEnvName?.toLowerCase() ?? "") ?? -1;
       const siblingNames = new Set((lastPromoWarning?.siblingStories ?? []).map((s) => (s.name ?? "").toUpperCase()));
@@ -126008,6 +126010,7 @@ async function main() {
         return {
           relationshipType: r2.copado__Relationship_Type__c ?? "",
           parentName,
+          parentId: r2.copado__Provider_User_Story__c ?? "",
           parentEnv,
           parentDeveloper: r2.copado__Provider_User_Story__r?.copado__Developer__r?.Name ?? null,
           parentAhead: parentLevel > childLevel,

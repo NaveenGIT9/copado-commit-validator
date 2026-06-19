@@ -239,6 +239,16 @@
     border-radius: 6px; padding: 6px 12px;
   }
 
+  .dest-tab {
+    padding: 4px 14px; border-radius: 20px; font-size: 11px; font-weight: 700;
+    cursor: pointer; border: 1px solid rgba(26,184,232,0.3);
+    background: rgba(13,122,181,0.08); color: #7fc9e0;
+    transition: background 0.15s, color 0.15s;
+  }
+  .dest-tab:hover { background: rgba(13,122,181,0.2); }
+  .dest-tab.active { background: #1ab8e8; color: #071520; border-color: #1ab8e8; }
+  .dest-tab .tab-count { font-size: 10px; opacity: 0.75; margin-left: 4px; }
+
   .hash-list { font-family: 'Cascadia Code','Fira Code',monospace; font-size:11px; color:#2a6a8a; word-break:break-all; }
   .hash-list .bad { color: #f85149; }
 
@@ -360,6 +370,7 @@
 <!-- Results cards -->
 <div id="results-section">
   <div class="section-title">Verification Results</div>
+  <div id="destTabBar" style="display:none;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
   <div id="resultsBody" class="results-cards"></div>
 
   <div id="promote-section">
@@ -389,7 +400,7 @@
 <script>
 const vscode = acquireVsCodeApi();
 
-let cleanStories       = [];   // [{name, id, projectId, credentialId, skipped}]
+let cleanStories       = [];   // [{name, id, projectId, credentialId, dstEnvName, skipped}]
 let verifiedStoryNames = new Set(); // all story names that came back from verify (uppercased), for culprit-in-list check
 let storyWarningMap    = new Map(); // upperName → lastPromoWarning | null, for sibling tag rendering
 let currentOrg         = '';
@@ -401,6 +412,8 @@ let inPromoteMode      = false;
 let mergeDeployResults = [];   // [{success, promotionId, jobId?, error?}]
 let isPartialReVerify  = false; // true when re-verifying only force-promote stories
 let forcePromoStoryNames = new Set(); // ALL stories flagged as isFailedPromo (regardless of Force checkbox)
+let pipelineEnvOrder   = [];   // env names sorted by pipeline BFS level (lowest→highest)
+let activeDestTab      = null; // currently selected destination tab (null = show all)
 
 
 function updatePromoteCount() {
@@ -897,11 +910,15 @@ function verify() {
   runCompleted         = false;
   projectHeaderMap     = {};
   projectLastRow       = {};
+  activeDestTab        = null;
+  pipelineEnvOrder     = [];
 
   document.getElementById('results-section').style.display = 'none';
   document.getElementById('promote-section').style.display = 'none';
   document.getElementById('pipelineNamesBar').style.display = 'none';
   document.getElementById('pipelineNamesBar').textContent = '';
+  const _tabBar = document.getElementById('destTabBar');
+  if (_tabBar) { _tabBar.style.display = 'none'; _tabBar.innerHTML = ''; }
   document.getElementById('resultsBody').innerHTML = '';
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
@@ -923,7 +940,8 @@ function abort() {
 }
 
 function promote() {
-  const storiesToPromote = cleanStories.filter(s => !s.skipped);
+  const storiesToPromote = cleanStories.filter(s => !s.skipped &&
+    (!activeDestTab || (s.dstEnvName ?? '').toLowerCase() === activeDestTab));
   if (storiesToPromote.length === 0) return;
 
   const groupMap = {};
@@ -987,11 +1005,62 @@ function reset() {
   inPromoteMode      = false;
   mergeDeployResults = [];
   isPartialReVerify  = false;
+  activeDestTab      = null;
+  pipelineEnvOrder   = [];
+  const tabBar = document.getElementById('destTabBar');
+  if (tabBar) { tabBar.style.display = 'none'; tabBar.innerHTML = ''; }
+}
+
+function renderDestTabs() {
+  const bar = document.getElementById('destTabBar');
+  const dsts = cleanStories.map(s => (s.dstEnvName ?? '').toLowerCase()).filter(Boolean);
+  const uniqueDsts = [...new Set(dsts)];
+  if (uniqueDsts.length <= 1) { bar.style.display = 'none'; activeDestTab = null; return; }
+
+  // Sort by pipeline order; anything not in pipelineEnvOrder goes at the end
+  const ordered = pipelineEnvOrder.filter(e => uniqueDsts.includes(e));
+  uniqueDsts.forEach(d => { if (!ordered.includes(d)) ordered.push(d); });
+
+  // Default to first tab if none active or active tab no longer present
+  if (!activeDestTab || !ordered.includes(activeDestTab)) activeDestTab = ordered[0];
+
+  bar.style.display = 'flex';
+  bar.innerHTML = ordered.map(env => {
+    const count = cleanStories.filter(s => (s.dstEnvName ?? '').toLowerCase() === env).length;
+    const isActive = activeDestTab === env;
+    return `<button class="dest-tab${isActive ? ' active' : ''}" onclick="switchDestTab('${env}')">${env.toUpperCase()} <span class="tab-count">(${count})</span></button>`;
+  }).join('');
+
+  applyDestTab(activeDestTab);
+}
+
+function switchDestTab(env) {
+  activeDestTab = env;
+  renderDestTabs();
+}
+
+function applyDestTab(env) {
+  // Show/hide story rows
+  document.querySelectorAll('#resultsBody [data-dst-env]').forEach(row => {
+    row.style.display = (!env || row.dataset.dstEnv === env) ? '' : 'none';
+  });
+  // Show/hide project headers — visible if any of their story rows are visible
+  const visibleProjs = new Set(
+    [...document.querySelectorAll('#resultsBody [data-dst-env]')]
+      .filter(r => !env || r.dataset.dstEnv === env)
+      .map(r => r.dataset.projId)
+      .filter(Boolean)
+  );
+  document.querySelectorAll('#resultsBody .project-header-card').forEach(hdr => {
+    const pid = hdr.id.replace('proj-hdr-', '');
+    hdr.style.display = visibleProjs.has(pid) ? '' : 'none';
+  });
 }
 
 function endRun() {
   document.getElementById('verifyBtn').disabled = false;
   document.getElementById('cancelBtn').style.display = 'none';
+  renderDestTabs();
 }
 
 function openUrl(url) {
@@ -1035,7 +1104,7 @@ function ensureProjectSection(projectId, projectName) {
 }
 
 // Move/update a story card into its project section
-function insertGroupedRow(storyName, projectId, html) {
+function insertGroupedRow(storyName, projectId, html, dstEnvName) {
   const container = document.getElementById('resultsBody');
   const rowId = 'row-' + storyName.replace(/[^a-z0-9]/gi, '_');
   let row = document.getElementById(rowId);
@@ -1045,6 +1114,8 @@ function insertGroupedRow(storyName, projectId, html) {
     row.className = 'story-card-wrapper';
   }
   row.innerHTML = html;
+  row.dataset.projId  = projectId;
+  row.dataset.dstEnv  = (dstEnvName ?? '').toLowerCase();
   const insertAfter = projectLastRow[projectId];
   container.insertBefore(row, insertAfter.nextSibling);
   projectLastRow[projectId] = row;
@@ -1630,6 +1701,10 @@ window.addEventListener('message', (event) => {
     bar.style.display = 'block';
   }
 
+  else if (msg.type === 'pipeline-info') {
+    pipelineEnvOrder = msg.envOrder ?? [];
+  }
+
   else if (msg.type === 'fields') {
     // Real field list from org describe — update all filter dropdowns
     if (Array.isArray(msg.fields) && msg.fields.length > 0) {
@@ -1792,7 +1867,7 @@ window.addEventListener('message', (event) => {
       msg.dependencies ?? [], msg.xmlTypeMetadata ?? []
     );
     ensureProjectSection(msg.projectId, msg.projectName);
-    insertGroupedRow(msg.storyName, msg.projectId, html);
+    insertGroupedRow(msg.storyName, msg.projectId, html, msg.dstEnvName);
     verifiedStoryNames.add(msg.storyName.toUpperCase());
     storyWarningMap.set(msg.storyName.toUpperCase(), msg.lastPromoWarning ?? null);
 
@@ -1819,6 +1894,7 @@ window.addEventListener('message', (event) => {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,
           projectName: msg.projectName ?? '',
+          dstEnvName: msg.dstEnvName ?? null,
           // Innocent Merge Conflict always separate. CR multi-story defaults unchecked (re-trigger).
           separate: false,
           skipped: false,
@@ -1851,6 +1927,7 @@ window.addEventListener('message', (event) => {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,
           projectName: msg.projectName ?? '',
+          dstEnvName: msg.dstEnvName ?? null,
           separate: false, skipped: false,
           developer: msg.storyDeveloper ?? '',
           forcePromo: true,
@@ -1882,6 +1959,7 @@ window.addEventListener('message', (event) => {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,
           projectName: msg.projectName ?? '',
+          dstEnvName: msg.dstEnvName ?? null,
           separate: false, skipped: false,
           developer: msg.storyDeveloper ?? '',
           mergeConflict: { name: msg.lastPromoWarning.name, id: msg.lastPromoWarning.id },
@@ -1896,6 +1974,7 @@ window.addEventListener('message', (event) => {
         name: msg.storyName, id: msg.storyId,
         projectId: msg.projectId, credentialId: msg.credentialId,
         projectName: msg.projectName ?? '',
+        dstEnvName: msg.dstEnvName ?? null,
         separate: false, skipped: false,
         developer: msg.storyDeveloper ?? '',
         forcePromo: true,

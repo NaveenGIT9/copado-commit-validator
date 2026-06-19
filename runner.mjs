@@ -651,6 +651,10 @@ async function main() {
         }
       }
     }
+    const pipelineOrderedEnvs = [...credLevel.entries()]
+      .sort((a, b) => a[1] - b[1])
+      .map(([name]) => name);
+    emit({ type: 'pipeline-info', envOrder: pipelineOrderedEnvs });
   } catch (pipelineErr) { emit({ type: 'debug', message: `pipeline ERROR: ${pipelineErr}` }); }
 
   for (const story of stories) {
