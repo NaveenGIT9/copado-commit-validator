@@ -770,6 +770,7 @@ function addFilterRow(prefix, saved) {
 
   const rowHtml = `
   <div id="${id}" style="display:flex;align-items:center;gap:5px;margin-bottom:6px;flex-wrap:nowrap">
+    <input type="hidden" id="${id}_fieldapi" value="${saved?.field || fields[0]?.api || ''}">
     <select id="${id}_field" onchange="onFrChange('${id}','${prefix}')"
       style="flex:0 0 auto;max-width:140px;font-size:10px;background:#0a1929;color:#90d8f0;border:1px solid rgba(26,184,232,0.25);border-radius:4px;padding:3px 4px;cursor:pointer">
       ${fieldOpts}
@@ -793,11 +794,13 @@ function addFilterRow(prefix, saved) {
 }
 
 function onFrChange(id, prefix) {
-  const fieldSel = document.getElementById(`${id}_field`);
-  const opSel    = document.getElementById(`${id}_op`);
-  const valInput = document.getElementById(`${id}_val`);
-  const cfInput  = document.getElementById(`${id}_cfield`);
-  const fieldApi = fieldSel.value;
+  const fieldSel    = document.getElementById(`${id}_field`);
+  const fieldApiIn  = document.getElementById(`${id}_fieldapi`);
+  const opSel       = document.getElementById(`${id}_op`);
+  const valInput    = document.getElementById(`${id}_val`);
+  const cfInput     = document.getElementById(`${id}_cfield`);
+  const fieldApi    = fieldSel.value;
+  if (fieldApiIn) fieldApiIn.value = fieldApi; // keep hidden input authoritative
   const fieldDef = getFieldList().find(f => f.api === fieldApi) || FILTER_FIELDS[0];
 
   // Show/hide custom field API name input
@@ -832,12 +835,14 @@ function getFilterState(prefix) {
   for (const row of container.children) {
     const id = row.id;
     if (!id) continue;
-    const fieldSel = document.getElementById(`${id}_field`);
-    const opSel    = document.getElementById(`${id}_op`);
-    const valInput = document.getElementById(`${id}_val`);
-    const cfInput  = document.getElementById(`${id}_cfield`);
+    const fieldSel    = document.getElementById(`${id}_field`);
+    const fieldApiIn  = document.getElementById(`${id}_fieldapi`);
+    const opSel       = document.getElementById(`${id}_op`);
+    const valInput    = document.getElementById(`${id}_val`);
+    const cfInput     = document.getElementById(`${id}_cfield`);
     if (!fieldSel || !opSel) continue;
-    const fieldApi = fieldSel.value;
+    // Use hidden input as authoritative source — immune to rebuildAllFieldSelects() stomping
+    const fieldApi = (fieldApiIn?.value || fieldSel.value);
     const fieldDef = getFieldList().find(f => f.api === fieldApi);
     const actualField = (fieldDef?.type === 'custom' && cfInput?.value?.trim())
       ? cfInput.value.trim() : fieldApi;
