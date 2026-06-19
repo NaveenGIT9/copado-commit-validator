@@ -715,8 +715,15 @@ function rebuildAllFieldSelects() {
       sel.innerHTML = fields.map(f =>
         `<option value="${f.api}"${f.api === current ? ' selected' : ''}>${f.label}</option>`
       ).join('');
-      // If previously selected field no longer exists, reset to first
-      if (!fields.find(f => f.api === current)) sel.value = fields[0]?.api || '';
+      if (!fields.find(f => f.api === current)) {
+        // Relationship/custom field not in describe results — preserve it rather than resetting
+        const opt = document.createElement('option');
+        opt.value = current;
+        opt.textContent = current;
+        opt.selected = true;
+        sel.appendChild(opt);
+        sel.value = current;
+      }
     }
   });
 }
