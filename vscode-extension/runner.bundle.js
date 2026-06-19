@@ -125480,11 +125480,24 @@ async function main() {
   }
   const storyNames = (args.stories ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   emit({ type: "start", storyNames });
+  let customFieldConfigs = [];
+  try {
+    const mdtRes = await conn.query(
+      `SELECT Field_API_Name__c, Label__c, Order__c FROM Promoter_Config__mdt ORDER BY Order__c ASC NULLS LAST`
+    );
+    customFieldConfigs = (mdtRes.records ?? []).filter((r2) => r2.Field_API_Name__c).map((r2) => ({ apiName: r2.Field_API_Name__c.trim(), label: r2.Label__c?.trim() || r2.Field_API_Name__c.trim(), order: r2.Order__c ?? 999 }));
+    if (customFieldConfigs.length > 0) {
+      emit({ type: "custom-fields-config", fields: customFieldConfigs });
+    }
+  } catch {
+  }
   const nameList = storyNames.map((n) => `'${n}'`).join(",");
+  const customFieldApiNames = customFieldConfigs.map((f) => f.apiName);
+  const customFieldSelect = customFieldApiNames.length > 0 ? ", " + customFieldApiNames.join(", ") : "";
   let stories = [];
   try {
     const result = await conn.query(
-      `SELECT Id, Name, copado__Org_Credential__c, copado__Org_Credential__r.Name, copado__Latest_Commit_Date__c, copado__Project__c, copado__Project__r.Name, copado__Status__c, copado__Pull_Requests_Approved__c, copado__Has_Apex_Code__c, copado__Developer__r.Name, copado__Base_Branch__c FROM copado__User_Story__c WHERE Name IN (${nameList})`
+      `SELECT Id, Name, copado__Org_Credential__c, copado__Org_Credential__r.Name, copado__Latest_Commit_Date__c, copado__Project__c, copado__Project__r.Name, copado__Status__c, copado__Pull_Requests_Approved__c, copado__Has_Apex_Code__c, copado__Developer__r.Name, copado__Base_Branch__c${customFieldSelect} FROM copado__User_Story__c WHERE Name IN (${nameList})`
     );
     stories = result.records;
   } catch (err) {
@@ -125727,6 +125740,7 @@ async function main() {
             const s = story.copado__Org_Credential__r?.Name ?? null;
             return s ? pipelineEdges.find((e) => e.from === s.toLowerCase())?.to ?? null : null;
           })(),
+          customFields: customFieldConfigs.map((f) => ({ label: f.label, value: story[f.apiName] ?? null })),
           verdict: "error",
           message: `Branch ${remoteBranch} not found. Check that the correct repo is cloned locally and the path is set correctly.`
         });
@@ -126053,6 +126067,7 @@ async function main() {
       baseBranch: (story.copado__Base_Branch__c ?? "").trim() || null,
       dependencies,
       xmlTypeMetadata,
+      customFields: customFieldConfigs.map((f) => ({ label: f.label, value: story[f.apiName] ?? null })),
       verdict
     });
   }

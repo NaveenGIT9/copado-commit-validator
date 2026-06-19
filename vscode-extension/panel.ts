@@ -104,9 +104,7 @@ export class PromoterPanel {
     orgAlias?: string;
     repoPath?: string;
     envType?: string;
-    fetchStatus?: string;
-    fetchEnvs?: string;
-    fetchReadyToPromote?: boolean;
+    filterJson?: string;
     url?: string;
     groups?: Array<{ projectId: string; credentialId: string; stories: string[]; storyIds: string[] }>;
     mergeDeployAfter?: boolean;
@@ -119,7 +117,9 @@ export class PromoterPanel {
       this.runPromote(msg.groups ?? [], msg.orgAlias ?? '', msg.mergeDeployAfter ?? false);
     } else if (msg.command === 'fetchReady') {
       this.saveOrgHistory(msg.orgAlias ?? '');
-      this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '', msg.fetchStatus ?? '', msg.fetchEnvs ?? '', msg.fetchReadyToPromote ?? true);
+      this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '', msg.filterJson ?? '');
+    } else if (msg.command === 'describeFields') {
+      this.runDescribeFields(msg.orgAlias ?? '');
     } else if (msg.command === 'abort') {
       this.abortRun();
     } else if (msg.command === 'getDefaultOrg') {
@@ -129,15 +129,33 @@ export class PromoterPanel {
     }
   }
 
-  private runFetchReady(envType: string, orgAlias: string, fetchStatus: string, fetchEnvs: string, fetchReadyToPromote: boolean): void {
+  private runDescribeFields(orgAlias: string): void {
+    if (!orgAlias) return;
+    const args = [RUNNER_PATH, '--target-org', orgAlias, '--describe-object', 'copado__User_Story__c'];
+    const proc = spawn(process.execPath, args, { shell: false });
+    const timer = setTimeout(() => proc.kill(), 30_000);
+    let buf = '';
+    proc.stdout.on('data', (chunk: Buffer) => {
+      buf += chunk.toString();
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines.filter(l => l.trim())) {
+        try {
+          const msg = JSON.parse(line) as Record<string, unknown>;
+          if (msg.type === 'fields' || msg.type === 'fields-error') this.post(msg);
+        } catch { /* ignore non-JSON */ }
+      }
+    });
+    proc.on('close', () => clearTimeout(timer));
+  }
+
+  private runFetchReady(envType: string, orgAlias: string, filterJson: string): void {
     const args = [
       RUNNER_PATH,
       '--target-org', orgAlias,
       '--fetch-ready', 'true',
       '--env-type', envType,
-      '--fetch-status', fetchStatus,
-      '--fetch-envs', fetchEnvs,
-      '--fetch-ready-to-promote', String(fetchReadyToPromote),
+      '--filters', filterJson,
     ];
     this.spawnCommand(args, true);
   }
