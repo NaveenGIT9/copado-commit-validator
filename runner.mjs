@@ -121,6 +121,26 @@ function buildFilterClause(filters) {
 // Extract the GitHub repo name from a Copado git repository URI.
 // Handles both HTTPS (https://github.com/Org/Repo-Name.git) and
 // SSH (git@github.com:Org/Repo-Name.git) formats.
+// Find the exact branch a commit was originally made on.
+// Strategy: walk first-parent ancestors looking for a Copado merge commit whose
+// message says "Merging X to <branch>" or "Merging X into <branch> after...".
+// The destination branch is where this commit sits on the trunk.
+// This works even when the branch is deleted because commit messages are permanent —
+// unlike git name-rev / branch --contains which rely on surviving refs and give
+// wrong results (nearest surviving branch, not original branch).
+async function findOriginBranch(git, sha) {
+  try {
+    // Walk up to 20 first-parent ancestors from the commit's parent.
+    // The nearest Copado merge commit message names the exact branch.
+    const raw = await git.raw(['log', '--format=%s', '--first-parent', '-20', `${sha}^`]);
+    for (const msg of raw.split('\n').map(l => l.trim()).filter(Boolean)) {
+      const match = msg.match(/Merging .+ (?:to|into) ([\w/.\-]+?)(?:\s+after|\s*$)/i);
+      if (match) return match[1].trim();
+    }
+  } catch { /* non-fatal */ }
+  return null;
+}
+
 function repoNameFromUri(uri) {
   if (!uri) return '';
   return uri.replace(/\.git$/, '').split(/[/:]/).pop() ?? '';
@@ -872,9 +892,13 @@ async function main() {
         }
       }
 
+      let originBranch = null;
+      try { originBranch = await findOriginBranch(git, sha); } catch { /* non-fatal */ }
+
       unregisteredDetail.push({
         sha: sha.substring(0, 10), authorName, authorEmail, committerName, isAmended, commitMessage,
         components, coveredComponents, uncoveredComponents, authorMismatch, copadoAuto, copadoStatus,
+        originBranch,
       });
     }
 

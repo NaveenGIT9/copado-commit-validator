@@ -125171,6 +125171,17 @@ function buildFilterClause(filters) {
   }
   return fragments.length ? fragments.join(logic) : "";
 }
+async function findOriginBranch(git, sha) {
+  try {
+    const raw = await git.raw(["log", "--format=%s", "--first-parent", "-20", `${sha}^`]);
+    for (const msg of raw.split("\n").map((l) => l.trim()).filter(Boolean)) {
+      const match = msg.match(/Merging .+ (?:to|into) ([\w/.\-]+?)(?:\s+after|\s*$)/i);
+      if (match) return match[1].trim();
+    }
+  } catch {
+  }
+  return null;
+}
 function repoNameFromUri(uri) {
   if (!uri) return "";
   return uri.replace(/\.git$/, "").split(/[/:]/).pop() ?? "";
@@ -125795,6 +125806,11 @@ async function main() {
           break;
         }
       }
+      let originBranch = null;
+      try {
+        originBranch = await findOriginBranch(git, sha);
+      } catch {
+      }
       unregisteredDetail.push({
         sha: sha.substring(0, 10),
         authorName,
@@ -125807,7 +125823,8 @@ async function main() {
         uncoveredComponents,
         authorMismatch,
         copadoAuto,
-        copadoStatus
+        copadoStatus,
+        originBranch
       });
     }
     const extraCommittedBy = [...new Set(unregisteredDetail.map((d) => d.authorName).filter(Boolean))];
