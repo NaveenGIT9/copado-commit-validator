@@ -1511,7 +1511,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
           const authLine   = d.authorMismatch ? `<div style="color:#f87171;font-size:10px;margin-top:2px">⚠ Author: ${d.authorName || d.authorEmail}</div>` : '';
           const noCovLine  = (covered.length === 0 && uncovered.length === 0 && !d.copadoStatus)
             ? `<div style="color:#3a6a8a;font-size:10px;margin-top:2px">No metadata components found in this commit</div>` : '';
-          const originLine = d.originBranch ? `<div style="font-size:10px;margin-top:2px">⎇ Origin: ${ghBranchLink(d.originBranch)}</div>` : '';
+          const originLine = d.originBranch ? `<div style="color:#2a6a8a;font-size:10px;margin-top:2px">⎇ Origin: ${d.originBranch}</div>` : '';
           return `<div style="padding:6px 8px;background:#050e1a;border:1px solid rgba(26,184,232,0.1);border-radius:5px;margin-top:4px">
             <div style="font-family:monospace;color:#1ab8e8;font-size:10px">${d.sha || ''}</div>
             ${statusLine}${covLine}${uncovLine}${authLine}${noCovLine}${msgLine}${originLine}
