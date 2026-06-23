@@ -1507,14 +1507,13 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
             : '';
           const covLine   = covered.length   > 0 ? `<div style="color:#4ade80;font-size:10px;margin-top:2px">✓ In metadata: ${covered.join(', ')}</div>`   : '';
           const uncovLine = uncovered.length > 0 ? `<div style="color:#f87171;font-size:10px;margin-top:2px">✗ Not in metadata: ${uncovered.join(', ')}</div>` : '';
-          const msgLine    = d.commitMessage ? `<div style="color:#3a6a8a;font-style:italic;font-size:10px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.commitMessage}">${d.commitMessage}</div>` : '';
-          const authLine   = d.authorMismatch ? `<div style="color:#f87171;font-size:10px;margin-top:2px">⚠ Author: ${d.authorName || d.authorEmail}</div>` : '';
-          const noCovLine  = (covered.length === 0 && uncovered.length === 0 && !d.copadoStatus)
+          const msgLine   = d.commitMessage ? `<div style="color:#3a6a8a;font-style:italic;font-size:10px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.commitMessage}">${d.commitMessage}</div>` : '';
+          const authLine  = d.authorMismatch ? `<div style="color:#f87171;font-size:10px;margin-top:2px">⚠ Author: ${d.authorName || d.authorEmail}</div>` : '';
+          const noCovLine = (covered.length === 0 && uncovered.length === 0 && !d.copadoStatus)
             ? `<div style="color:#3a6a8a;font-size:10px;margin-top:2px">No metadata components found in this commit</div>` : '';
-          const originLine = d.originBranch ? `<div style="color:#2a6a8a;font-size:10px;margin-top:2px">⎇ Origin: ${d.originBranch}</div>` : '';
           return `<div style="padding:6px 8px;background:#050e1a;border:1px solid rgba(26,184,232,0.1);border-radius:5px;margin-top:4px">
             <div style="font-family:monospace;color:#1ab8e8;font-size:10px">${d.sha || ''}</div>
-            ${statusLine}${covLine}${uncovLine}${authLine}${noCovLine}${msgLine}${originLine}
+            ${statusLine}${covLine}${uncovLine}${authLine}${noCovLine}${msgLine}
           </div>`;
         }).join('');
         tlItems.push(`<details style="margin-top:2px">
