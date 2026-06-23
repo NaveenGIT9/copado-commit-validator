@@ -1328,37 +1328,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       const { status: staleStatus, name: staleName, id: staleId } = stalePromoInfo;
       rows.push(kv('Last promo:', `<span style="color:#34d399;font-size:11px">✓ Fix committed after last ${staleStatus}</span><br><span style="color:#94a3b8;font-size:10px">${sfPromoLink(staleName, staleId)}</span>`));
     }
-    if (dependencies.length > 0) {
-      const depLines = dependencies.map(d => {
-        const samePromo = d.parentInSamePromo;
-        const ahead     = d.parentAhead || samePromo;
-        const envCol    = samePromo ? '#1ab8e8' : (d.parentAhead ? '#34d399' : '#f59e0b');
-        const envIcon   = samePromo ? '↗' : (d.parentAhead ? '✓' : '⚠');
-        const relLabel  = d.relationshipType ? `<span style="color:#475569;font-size:9px;margin-left:4px">[${d.relationshipType}]</span>` : '';
-        const samePromoNote = samePromo && d.promoName
-          ? `<span style="color:#1ab8e8;font-size:9px;margin-left:6px">· in ${d.promoName}</span>`
-          : '';
-        return `<div style="margin-top:4px;display:flex;align-items:baseline;gap:0;flex-wrap:wrap">` +
-          sfStoryLink(d.parentName, d.parentId, 'color:#f8fafc;font-size:11px;font-weight:600') +
-          (d.parentEnv      ? `<span style="color:${envCol};font-size:10px"> · ${envIcon} ${d.parentEnv}</span>` : '') +
-          (d.parentDeveloper ? `<span style="color:#94a3b8;font-size:10px"> · ${d.parentDeveloper}</span>` : '') +
-          relLabel + samePromoNote +
-          `</div>`;
-      }).join('');
-      const hasRealBlocked = dependencies.some(d => !d.parentAhead && !d.parentInSamePromo);
-      const allSamePromo   = dependencies.every(d => d.parentInSamePromo);
-      const borderCol = hasRealBlocked ? '#b45309' : (allSamePromo ? '#1e4a6e' : '#065f46');
-      const titleCol  = hasRealBlocked ? '#d97706' : (allSamePromo ? '#1ab8e8' : '#34d399');
-      const title     = hasRealBlocked
-        ? '⚠ Parent not yet ahead — Force to promote anyway'
-        : allSamePromo
-        ? '↗ Parent also in this promotion — promoted together'
-        : '✓ Parent already ahead in pipeline';
-      rows.push(`<div style="margin-top:6px;padding:8px 12px;background:rgba(217,119,6,0.07);border-left:2px solid ${borderCol};border-radius:0 4px 4px 0">` +
-        `<div style="color:${titleCol};font-size:10px;font-weight:700;letter-spacing:0.4px;margin-bottom:2px">${title}</div>` +
-        depLines +
-        `</div>`);
-    }
+    // (dependency detail now shown as a tlRow in the timeline column)
 
     // Not-eligible badge: culprit Merge Conflict or In Progress
     let notEligibleBadge = '';
@@ -1599,12 +1569,24 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 
     // Dependencies
     if (dependencies.length > 0) {
-      const hasBlocked = dependencies.some(d => !d.parentAhead && !d.parentInSamePromo);
-      const depNames = dependencies.map(d => {
-        const col = d.parentInSamePromo ? '#1ab8e8' : d.parentAhead ? '#4ade80' : '#fb923c';
-        return sfStoryLink(d.parentName, d.parentId, `color:${col};font-size:10px`);
-      }).join(', ');
-      tlItems.push(tlRow(hasBlocked ? 'warn' : 'ok', 'Parent Dep', `<span style="font-size:10px">${depNames}</span>`));
+      const hasBlocked  = dependencies.some(d => !d.parentAhead && !d.parentInSamePromo);
+      const allSamePromo = dependencies.every(d => d.parentInSamePromo);
+      const dot = hasBlocked ? 'warn' : allSamePromo ? 'idle' : 'ok';
+      const depHtml = dependencies.map(d => {
+        const samePromo = d.parentInSamePromo;
+        const ahead     = d.parentAhead || samePromo;
+        const col       = samePromo ? '#1ab8e8' : (ahead ? '#4ade80' : '#fb923c');
+        const envIcon   = samePromo ? '↗' : (ahead ? '✓' : '⚠');
+        const envPart   = d.parentEnv       ? `<span style="color:${col};font-size:10px"> · ${envIcon} ${d.parentEnv}</span>` : '';
+        const devPart   = d.parentDeveloper ? `<span style="color:#475569;font-size:10px"> · ${d.parentDeveloper}</span>` : '';
+        const relPart   = d.relationshipType ? `<span style="color:#334155;font-size:9px"> [${d.relationshipType}]</span>` : '';
+        const promoPart = (samePromo && d.promoName) ? `<span style="color:#1ab8e8;font-size:9px"> · in ${d.promoName}</span>` : '';
+        return `<div style="display:flex;align-items:baseline;flex-wrap:wrap">`
+          + sfStoryLink(d.parentName, d.parentId, `color:${col};font-size:11px;font-weight:600`)
+          + envPart + devPart + relPart + promoPart
+          + `</div>`;
+      }).join('');
+      tlItems.push(tlRow(dot, 'Parent Dep', `<div style="display:flex;flex-direction:column;gap:2px">${depHtml}</div>`));
     }
 
     // XML type issues
