@@ -125076,6 +125076,7 @@ function parseCopadoError(err) {
   }
   return str;
 }
+process.env.GIT_TERMINAL_PROMPT = "0";
 function toHttpsUrl(url) {
   if (!url) return url;
   const match = url.match(/^git@([^:]+):(.+)$/);
@@ -125564,7 +125565,11 @@ async function main() {
       emit({ type: "git-clone-start", repoName: detectedRepoName });
       (0, import_fs.mkdirSync)(tempBase, { recursive: true });
       try {
-        await simpleGit().clone(toHttpsUrl(repoUri), effectiveRepoPath, ["--no-checkout"]);
+        await simpleGit({
+          progress({ method, stage, progress }) {
+            emit({ type: "git-clone-progress", stage, percent: Math.round(progress) });
+          }
+        }).clone(toHttpsUrl(repoUri), effectiveRepoPath, ["--no-checkout"]);
       } catch (err) {
         emit({ type: "fatal", message: `git clone failed: ${String(err)}` });
         return;

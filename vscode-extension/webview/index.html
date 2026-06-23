@@ -1880,7 +1880,13 @@ window.addEventListener('message', (event) => {
   }
 
   else if (msg.type === 'git-clone-start') {
-    setStatus('info', `First-time setup: cloning ${msg.repoName} from GitHub (one-time only, please wait)...`, true);
+    setStatus('info', `First-time setup: cloning ${msg.repoName} from GitHub (one-time only)... 0%`, true);
+  }
+
+  else if (msg.type === 'git-clone-progress') {
+    const pct = msg.percent ?? 0;
+    const stage = msg.stage ? `${msg.stage}: ` : '';
+    setStatus('info', `Cloning repository... ${stage}${pct}%`, true);
   }
 
   else if (msg.type === 'git-clone-done') {

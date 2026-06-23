@@ -17,7 +17,7 @@ interface StoryResult {
   message?: string;
 }
 
-const RUN_TIMEOUT_MS = 600_000; // 10 minutes — first-time clone can take several minutes
+const RUN_TIMEOUT_MS = 1_500_000; // 25 minutes — first-time clone of large repos can take a while
 
 export class PromoterPanel {
   public static currentPanel: PromoterPanel | undefined;
@@ -212,7 +212,7 @@ export class PromoterPanel {
       proc.kill();
       this.activeProc = null;
       this.activeTimer = null;
-      this.post({ type: 'fatal', message: 'Timed out after 2 minutes. Check org connectivity and try again.' });
+      this.post({ type: 'fatal', message: 'Timed out after 25 minutes. Check org connectivity and try again.' });
     }, RUN_TIMEOUT_MS);
 
     proc.stdout.on('data', (chunk: Buffer) => {

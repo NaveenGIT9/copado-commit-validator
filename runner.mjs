@@ -23,6 +23,10 @@ function parseCopadoError(err) {
   return str;
 }
 
+// Prevent git from blocking forever waiting for credentials on non-interactive machines.
+// Without this, a git clone that needs auth will hang silently on a piped stdout.
+process.env.GIT_TERMINAL_PROMPT = '0';
+
 // Converts SSH git URLs to HTTPS so cloning works without SSH host key setup.
 // git@github.com:org/repo.git  →  https://github.com/org/repo.git
 function toHttpsUrl(url) {
@@ -608,7 +612,11 @@ async function main() {
       emit({ type: 'git-clone-start', repoName: detectedRepoName });
       mkdirSync(tempBase, { recursive: true });
       try {
-        await simpleGit().clone(toHttpsUrl(repoUri), effectiveRepoPath, ['--no-checkout']);
+        await simpleGit({
+          progress({ method, stage, progress }) {
+            emit({ type: 'git-clone-progress', stage, percent: Math.round(progress) });
+          },
+        }).clone(toHttpsUrl(repoUri), effectiveRepoPath, ['--no-checkout']);
       } catch (err) {
         emit({ type: 'fatal', message: `git clone failed: ${String(err)}` });
         return;
