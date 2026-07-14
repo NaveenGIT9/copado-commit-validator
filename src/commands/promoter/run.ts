@@ -10,6 +10,7 @@ interface StoryRecord {
   copado__Org_Credential__c: string;
   copado__Project__c: string;
   copado__Status__c: string;
+  copado__Environment__r?: { Name: string } | null;
 }
 
 interface CommitRecord {
@@ -75,7 +76,7 @@ export default class PromoterRun extends SfCommand<void> {
     let stories: StoryRecord[] = [];
     try {
       const result = await conn.query<StoryRecord>(
-        `SELECT Id, Name, copado__Org_Credential__c, copado__Project__c, copado__Status__c ` +
+        `SELECT Id, Name, copado__Org_Credential__c, copado__Project__c, copado__Status__c, copado__Environment__r.Name ` +
         `FROM copado__User_Story__c WHERE Name IN (${nameList})`
       );
       stories = result.records;
@@ -108,18 +109,10 @@ export default class PromoterRun extends SfCommand<void> {
       });
       return;
     }
-    if (projects.size > 1) {
-      this.emit({
-        type: 'validation-error',
-        message: `Project mismatch — stories belong to ${projects.size} different Copado projects. All stories must be in the same project.`,
-      });
-      return;
-    }
-
     this.emit({
       type: 'validation-pass',
       credentialId: [...credentials][0],
-      projectId: [...projects][0],
+      projectId: projects.size === 1 ? [...projects][0] : null,
     });
 
     // Step 3: Git fetch to refresh remote refs

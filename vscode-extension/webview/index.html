@@ -395,6 +395,17 @@
         Auto Merge &amp; Deploy
       </label>
     </div>
+    <div style="margin-top:6px;display:flex;align-items:center;gap:6px">
+      <span style="font-size:10px;color:#475569">View by:</span>
+      <button id="groupByProjectBtn" onclick="setGroupBy('project')"
+              style="padding:2px 10px;font-size:10px;border-radius:3px;cursor:pointer;border:1px solid rgba(26,184,232,0.5);background:rgba(26,184,232,0.15);color:#1ab8e8;outline:none">
+        Project
+      </button>
+      <button id="groupByEnvBtn" onclick="setGroupBy('env')"
+              style="padding:2px 10px;font-size:10px;border-radius:3px;cursor:pointer;border:1px solid rgba(26,184,232,0.2);background:transparent;color:#2a6a8a;outline:none">
+        Source Environment
+      </button>
+    </div>
     <div id="promoteList" style="margin-top:8px;font-size:11px;color:#7fc9e0;line-height:1.6"></div>
     <div id="reVerifyForceWrap" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(245,158,11,0.2)">
       <button onclick="reVerifyForceStories()"
@@ -412,7 +423,8 @@
 <script>
 const vscode = acquireVsCodeApi();
 
-let cleanStories       = [];   // [{name, id, projectId, credentialId, dstEnvName, skipped}]
+let cleanStories       = [];   // [{name, id, projectId, credentialId, sourceEnvName, dstEnvName, skipped}]
+let groupByEnv         = false; // toggle: group promote list by source environment instead of project
 let verifiedStoryNames = new Set(); // all story names that came back from verify (uppercased), for culprit-in-list check
 let storyWarningMap    = new Map(); // upperName → lastPromoWarning | null, for sibling tag rendering
 let currentOrg         = '';
@@ -458,6 +470,23 @@ function renderCustomFieldsTooltip() {
 }
 
 
+function setGroupBy(mode) {
+  groupByEnv = mode === 'env';
+  const projBtn = document.getElementById('groupByProjectBtn');
+  const envBtn  = document.getElementById('groupByEnvBtn');
+  if (projBtn) {
+    projBtn.style.background   = groupByEnv ? 'transparent'              : 'rgba(26,184,232,0.15)';
+    projBtn.style.color        = groupByEnv ? '#2a6a8a'                  : '#1ab8e8';
+    projBtn.style.borderColor  = groupByEnv ? 'rgba(26,184,232,0.2)'     : 'rgba(26,184,232,0.5)';
+  }
+  if (envBtn) {
+    envBtn.style.background    = groupByEnv ? 'rgba(26,184,232,0.15)'    : 'transparent';
+    envBtn.style.color         = groupByEnv ? '#1ab8e8'                  : '#2a6a8a';
+    envBtn.style.borderColor   = groupByEnv ? 'rgba(26,184,232,0.5)'     : 'rgba(26,184,232,0.2)';
+  }
+  updatePromoteCount();
+}
+
 function updatePromoteCount() {
   const visible = activeDestTab
     ? cleanStories.filter(s => (s.dstEnvName ?? '').toLowerCase() === activeDestTab)
@@ -480,15 +509,19 @@ function updatePromoteList() {
   const allIncluded  = visibleStories.every(s => !s.skipped);
   const noneIncluded = visibleStories.every(s => s.skipped);
 
-  // Group all eligible stories (including skipped) by project
+  // Group eligible stories by project or source environment based on toggle
   const groupOrder = [];
   const groups = {};
   for (const s of visibleStories) {
-    if (!groups[s.projectId]) {
-      groups[s.projectId] = { name: s.projectName || s.projectId, stories: [] };
-      groupOrder.push(s.projectId);
+    const key  = groupByEnv ? (s.sourceEnvName || s.projectId || '__unknown__')
+                            : (s.projectId || '__unknown__');
+    const name = groupByEnv ? (s.sourceEnvName || s.projectName || key)
+                            : (s.projectName || key);
+    if (!groups[key]) {
+      groups[key] = { name, stories: [] };
+      groupOrder.push(key);
     }
-    groups[s.projectId].stories.push(s);
+    groups[key].stories.push(s);
   }
 
   const headerHtml = `
@@ -503,6 +536,8 @@ function updatePromoteList() {
 
   const storiesHtml = groupOrder.map(pid => {
     const g = groups[pid];
+    const allGrpIncl  = g.stories.every(s => !s.skipped);
+    const groupCbId   = 'grpcb_' + pid.replace(/[^a-z0-9]/gi, '_');
     const rowsHtml = g.stories.map(s => {
       const included = !s.skipped;
       const nameCol  = included ? '#e2f4fb' : '#2a4455';
@@ -530,7 +565,14 @@ function updatePromoteList() {
       </div>`;
     }).join('');
     return `<div style="margin-bottom:10px">
-      <div style="font-size:9px;font-weight:700;color:#1ab8e8;text-transform:uppercase;letter-spacing:0.9px;padding:3px 0 4px;border-bottom:1px solid rgba(26,184,232,0.15);margin-bottom:4px">${g.name}</div>
+      <div style="display:flex;align-items:center;gap:6px;font-size:9px;font-weight:700;color:#1ab8e8;text-transform:uppercase;letter-spacing:0.9px;padding:3px 0 4px;border-bottom:1px solid rgba(26,184,232,0.15);margin-bottom:4px">
+        <label style="display:flex;align-items:center;gap:3px;cursor:pointer;flex-shrink:0;padding:2px 5px;border:1px solid rgba(26,184,232,0.25);border-radius:3px;background:rgba(26,184,232,0.07)" title="Select / deselect all stories in this group">
+          <input type="checkbox" id="${groupCbId}" class="pl-grp-cb" data-group-key="${pid}" ${allGrpIncl ? 'checked' : ''}
+                 style="width:12px;height:12px;accent-color:#1ab8e8;cursor:pointer;flex-shrink:0" />
+          <span style="font-size:8px;color:rgba(26,184,232,0.75);letter-spacing:0;text-transform:none;font-weight:700;line-height:1">all</span>
+        </label>
+        ${g.name}
+      </div>
       ${rowsHtml}
     </div>`;
   }).join('');
@@ -542,6 +584,19 @@ function updatePromoteList() {
 
   const selectAllCb = document.getElementById('selectAllCb');
   if (selectAllCb && !allIncluded && !noneIncluded) selectAllCb.indeterminate = true;
+
+  // Helper: recompute indeterminate/checked state for all group checkboxes
+  function syncGroupCbs() {
+    el.querySelectorAll('.pl-grp-cb').forEach(grpCb => {
+      const key = grpCb.dataset.groupKey;
+      const g   = groups[key];
+      if (!g) return;
+      const allGrp  = g.stories.every(s => !s.skipped);
+      const noneGrp = g.stories.every(s => s.skipped);
+      grpCb.checked       = allGrp;
+      grpCb.indeterminate = !allGrp && !noneGrp;
+    });
+  }
 
   // Select All / Deselect All — operates only on the currently visible (tab-filtered) stories
   selectAllCb?.addEventListener('change', () => {
@@ -557,7 +612,36 @@ function updatePromoteList() {
       if (skipCb) skipCb.checked = !include;
       if (sepCb && !include) sepCb.checked = false;
     }
+    el.querySelectorAll('.pl-grp-cb').forEach(grpCb => { grpCb.checked = include; grpCb.indeterminate = false; });
     updatePromoteCount();
+  });
+
+  // Per-group select-all checkbox
+  el.querySelectorAll('.pl-grp-cb').forEach(cb => {
+    const key = cb.dataset.groupKey;
+    const g   = groups[key];
+    if (g) {
+      const allGrp  = g.stories.every(s => !s.skipped);
+      const noneGrp = g.stories.every(s => s.skipped);
+      if (!allGrp && !noneGrp) cb.indeterminate = true;
+    }
+    cb.addEventListener('change', () => {
+      const g = groups[cb.dataset.groupKey];
+      if (!g) return;
+      const include = cb.checked;
+      for (const s of g.stories) {
+        s.skipped = !include;
+        if (!include) s.separate = false;
+        const plCb = el.querySelector(`.pl-include-cb[data-story="${s.name}"]`);
+        if (plCb) plCb.checked = include;
+        const row = document.getElementById('row-' + s.name.replace(/[^a-z0-9]/gi, '_'));
+        const mainSkip = row?.querySelector(`.skip-story-cb[data-story="${s.name}"]`);
+        const mainSep  = row?.querySelector(`.separate-promo-cb[data-story="${s.name}"]`);
+        if (mainSkip) mainSkip.checked = !include;
+        if (mainSep && !include) mainSep.checked = false;
+      }
+      updatePromoteCount();
+    });
   });
 
   // Per-story include checkbox
@@ -573,6 +657,7 @@ function updatePromoteList() {
       const mainSep  = row?.querySelector(`.separate-promo-cb[data-story="${name}"]`);
       if (mainSkip) mainSkip.checked = !cb.checked;
       if (mainSep && !cb.checked) mainSep.checked = false;
+      syncGroupCbs();
       updatePromoteCount();
     });
   });
@@ -593,6 +678,8 @@ function updatePromoteList() {
       updatePromoteCount();
     });
   });
+
+  syncGroupCbs();
 }
 
 
@@ -1027,26 +1114,36 @@ function promote() {
   for (const s of storiesToPromote) {
     // separate wins over retriggerGroup: user explicitly checked the box → own new promotion.
     // retriggerGroup: checkbox unchecked → re-trigger the shared old promotion.
-    // Otherwise: group by project + source credential.
+    // Otherwise: group by source environment (when toggled) or by project + credential.
     const key = s.separate       ? `__separate__${s.name}`
               : s.retriggerGroup ? `__retrigger__${s.retriggerGroup}`
+              : groupByEnv       ? `__env__${s.sourceEnvName || s.projectId}`
               : `${s.projectId}::${s.credentialId}`;
     if (!groupMap[key]) {
-      groupMap[key] = { projectId: s.projectId, credentialId: s.credentialId, stories: [], storyIds: [], storyDevelopers: [],
-        // When separate: create new promo + copy attachments. When re-trigger: re-trigger old promo.
+      groupMap[key] = { projectId: s.projectId, credentialId: s.credentialId,
+        sourceEnvName: s.sourceEnvName ?? null,
+        _projectIds: new Set([s.projectId]),
+        stories: [], storyIds: [], storyDevelopers: [],
         retriggerPromotionId:             s.separate ? null : (s.retriggerPromotionId ?? null),
         retriggerPromotionName:           s.separate ? null : (s.retriggerPromotionName ?? null),
         deployOnly:                       s.separate ? false : (s.deployOnly ?? false),
         conflictResolvedSourcePromoId:    s.separate ? (s.conflictResolvedSourcePromoId ?? null) : null,
         conflictResolvedLatestCommit:     s.separate ? (s.latestCommitDate ?? null) : null,
         conflictResolvedPromoLastMod:     s.separate ? (s.promoLastModifiedDate ?? null) : null };
+    } else {
+      groupMap[key]._projectIds?.add(s.projectId);
     }
     groupMap[key].stories.push(s.name);
     groupMap[key].storyIds.push(s.id);
     groupMap[key].storyDevelopers.push(s.developer ?? '');
   }
 
-  const groups       = Object.values(groupMap);
+  // For env-grouped groups spanning multiple projects: set projectId to null so Promotion.Project stays blank
+  const groups = Object.values(groupMap).map(g => {
+    if (g._projectIds && g._projectIds.size > 1) g.projectId = null;
+    delete g._projectIds;
+    return g;
+  });
   const totalStories = storiesToPromote.length;
   const mergeDeployAfter = document.getElementById('autoMergeDeploy').checked;
   document.getElementById('promoteBtn').disabled = true;
@@ -1072,6 +1169,8 @@ function reset() {
   verifiedStoryNames   = new Set();
   storyWarningMap      = new Map();
   forcePromoStoryNames = new Set();
+  groupByEnv           = false;
+  setGroupBy('project');
   document.getElementById('promoteList').textContent = '';
   document.getElementById('pipelineNamesBar').style.display = 'none';
   document.getElementById('pipelineNamesBar').textContent = '';
@@ -1973,6 +2072,7 @@ window.addEventListener('message', (event) => {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,
           projectName: msg.projectName ?? '',
+          sourceEnvName: msg.srcEnvName ?? null,
           dstEnvName: msg.dstEnvName ?? null,
           // Innocent Merge Conflict always separate. CR multi-story defaults unchecked (re-trigger).
           separate: false,
@@ -2006,6 +2106,7 @@ window.addEventListener('message', (event) => {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,
           projectName: msg.projectName ?? '',
+          sourceEnvName: msg.srcEnvName ?? null,
           dstEnvName: msg.dstEnvName ?? null,
           separate: false, skipped: false,
           developer: msg.storyDeveloper ?? '',
@@ -2038,6 +2139,7 @@ window.addEventListener('message', (event) => {
           name: msg.storyName, id: msg.storyId,
           projectId: msg.projectId, credentialId: msg.credentialId,
           projectName: msg.projectName ?? '',
+          sourceEnvName: msg.srcEnvName ?? null,
           dstEnvName: msg.dstEnvName ?? null,
           separate: false, skipped: false,
           developer: msg.storyDeveloper ?? '',
@@ -2053,6 +2155,7 @@ window.addEventListener('message', (event) => {
         name: msg.storyName, id: msg.storyId,
         projectId: msg.projectId, credentialId: msg.credentialId,
         projectName: msg.projectName ?? '',
+        sourceEnvName: msg.srcEnvName ?? null,
         dstEnvName: msg.dstEnvName ?? null,
         separate: false, skipped: false,
         developer: msg.storyDeveloper ?? '',

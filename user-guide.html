@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Copado Commit Validator — User Guide</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #020d18;
+    --bg2:      #031525;
+    --bg3:      #041c30;
+    --accent:   #1ab8e8;
+    --accent2:  #0d7ab5;
+    --text:     #90d8f0;
+    --dim:      #2a6a8a;
+    --white:    #e0f4ff;
+    --green:    #34d399;
+    --yellow:   #f59e0b;
+    --red:      #f87171;
+    --orange:   #f97316;
+    --border:   rgba(26,184,232,0.18);
+    --border2:  rgba(26,184,232,0.08);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: linear-gradient(160deg, var(--bg) 0%, var(--bg2) 50%, var(--bg3) 100%);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13.5px;
+    line-height: 1.65;
+    min-height: 100vh;
+    display: flex;
+  }
+
+  /* ── Sidebar ── */
+  nav {
+    width: 240px;
+    min-width: 240px;
+    background: rgba(3,21,37,0.95);
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  nav::-webkit-scrollbar { width: 4px; }
+  nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .nav-logo {
+    padding: 0 18px 18px;
+    border-bottom: 1px solid var(--border2);
+    margin-bottom: 10px;
+  }
+  .nav-logo h2 {
+    font-size: 11px; font-weight: 700; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 1.2px;
+  }
+  .nav-logo p { font-size: 10px; color: var(--dim); margin-top: 2px; }
+
+  .search-wrap { padding: 8px 12px 4px; }
+  .search-wrap input {
+    width: 100%;
+    background: rgba(26,184,232,0.06);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 5px 9px;
+    font-size: 11px;
+    outline: none;
+  }
+  .search-wrap input::placeholder { color: var(--dim); }
+  .search-wrap input:focus { border-color: var(--accent); }
+
+  nav ul { list-style: none; padding: 6px 0; }
+  nav ul li a {
+    display: block;
+    padding: 5px 18px;
+    font-size: 11px;
+    color: var(--dim);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  nav ul li a:hover,
+  nav ul li a.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: rgba(26,184,232,0.05);
+  }
+  nav ul li.nav-group {
+    padding: 10px 18px 3px;
+    font-size: 9px; font-weight: 700;
+    color: rgba(42,106,138,0.7);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+
+  /* ── Main content ── */
+  main {
+    flex: 1;
+    padding: 40px 48px;
+    max-width: 900px;
+  }
+
+  .hero {
+    margin-bottom: 40px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--border2);
+  }
+  .hero h1 { font-size: 22px; font-weight: 700; color: var(--white); margin-bottom: 6px; }
+  .hero p  { font-size: 13px; color: var(--dim); max-width: 620px; }
+
+  h2 {
+    font-size: 15px; font-weight: 700; color: var(--white);
+    margin: 44px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border2);
+    scroll-margin-top: 24px;
+  }
+  h3 {
+    font-size: 12.5px; font-weight: 700; color: var(--accent);
+    margin: 22px 0 8px;
+    scroll-margin-top: 24px;
+  }
+  p  { margin-bottom: 10px; color: var(--text); }
+  ul, ol { padding-left: 20px; margin-bottom: 10px; }
+  li { margin-bottom: 4px; }
+  strong { color: var(--white); font-weight: 600; }
+  code {
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 11.5px;
+    background: rgba(26,184,232,0.08);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: var(--accent);
+  }
+
+  /* ── Cards / sections ── */
+  .card {
+    background: rgba(26,184,232,0.04);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 14px;
+  }
+  .card-title {
+    font-size: 11px; font-weight: 700; color: var(--white);
+    text-transform: uppercase; letter-spacing: 0.6px;
+    margin-bottom: 8px;
+  }
+
+  .info-box {
+    background: rgba(26,184,232,0.07);
+    border: 1px solid rgba(26,184,232,0.25);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 12.5px;
+  }
+  .warn-box {
+    background: rgba(245,158,11,0.07);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 12.5px;
+    color: #fcd34d;
+  }
+  .tip-box {
+    background: rgba(52,211,153,0.06);
+    border: 1px solid rgba(52,211,153,0.25);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 12.5px;
+    color: #6ee7b7;
+  }
+
+  /* ── Badges (match the tool UI exactly) ── */
+  .badge {
+    display: inline-block;
+    font-size: 11px; font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 4px;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .badge-green  { background: rgba(52,211,153,0.1);  color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
+  .badge-yellow { background: rgba(245,158,11,0.1);  color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+  .badge-red    { background: rgba(248,81,73,0.1);   color: #f85149; border: 1px solid rgba(248,81,73,0.35); }
+  .badge-blue   { background: rgba(26,184,232,0.1);  color: #1ab8e8; border: 1px solid rgba(26,184,232,0.35); }
+  .badge-dim    { background: rgba(148,163,184,0.1); color: #94a3b8; border: 1px solid rgba(148,163,184,0.25); }
+  .badge-orange { background: rgba(249,115,22,0.1);  color: #f97316; border: 1px solid rgba(249,115,22,0.3); }
+
+  /* ── Term table ── */
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 12.5px; margin: 12px 0;
+  }
+  th {
+    text-align: left; padding: 7px 12px;
+    background: rgba(26,184,232,0.07);
+    border-bottom: 1px solid var(--border);
+    color: var(--dim); font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border2);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(26,184,232,0.03); }
+
+  /* ── Verdict row ── */
+  .verdict-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border2);
+  }
+  .verdict-row:last-child { border-bottom: none; }
+  .verdict-label { min-width: 170px; }
+  .verdict-desc  { flex: 1; font-size: 12.5px; }
+
+  /* Highlight searched term */
+  mark { background: rgba(26,184,232,0.25); color: var(--white); border-radius: 2px; padding: 0 2px; }
+
+  /* Scroll highlight */
+  section { scroll-margin-top: 20px; }
+
+  /* Divider */
+  hr { border: none; border-top: 1px solid var(--border2); margin: 30px 0; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════  SIDEBAR  ══════════════════ -->
+<nav id="sidebar">
+  <div class="nav-logo">
+    <h2>Commit Validator</h2>
+    <p>End-user reference guide</p>
+  </div>
+  <div class="search-wrap">
+    <input type="text" id="sideSearch" placeholder="Search terms…" oninput="filterSearch(this.value)" />
+  </div>
+  <ul>
+    <li class="nav-group">Getting started</li>
+    <li><a href="#what-is-this">What is this tool?</a></li>
+    <li><a href="#how-to-use">How to use it</a></li>
+
+    <li class="nav-group">Core concepts</li>
+    <li><a href="#user-story">User Story</a></li>
+    <li><a href="#promotion">Promotion</a></li>
+    <li><a href="#pipeline">Pipeline &amp; Environments</a></li>
+    <li><a href="#commits">Registered vs Unregistered Commits</a></li>
+    <li><a href="#base-branch">Base Branch / Parent Story</a></li>
+    <li><a href="#deployment-tasks">Deployment Tasks</a></li>
+    <li><a href="#pr-approval">PR Approval</a></li>
+
+    <li class="nav-group">Commit verdicts</li>
+    <li><a href="#verdict-clean">✓ Clean</a></li>
+    <li><a href="#verdict-covered">Covered (same author)</a></li>
+    <li><a href="#verdict-needs-verify">Needs Verify</a></li>
+    <li><a href="#verdict-unregistered">Unregistered Commits</a></li>
+    <li><a href="#verdict-no-commits">No Commits</a></li>
+
+    <li class="nav-group">Promotion statuses</li>
+    <li><a href="#status-inprogress">In Progress / In Queue</a></li>
+    <li><a href="#status-merge-conflict">Merge Conflict</a></li>
+    <li><a href="#status-conflicts-resolved">Conflicts Resolved</a></li>
+    <li><a href="#status-completed-errors">Completed with Errors</a></li>
+    <li><a href="#status-validation-failed">Validation Failed</a></li>
+    <li><a href="#status-validated">Validated</a></li>
+    <li><a href="#stale-promo">Stale Promotion</a></li>
+
+    <li class="nav-group">Eligibility &amp; actions</li>
+    <li><a href="#promotable">Promotable? column</a></li>
+    <li><a href="#force-promote">Force Promote</a></li>
+    <li><a href="#separate-promo">Separate Promo checkbox</a></li>
+    <li><a href="#skip-checkbox">Skip checkbox</a></li>
+    <li><a href="#resolution-attachments">Resolution Attachments</a></li>
+    <li><a href="#dependencies">Story Dependencies</a></li>
+    <li><a href="#retrigger">Re-trigger</a></li>
+  </ul>
+</nav>
+
+<!-- ══════════════════  MAIN CONTENT  ══════════════════ -->
+<main id="mainContent">
+
+  <div class="hero">
+    <h1>Copado Commit Validator — User Guide</h1>
+    <p>A plain-English reference for every term, badge, status, and checkbox you see in the tool. Use the sidebar or search to jump to what you need.</p>
+  </div>
+
+  <!-- ═══════  GETTING STARTED  ═══════ -->
+  <section id="what-is-this">
+    <h2>What is this tool?</h2>
+    <p>The <strong>Copado Commit Validator</strong> is a VSCode extension that helps you check whether your Salesforce User Stories are ready to promote through the Copado pipeline — before you actually promote them.</p>
+    <p>It does three things:</p>
+    <ol>
+      <li>Reads your Copado org to understand each story's commits, tests, approvals, and last promotion state.</li>
+      <li>Compares those against the actual Git branch to catch commits that Copado doesn't know about yet.</li>
+      <li>Shows you a table of results, flags problems, and lets you create promotions directly from the UI.</li>
+    </ol>
+    <div class="info-box">
+      Think of it as a <strong>pre-flight checklist</strong> — it tells you what would block a promotion before Copado even tries.
+    </div>
+  </section>
+
+  <section id="how-to-use">
+    <h2>How to use it</h2>
+    <ol>
+      <li>Open the extension panel in VSCode.</li>
+      <li>Enter your story names (one per line or comma-separated) in the text box.</li>
+      <li>Select your <strong>Org Alias</strong> (the Copado org to query) and your local <strong>Git Repo Path</strong>.</li>
+      <li>Click <strong>Verify</strong>. The tool fetches data and builds the results table.</li>
+      <li>Review each story's verdict and eligibility status.</li>
+      <li>Check/uncheck the stories you want to promote, then click <strong>Promote Eligible Stories</strong>.</li>
+    </ol>
+    <div class="tip-box">
+      The tool also has a <strong>Fetch Ready</strong> mode that auto-loads all stories from a QA or UAT list view — so you don't need to type story names manually.
+    </div>
+  </section>
+
+  <hr />
+
+  <!-- ═══════  CORE CONCEPTS  ═══════ -->
+  <section id="user-story">
+    <h2>User Story</h2>
+    <p>A <strong>User Story</strong> (e.g. <code>US-0024914</code>) is a Copado record that represents a unit of work — a feature, bug fix, or configuration change. It has:</p>
+    <ul>
+      <li>A dedicated Git feature branch (<code>feature/US-0024914</code>)</li>
+      <li>A source environment (the sandbox where development happened)</li>
+      <li>Registered commits, metadata components, and optionally tests and deployment tasks</li>
+    </ul>
+  </section>
+
+  <section id="promotion">
+    <h2>Promotion</h2>
+    <p>A <strong>Promotion</strong> (e.g. <code>P27860</code>) is a Copado record that groups one or more User Stories together and moves them from one environment to the next in the pipeline.</p>
+    <p>When you click <em>Promote</em> in this tool, it:</p>
+    <ol>
+      <li>Creates a new <code>copado__Promotion__c</code> record in Salesforce.</li>
+      <li>Links your selected stories to it.</li>
+      <li>Optionally triggers <strong>Merge &amp; Deploy</strong> in Copado automatically.</li>
+    </ol>
+    <table>
+      <tr><th>Term</th><th>Meaning</th></tr>
+      <tr><td><strong>Merge &amp; Deploy</strong></td><td>Copado merges the story branches into the target environment branch AND deploys the metadata to the target org.</td></tr>
+      <tr><td><strong>Deploy Changes</strong></td><td>Skip the merge step — only deploy metadata. Used when the merge was already done manually.</td></tr>
+      <tr><td><strong>Re-trigger</strong></td><td>Run Merge &amp; Deploy again on an existing promotion (no new record created). Used after resolving conflicts.</td></tr>
+    </table>
+  </section>
+
+  <section id="pipeline">
+    <h2>Pipeline &amp; Environments</h2>
+    <p>A <strong>Pipeline</strong> defines the promotion path: DEV → QA → UAT → PROD. Each step is an <strong>Environment</strong>.</p>
+    <p>In the results table you will see a column like <code>RBKDEV1 → RBKQA</code> — this is the story's <strong>source environment → destination environment</strong>. The tool auto-detects this from the story's assigned org and the pipeline configuration.</p>
+    <div class="info-box">
+      <strong>Pipeline level</strong>: internally the tool assigns a numeric level to each environment (0 = DEV, higher = closer to PROD). This is used to determine whether a parent story is "ahead" of a child story.
+    </div>
+  </section>
+
+  <section id="commits">
+    <h2>Registered vs Unregistered Commits</h2>
+    <p>Every time a developer commits code via Copado's "Commit Changes" UI, Copado creates a <code>copado__User_Story_Commit__c</code> record. These are <strong>registered commits</strong> — Copado knows about them.</p>
+    <p><strong>Unregistered commits</strong> are commits on the feature branch in Git that Copado has no record of. They may have been:</p>
+    <ul>
+      <li>Committed directly via Git (bypassing Copado's UI)</li>
+      <li>Auto-generated by tooling (e.g. source API version bumps)</li>
+      <li>Amended/rebased commits that Copado's SHA no longer matches</li>
+    </ul>
+    <div class="warn-box">
+      Unregistered commits don't always block promotion — the tool checks whether they only touch components already declared in the story's metadata list. See the <a href="#verdict-covered" style="color:#fcd34d">Covered</a> verdict below.
+    </div>
+    <h3>Copado Auto-commits</h3>
+    <p>Some commits are made automatically by Copado pipelines — for example, bumping <code>sourceApiVersion</code> or clearing PMD rulesets. The tool detects these by their commit message prefix and <strong>always exempts them</strong> — they never block promotion.</p>
+  </section>
+
+  <section id="base-branch">
+    <h2>Base Branch / Parent Story</h2>
+    <p>A story's <strong>Base Branch</strong> (<code>copado__Base_Branch__c</code>) tells Copado which branch to diff against. If it points to another story's feature branch (e.g. <code>feature/US-0004674</code>), that story is the <strong>Parent Story</strong>.</p>
+    <p>The tool detects this and checks whether the parent story is already in a higher environment than the child. If not:</p>
+    <div class="warn-box">
+      <strong>Parent Story Not Promoted</strong> — the child story will be blocked. The parent must be promoted first.
+    </div>
+  </section>
+
+  <section id="deployment-tasks">
+    <h2>Deployment Tasks</h2>
+    <p><strong>Deployment Tasks</strong> (also called Job Steps — <code>copado__JobStep__c</code>) are manual tasks, data sets, or scripts attached to a story that run as part of deployment. Examples: insert a Custom Metadata record, run a data migration script.</p>
+    <p>If a story has no commits but has deployment tasks, it is still considered promotable. If it has neither commits nor deployment tasks, the tool flags it as <span class="badge badge-dim">No Commits</span> and excludes it.</p>
+  </section>
+
+  <section id="pr-approval">
+    <h2>PR Approval</h2>
+    <p><strong>Pull Request Approval</strong> — the field <code>copado__Pull_Requests_Approved__c</code> on the User Story. When checked in Copado, it means a senior developer or reviewer has approved the code changes in GitHub.</p>
+    <p>If this is <code>false</code> and the story has commits, the tool blocks promotion with a <strong>"PR not approved"</strong> warning. Stories with no commits are exempt from this check.</p>
+  </section>
+
+  <hr />
+
+  <!-- ═══════  COMMIT VERDICTS  ═══════ -->
+  <section id="verdict-clean">
+    <h2>✓ Clean</h2>
+    <span class="badge badge-green">✓ Clean</span>
+    <p style="margin-top:10px">Every commit on the feature branch is registered in Copado. There are no extra commits. This is the ideal state — the story is ready to promote from a commit standpoint.</p>
+  </section>
+
+  <section id="verdict-covered">
+    <h2>Covered (same author)</h2>
+    <span class="badge badge-green">✓ Covered — same author</span>
+    <p style="margin-top:10px">There are unregistered commits, but:</p>
+    <ul>
+      <li>All the files they touch are already declared in the story's Copado metadata list, <strong>AND</strong></li>
+      <li>The author of those commits matches the author of the registered commits.</li>
+    </ul>
+    <p>This usually means the developer forgot to click "Commit" in Copado but the code is effectively the same scope. The tool treats this as safe to promote.</p>
+  </section>
+
+  <section id="verdict-needs-verify">
+    <h2>Needs Verify</h2>
+    <span class="badge badge-yellow">⚠ Needs Verify</span>
+    <p style="margin-top:10px">Unregistered commits exist, all their components are covered in the metadata list, but the <strong>author is different</strong> from the story's registered commit author. This could mean:</p>
+    <ul>
+      <li>A second developer pushed changes to this branch.</li>
+      <li>A commit was amended and the committer email changed.</li>
+    </ul>
+    <p>The tool flags this for human review — a DevOps admin should confirm the changes are intentional before promoting.</p>
+  </section>
+
+  <section id="verdict-unregistered">
+    <h2>Unregistered Commits</h2>
+    <span class="badge badge-red">✗ Unregistered Commits</span>
+    <p style="margin-top:10px">Unregistered commits exist AND at least one of them touches a component that is <strong>not</strong> declared in the story's Copado metadata list. This means Copado won't deploy those components — they'll silently be missing from the promotion.</p>
+    <p>The developer must go back to Copado, register those commits, and add the missing components to the story's metadata before this story can promote.</p>
+    <div class="warn-box">
+      Also shown when a commit has a Copado status of <strong>"Commit not in branch"</strong> or any non-Failed, non-Complete status — these always block regardless of coverage.
+    </div>
+  </section>
+
+  <section id="verdict-no-commits">
+    <h2>No Commits</h2>
+    <span class="badge badge-dim">— No Commits</span>
+    <p style="margin-top:10px">The story's feature branch exists but has no commits ahead of the base branch, and Copado has no registered commits for this story. This can mean:</p>
+    <ul>
+      <li>Development hasn't started yet.</li>
+      <li>The branch was created but never committed to.</li>
+      <li>The story only has <a href="#deployment-tasks">Deployment Tasks</a> (no metadata changes) — in that case it's still eligible.</li>
+    </ul>
+    <p>Stories with truly no commits AND no deployment tasks are excluded from promotion.</p>
+  </section>
+
+  <hr />
+
+  <!-- ═══════  PROMOTION STATUSES  ═══════ -->
+  <section id="status-inprogress">
+    <h2>In Progress / In Queue</h2>
+    <span class="badge badge-yellow">⏳ In Progress — P27860</span>
+    <p style="margin-top:10px">A Copado Job Execution (JE) for this promotion is currently <strong>running or queued</strong>. This is the authoritative check — the tool looks at the actual Job Execution status, not just the promotion record's status field.</p>
+    <ul>
+      <li><strong>In Queue</strong> — Copado has accepted the request and is waiting to start.</li>
+      <li><strong>In Progress</strong> — Merge &amp; Deploy is actively running.</li>
+    </ul>
+    <p>If the job has been running for <strong>45+ minutes</strong>, the badge turns red and shows "possibly stuck" — this usually means the Copado job hung and may need to be cancelled manually.</p>
+    <p>While a job is running, the story is <strong>not eligible</strong> for a new promotion.</p>
+  </section>
+
+  <section id="status-merge-conflict">
+    <h2>Merge Conflict</h2>
+    <span class="badge badge-red">⚠ Merge Conflict — P27860</span>
+    <p style="margin-top:10px">Copado attempted to merge the story's branch into the target environment branch and found conflicting changes. The promotion is stuck until the conflict is resolved manually.</p>
+
+    <h3>Culprit story (the one that caused it)</h3>
+    <p>The tool parses the Copado Job Execution error message to identify which story's branch caused the conflict. That story shows the red <span class="badge badge-red">⚠ Merge Conflict</span> badge and is <strong>Not Eligible</strong> for a new promotion until the conflict is resolved.</p>
+
+    <h3>Innocent story (the others in the same promotion)</h3>
+    <span class="badge badge-blue">ℹ Not yet merged in P27860 — conflict caused by US-XXXXX</span>
+    <p style="margin-top:10px">Other stories in the same promotion that didn't cause the conflict are called <strong>Innocent</strong>. They are still eligible but should be promoted separately (in their own new promotion) so they don't get stuck waiting for the conflict to be resolved.</p>
+    <p>The tool automatically checks the merge order to tell you whether an innocent story:</p>
+    <ul>
+      <li>Was already merged into the promotion before the conflict happened (safe to separate), or</li>
+      <li>Had not been merged yet when the conflict occurred.</li>
+    </ul>
+  </section>
+
+  <section id="status-conflicts-resolved">
+    <h2>Conflicts Resolved</h2>
+    <span class="badge badge-yellow">⚠ Conflicts resolved — re-initiate promotion</span>
+    <p style="margin-top:10px">A developer has manually resolved the merge conflict on the promotion branch in Git and the promotion status was updated to <strong>Conflicts Resolved</strong>. The promotion is ready to be re-triggered — Copado can now complete the merge.</p>
+
+    <h3>Single-story Conflicts Resolved</h3>
+    <p>The promotion only contained one story. The tool marks the story as eligible and will <strong>re-trigger</strong> the same existing promotion when you click Promote.</p>
+
+    <h3>Multi-story Conflicts Resolved</h3>
+    <p>Multiple stories were in the promotion. The tool shows a special checkbox in the <strong>Separate Promo</strong> column:</p>
+    <ul>
+      <li><strong>Unchecked (default)</strong> — re-trigger the same existing promotion for all sibling stories together.</li>
+      <li><strong>Checked</strong> — create a brand new separate promotion for just this story.</li>
+    </ul>
+    <p>See <a href="#resolution-attachments">Resolution Attachments</a> for what the label under this checkbox means.</p>
+  </section>
+
+  <section id="status-completed-errors">
+    <h2>Completed with Errors</h2>
+    <span class="badge badge-yellow">✗ Failed — no fix commit</span>
+    <p style="margin-top:10px">The promotion ran but Copado reported deployment errors (Apex test failures, missing dependencies, etc.). The promotion status is <strong>Completed with errors</strong>.</p>
+    <p>If the story is <strong>solo</strong> in that promotion and no new fix commit has been made since the failure, the tool flags it as <em>not auto-eligible</em>. The developer needs to fix the issue and commit again — then the tool will pick up the fix and the story becomes eligible.</p>
+    <div class="info-box">
+      If the story was in a <strong>multi-story</strong> promotion when it failed, the tool can't attribute the failure to one specific story — so all stories in a multi-story failed promotion are still treated as eligible.
+    </div>
+  </section>
+
+  <section id="status-validation-failed">
+    <h2>Validation Failed</h2>
+    <span class="badge badge-yellow">✗ Validation failed — no fix commit</span>
+    <p style="margin-top:10px">Same as <em>Completed with errors</em> but specifically for a <strong>validation-only</strong> deployment run. The Apex tests or metadata validation failed. A fix commit is required before the story can be promoted again.</p>
+  </section>
+
+  <section id="status-validated">
+    <h2>Validated</h2>
+    <span class="badge badge-yellow">⚠ Validated only — not deployed</span>
+    <p style="margin-top:10px">The promotion ran a <strong>validation</strong> (dry-run check) successfully — metadata and tests passed — but the changes were <em>not</em> actually deployed to the target org. This is a common two-step deployment approach.</p>
+    <p>When you promote a <strong>Validated</strong> story, the tool skips the merge step and only triggers <strong>Deploy Changes</strong> to complete the deployment using Copado's quick-deploy mechanism.</p>
+  </section>
+
+  <section id="stale-promo">
+    <h2>Stale Promotion</h2>
+    <span class="badge badge-green">✓ Fix committed after last Completed with errors</span>
+    <p style="margin-top:10px">A promotion shows a warning status (e.g. <em>Completed with errors</em>, <em>Merge Conflict</em>) but a <strong>newer commit was registered after that promotion was last modified</strong>. This means the developer has already addressed the issue.</p>
+    <p>The tool ignores the old promotion warning and treats the story as if it has no warning — i.e., the story becomes normally eligible. The "stale promo" info row in the table confirms what the old promotion's status was and that it's been superseded.</p>
+    <div class="tip-box">
+      <strong>Staleness check:</strong> the tool compares <code>copado__Latest_Commit_Date__c</code> (and the latest unregistered commit date from Git) against the promotion's <code>LastModifiedDate</code>. If any commit is newer → the promotion is stale.
+    </div>
+  </section>
+
+  <hr />
+
+  <!-- ═══════  ELIGIBILITY & ACTIONS  ═══════ -->
+  <section id="promotable">
+    <h2>Promotable? column</h2>
+    <p>This column summarises whether the story is ready to promote. The result is a combination of all the checks below:</p>
+
+    <div class="card">
+      <div class="card-title">What makes a story eligible (✓ Yes)</div>
+      <ul>
+        <li>Commit verdict is <strong>Clean</strong>, <strong>Covered</strong>, or <strong>No Commits + has deployment tasks</strong></li>
+        <li>No failed Apex tests linked to the story</li>
+        <li>PR is approved (or story has no commits)</li>
+        <li>Apex test class is linked (if story has Apex code)</li>
+        <li>No parent story blocking it</li>
+        <li>No dependency blocking it (all parent stories are ahead)</li>
+        <li>Last promotion is not in a warning state — OR it's Conflicts Resolved / Innocent conflict</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Blockers shown in this column</div>
+      <table>
+        <tr><th>Blocker</th><th>What it means</th></tr>
+        <tr><td><strong>PR not approved</strong></td><td>The <em>Pull Requests Approved</em> checkbox on the story is unchecked.</td></tr>
+        <tr><td><strong>No Apex test linked</strong></td><td>Story has Apex classes but no test record in Copado.</td></tr>
+        <tr><td><strong>Parent story not promoted</strong></td><td>This story's Base Branch points to another story that hasn't been promoted yet.</td></tr>
+        <tr><td><strong>Dependency not ahead</strong></td><td>A story this one depends on (via <code>copado__Team_Dependency__c</code>) is still in the same or lower environment.</td></tr>
+        <tr><td><strong>No commits, no tasks</strong></td><td>Story has nothing to deploy — no registered commits and no deployment tasks.</td></tr>
+        <tr><td><strong>In Progress</strong></td><td>A Copado job is currently running for this story's promotion.</td></tr>
+        <tr><td><strong>Merge Conflict (culprit)</strong></td><td>This story's branch is causing a conflict in an active promotion.</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section id="force-promote">
+    <h2>Force Promote</h2>
+    <p>The <strong>Force</strong> checkbox appears next to stories that are technically eligible (clean commits, tests passing) but have a blocking condition that the tool cannot automatically resolve:</p>
+    <ul>
+      <li><strong>Last promotion failed with no fix commit</strong> — the developer hasn't pushed a fix yet, but you want to retry anyway.</li>
+      <li><strong>Dependency not ahead</strong> — a parent story hasn't been promoted yet, but you know it's safe to proceed.</li>
+    </ul>
+    <div class="warn-box">
+      Force promoting ignores safety checks. Use with caution — if the underlying issue isn't actually resolved, the promotion will likely fail again in Copado.
+    </div>
+    <p>When force stories are in the list, a <strong>Re-Verify Force Stories</strong> button appears — click it to re-check just those stories to see if the developer has committed a fix since the last verify run.</p>
+  </section>
+
+  <section id="separate-promo">
+    <h2>Separate Promo checkbox</h2>
+    <p>When checked, this story will be placed in its <strong>own new promotion</strong> instead of being grouped with other stories from the same project and environment.</p>
+
+    <h3>When does this checkbox appear?</h3>
+    <table>
+      <tr><th>Scenario</th><th>Default state</th><th>What happens</th></tr>
+      <tr>
+        <td>Normal eligible story</td>
+        <td>Unchecked</td>
+        <td>Grouped with other stories from the same project + environment into one promotion</td>
+      </tr>
+      <tr>
+        <td>Innocent Merge Conflict story</td>
+        <td>Unchecked (you decide)</td>
+        <td>Always creates a separate promotion for this story regardless</td>
+      </tr>
+      <tr>
+        <td>Conflicts Resolved (multi-story)</td>
+        <td>Unchecked</td>
+        <td>Unchecked = re-trigger old promotion. Checked = new separate promotion + copy resolution attachments</td>
+      </tr>
+    </table>
+  </section>
+
+  <section id="skip-checkbox">
+    <h2>Skip checkbox</h2>
+    <p>The <strong>Skip</strong> checkbox (shown in the promote summary panel) lets you exclude a specific story from the current promote run, even if it's eligible. Useful when:</p>
+    <ul>
+      <li>You're promoting a batch but one story needs to wait.</li>
+      <li>You want to promote stories individually to control order.</li>
+    </ul>
+    <p>Skipped stories stay visible in the promote summary with a strikethrough — they're not removed, just excluded from the current batch.</p>
+  </section>
+
+  <section id="resolution-attachments">
+    <h2>Resolution Attachments</h2>
+    <p>When a developer resolves a merge conflict in Copado, Copado stores the resolved file content as <strong>Attachment</strong> records on the Promotion object. These are named <code>RESOLVED &lt;StoryName&gt; &lt;filepath&gt;</code>.</p>
+    <p>When you promote a <strong>Conflicts Resolved multi-story</strong> and check <em>Separate Promo</em>, the tool can <strong>copy these resolution attachments</strong> from the old promotion to the new one — so Copado knows not to re-prompt the developer to resolve the same conflict again.</p>
+
+    <h3>The label under the Separate Promo checkbox</h3>
+    <div class="verdict-row">
+      <div class="verdict-label">
+        <span style="font-size:11px;color:#5a8a9f;font-weight:600">[resolution attachments will be copied for this US if any]</span>
+      </div>
+      <div class="verdict-desc">
+        The latest commit on the story is <strong>older</strong> than when the conflict was resolved. The resolutions still apply to the current code — they will be copied to the new promotion automatically.
+      </div>
+    </div>
+    <div class="verdict-row">
+      <div class="verdict-label">
+        <span style="font-size:11px;color:#f87171;font-weight:600">[resolutions stale — not copied]</span>
+      </div>
+      <div class="verdict-desc">
+        The developer <strong>committed new code after</strong> the conflict was resolved. The RESOLVED files no longer match the current branch state — copying them would cause incorrect resolutions. The tool skips the copy; the developer may need to re-resolve.
+      </div>
+    </div>
+
+    <div class="info-box">
+      <strong>Staleness check:</strong> the tool uses the <em>later</em> of the Copado-registered latest commit date and the latest unregistered Git commit date — so even commits that Copado missed are counted.
+    </div>
+  </section>
+
+  <section id="dependencies">
+    <h2>Story Dependencies</h2>
+    <p>Dependencies are defined via Copado's <code>copado__Team_Dependency__c</code> object. They tell the pipeline that Story A <em>depends on</em> Story B — meaning Story B must be promoted first.</p>
+    <p>The tool checks all dependencies where the current story is the <strong>child/dependent</strong>. For each dependency, it determines:</p>
+    <table>
+      <tr><th>Flag</th><th>Meaning</th></tr>
+      <tr>
+        <td><strong>Parent Ahead</strong></td>
+        <td>The parent story is in a higher pipeline environment than the child — it's already been promoted past the child's current stage. Safe to proceed.</td>
+      </tr>
+      <tr>
+        <td><strong>Parent In Same Promo</strong></td>
+        <td>The parent story is in the same current promotion as the child — they're being promoted together. Treated as safe (not a blocker).</td>
+      </tr>
+      <tr>
+        <td><strong>Blocked</strong></td>
+        <td>Parent is in the same or lower environment and not in the same promotion. The child story is blocked until the parent is promoted.</td>
+      </tr>
+    </table>
+  </section>
+
+  <section id="retrigger">
+    <h2>Re-trigger</h2>
+    <p><strong>Re-triggering</strong> means running Copado's Merge &amp; Deploy on an <em>existing</em> promotion record — no new promotion is created.</p>
+    <p>This is used when:</p>
+    <ul>
+      <li>A <strong>Conflicts Resolved</strong> promotion needs to be re-run after the conflict was fixed.</li>
+      <li>A <strong>Validated</strong> promotion needs to be deployed (quick-deploy).</li>
+    </ul>
+    <p>When you leave the <em>Separate Promo</em> checkbox unchecked for a Conflicts Resolved story, the tool re-triggers the same old promotion. If you check it, a brand-new promotion is created instead.</p>
+    <div class="tip-box">
+      Re-triggering is faster than creating a new promotion — it skips the create + link steps and goes straight to Merge &amp; Deploy.
+    </div>
+  </section>
+
+  <hr />
+  <p style="color:var(--dim);font-size:11px;text-align:center;margin-top:20px">
+    Copado Commit Validator · Internal Reference Guide · Rubrik SFDC DevOps
+  </p>
+</main>
+
+<script>
+  // ── Simple text search highlight ──
+  function filterSearch(query) {
+    const q = query.trim().toLowerCase();
+    const content = document.getElementById('mainContent');
+    if (!q) {
+      // Remove all marks
+      content.querySelectorAll('mark').forEach(m => {
+        m.replaceWith(document.createTextNode(m.textContent));
+      });
+      // Normalise whitespace merged by previous replaceWith
+      content.normalize();
+      return;
+    }
+    // Remove previous marks first
+    content.querySelectorAll('mark').forEach(m => {
+      m.replaceWith(document.createTextNode(m.textContent));
+    });
+    content.normalize();
+
+    // Walk text nodes and wrap matches
+    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const tag = node.parentElement?.tagName?.toLowerCase();
+        return (tag === 'script' || tag === 'style') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+
+    nodes.forEach(node => {
+      const idx = node.textContent.toLowerCase().indexOf(q);
+      if (idx === -1) return;
+      const range = document.createRange();
+      range.setStart(node, idx);
+      range.setEnd(node, idx + q.length);
+      const mark = document.createElement('mark');
+      range.surroundContents(mark);
+      mark.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }
+
+  // ── Active nav link on scroll ──
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('nav ul li a');
+
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        navLinks.forEach(a => a.classList.remove('active'));
+        const active = document.querySelector(`nav a[href="#${e.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>

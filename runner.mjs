@@ -316,53 +316,115 @@ async function main() {
 
       let promotionId;
       try {
-        // Step 1: Get deployment flow from project
-        const projRes = await conn.query(
-          `SELECT copado__Deployment_Flow__c FROM copado__Project__c WHERE Id = '${projectId}'`
-        );
-        const pipelineId = projRes.records[0]?.copado__Deployment_Flow__c;
-        if (!pipelineId) throw new Error(`No deployment flow found on project ${projectId}`);
+        let sourceEnvId, destEnvId, destEnvName, pipelineId;
 
-        // Step 2: Get source org name (e.g. "RBKDEV1") — credentialId is a copado__Org__c record
-        const credRes = await conn.query(
-          `SELECT Name FROM copado__Org__c WHERE Id = '${credentialId}'`
-        );
-        const srcName = credRes.records[0]?.Name;
-        if (!srcName) throw new Error(`Org ${credentialId} not found`);
+        if (projectId === null) {
+          // Env-grouped promote — look up pipeline step by source environment name directly.
+          const sourceEnvName = group.sourceEnvName;
+          if (!sourceEnvName) throw new Error('sourceEnvName missing for env-grouped promotion');
+          const pcRes = await conn.query(
+            `SELECT copado__Deployment_Flow__c, copado__Source_Environment__c, copado__Destination_Environment__c, copado__Destination_Environment__r.Name ` +
+            `FROM copado__Deployment_Flow_Step__c ` +
+            `WHERE copado__Source_Environment__r.Name = '${sourceEnvName}'`
+          );
+          if (pcRes.records.length === 0)
+            throw new Error(`No pipeline step found for source environment '${sourceEnvName}'`);
+          pipelineId  = pcRes.records[0].copado__Deployment_Flow__c ?? null;
+          sourceEnvId = pcRes.records[0].copado__Source_Environment__c;
+          destEnvId   = pcRes.records[0].copado__Destination_Environment__c;
+          if (!destEnvId) throw new Error('Pipeline step has no destination environment');
+          destEnvName = pcRes.records[0]?.copado__Destination_Environment__r?.Name ?? 'Unknown';
+        } else {
+          // Standard project-based promote
+          // Step 1: Get deployment flow from project
+          const projRes = await conn.query(
+            `SELECT copado__Deployment_Flow__c FROM copado__Project__c WHERE Id = '${projectId}'`
+          );
+          pipelineId = projRes.records[0]?.copado__Deployment_Flow__c ?? null;
+          if (!pipelineId) throw new Error(`No deployment flow found on project ${projectId}`);
 
-        // Step 3: Find deployment flow step — get both source and destination environment IDs
-        const pcRes = await conn.query(
-          `SELECT copado__Source_Environment__c, copado__Destination_Environment__c, copado__Destination_Environment__r.Name ` +
-          `FROM copado__Deployment_Flow_Step__c ` +
-          `WHERE copado__Deployment_Flow__c = '${pipelineId}' ` +
-          `AND copado__Source_Environment__r.Name = '${srcName}'`
-        );
-        if (pcRes.records.length === 0)
-          throw new Error(`No pipeline step found for source '${srcName}' in deployment flow ${pipelineId}`);
-        const sourceEnvId = pcRes.records[0].copado__Source_Environment__c;
-        const destEnvId   = pcRes.records[0].copado__Destination_Environment__c;
-        if (!destEnvId) throw new Error(`Pipeline step has no destination environment`);
-        const destEnvName = pcRes.records[0]?.copado__Destination_Environment__r?.Name ?? 'Unknown';
+          // Step 2: Get source environment ID from org credential
+          // Use copado__Environment__c (env ID) not Name — org credential name != environment name
+          const credRes = await conn.query(
+            `SELECT Name, copado__Environment__c FROM copado__Org__c WHERE Id = '${credentialId}'`
+          );
+          if (!credRes.records[0]) throw new Error(`Org ${credentialId} not found`);
+          const srcCredName = credRes.records[0].Name;
+          const srcEnvId = credRes.records[0].copado__Environment__c;
+          if (!srcEnvId) throw new Error(`Org credential ${srcCredName} has no linked environment`);
 
-        // Step 3b: Resolve destination credential (a11-prefix Org__c) from an existing promotion
-        const destCredRes = await conn.query(
-          `SELECT copado__Destination_Org_Credential__c FROM copado__Promotion__c ` +
-          `WHERE copado__Destination_Environment__c = '${destEnvId}' LIMIT 1`
-        );
-        if (destCredRes.records.length === 0)
-          throw new Error(`No existing promotion found to determine destination credential for env ${destEnvId}`);
-        const destCredId = destCredRes.records[0].copado__Destination_Org_Credential__c;
+          // Step 3: Find deployment flow step by environment ID (avoids name mismatch)
+          const pcRes = await conn.query(
+            `SELECT copado__Source_Environment__c, copado__Destination_Environment__c, copado__Destination_Environment__r.Name ` +
+            `FROM copado__Deployment_Flow_Step__c ` +
+            `WHERE copado__Deployment_Flow__c = '${pipelineId}' ` +
+            `AND copado__Source_Environment__c = '${srcEnvId}'`
+          );
+          if (pcRes.records.length === 0)
+            throw new Error(`No pipeline step found for source '${srcCredName}' (env ${srcEnvId}) in deployment flow ${pipelineId}`);
+          sourceEnvId = pcRes.records[0].copado__Source_Environment__c;
+          destEnvId   = pcRes.records[0].copado__Destination_Environment__c;
+          if (!destEnvId) throw new Error('Pipeline step has no destination environment');
+          destEnvName = pcRes.records[0]?.copado__Destination_Environment__r?.Name ?? 'Unknown';
+        }
 
-        // Step 4: Create promotion with source + destination credentials and environments
-        const result = await conn.sobject('copado__Promotion__c').create({
-          copado__Project__c: projectId,
-          copado__Source_Org_Credential__c: credentialId,
+        // Resolve destination org credential from copado__Org__c by environment
+        const destOrgRes = await conn.query(
+          `SELECT Id FROM copado__Org__c WHERE copado__Environment__c = '${destEnvId}' LIMIT 1`
+        );
+        if (destOrgRes.records.length === 0)
+          throw new Error(`No org credential found for destination environment ${destEnvId}`);
+        const destCredId = destOrgRes.records[0].Id;
+        emit({ type: 'debug', message: `Destination credential resolved from env: ${destCredId}` });
+
+        // For env-based promotes (INT→QA), the story's copado__Org_Credential__c is the developer's
+        // DEV sandbox credential — not the INT env credential. Resolve source credential from env too.
+        let sourceCredId = credentialId; // fallback: use story credential (correct for project-based promotes)
+        if (projectId === null) {
+          const srcOrgRes = await conn.query(
+            `SELECT Id FROM copado__Org__c WHERE copado__Environment__c = '${sourceEnvId}' LIMIT 1`
+          );
+          if (srcOrgRes.records.length > 0) {
+            sourceCredId = srcOrgRes.records[0].Id;
+            emit({ type: 'debug', message: `Source credential resolved from env: ${sourceCredId}` });
+          } else {
+            emit({ type: 'debug', message: `No org for source env — falling back to story credential: ${credentialId}` });
+          }
+        }
+
+        // Create promotion — omit copado__Project__c when null (leaves field blank on Salesforce record)
+        const promoFields = {
+          copado__Source_Org_Credential__c: sourceCredId,
           copado__Source_Environment__c: sourceEnvId,
           copado__Destination_Org_Credential__c: destCredId,
           copado__Destination_Environment__c: destEnvId,
           copado__Status__c: 'Draft',
-        });
-        if (!result.success) throw new Error(result.errors?.join(', ') ?? 'Create failed');
+        };
+        // Copado does not allow Pipeline + Project together on a promotion.
+        // If the story has a project, use Project (pipeline is inferred).
+        // If no project, use Pipeline to group cross-project stories.
+        if (projectId !== null) {
+          promoFields.copado__Project__c = projectId;
+        } else if (pipelineId) {
+          promoFields.copado__Pipeline__c = pipelineId;
+        }
+        emit({ type: 'debug', message: `Creating promotion: ${JSON.stringify(promoFields)}` });
+        let result;
+        try {
+          result = await conn.sobject('copado__Promotion__c').create(promoFields);
+        } catch (createErr) {
+          const msg = createErr.message || JSON.stringify(createErr);
+          emit({ type: 'debug', message: `Create threw: ${msg}` });
+          throw new Error(msg);
+        }
+        emit({ type: 'debug', message: `Create result: ${JSON.stringify(result)}` });
+        if (!result.success) {
+          const errMsg = (result.errors ?? [])
+            .map(e => e.message || e.statusCode || JSON.stringify(e))
+            .join('; ') || 'Create failed (no error detail)';
+          emit({ type: 'debug', message: `Create failed: ${errMsg}` });
+          throw new Error(errMsg);
+        }
         promotionId = result.id;
 
         // Fetch the auto-generated promotion name (e.g. P26926)
@@ -372,6 +434,7 @@ async function main() {
         emit({ type: 'promotion-created', promotionId, promotionName, projectId, storyCount: storyIds.length });
         promotionSummary.push({ success: true, projectId, destEnvName, promotionName, promotionId, storyCount: storyIds.length, stories: groupStories.map((name, i) => ({ name, developer: (group.storyDevelopers || [])[i] || '' })) });
       } catch (err) {
+        emit({ type: 'debug', message: `Group create error (${groupStories.join(', ')}): ${String(err)}` });
         promotionSummary.push({ success: false, projectId, promotionId: null, storyCount: groupStories.length, stories: groupStories.map((name, i) => ({ name, developer: (group.storyDevelopers || [])[i] || '' })) });
         for (const name of groupStories) {
           emit({ type: 'promote-result', storyName: name, success: false, error: `Promotion create failed: ${String(err)}` });
@@ -534,7 +597,7 @@ async function main() {
   let stories = [];
   try {
     const result = await conn.query(
-      `SELECT Id, Name, copado__Org_Credential__c, copado__Org_Credential__r.Name, copado__Latest_Commit_Date__c, copado__Project__c, copado__Project__r.Name, copado__Status__c, copado__Pull_Requests_Approved__c, copado__Has_Apex_Code__c, copado__Developer__r.Name, copado__Base_Branch__c${customFieldSelect} ` +
+      `SELECT Id, Name, copado__Org_Credential__c, copado__Org_Credential__r.Name, copado__Environment__c, copado__Environment__r.Name, copado__Latest_Commit_Date__c, copado__Project__c, copado__Project__r.Name, copado__Status__c, copado__Pull_Requests_Approved__c, copado__Has_Apex_Code__c, copado__Developer__r.Name, copado__Base_Branch__c${customFieldSelect} ` +
       `FROM copado__User_Story__c WHERE Name IN (${nameList})`
     );
     stories = result.records;
@@ -806,8 +869,8 @@ async function main() {
                prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
                hasApexCode: story.copado__Has_Apex_Code__c,
                parentStory: null, promotionCount: 0, lastPromotionFailed: false,
-               srcEnvName: story.copado__Org_Credential__r?.Name ?? null,
-               dstEnvName: (() => { const s = story.copado__Org_Credential__r?.Name ?? null; return s ? (pipelineEdges.find(e => e.from === s.toLowerCase())?.to ?? null) : null; })(),
+               srcEnvName: story.copado__Environment__r?.Name ?? story.copado__Org_Credential__r?.Name ?? null,
+               dstEnvName: (() => { const s = story.copado__Environment__r?.Name ?? story.copado__Org_Credential__r?.Name ?? null; return s ? (pipelineEdges.find(e => e.from === s.toLowerCase())?.to ?? null) : null; })(),
                customFields: customFieldConfigs.map(f => ({ label: f.label, value: story[f.apiName] ?? null })),
                verdict: 'error', message: `Branch ${remoteBranch} not found. Check that the correct repo is cloned locally and the path is set correctly.` });
         continue;
@@ -926,11 +989,11 @@ async function main() {
     // Compute env names once — used both for lastPromoWarning comparison and the env column.
     // Name-based lookup is more reliable than ID-based: the story's Org__c record and the
     // pipeline step's Org__c record may be different objects pointing to the same environment.
-    const srcEnvName = story.copado__Org_Credential__r?.Name ?? null;
+    const srcEnvName = story.copado__Environment__r?.Name ?? story.copado__Org_Credential__r?.Name ?? null;
     const dstEnvName = srcEnvName
       ? (pipelineEdges.find(e => e.from === srcEnvName.toLowerCase())?.to ?? null)
       : null;
-    emit({ type: 'debug', message: `env ${story.Name}: credName=${srcEnvName} → dst=${dstEnvName ?? 'NOT FOUND'}` });
+    emit({ type: 'debug', message: `env ${story.Name}: envName=${srcEnvName} → dst=${dstEnvName ?? 'NOT FOUND'}` });
 
     // Check if the story's latest promotion (same source+target) is in a warning state.
     let lastPromoWarning = null; // { status, name, id } | null
@@ -947,7 +1010,7 @@ async function main() {
         `ORDER BY CreatedDate DESC LIMIT 1`;
       const promoRes = await conn.query(soql);
       const latest = promoRes.records[0] ?? null;
-      const storySrc = (story.copado__Org_Credential__r?.Name ?? '').toLowerCase();
+      const storySrc = (story.copado__Environment__r?.Name ?? story.copado__Org_Credential__r?.Name ?? '').toLowerCase();
       const storyDst = dstEnvName?.toLowerCase() ?? '';
       const promoSrc = (latest?.copado__Source_Org_Credential__r?.Name ?? '').toLowerCase();
       const promoDst = (latest?.copado__Destination_Environment__r?.Name ?? '').toLowerCase();

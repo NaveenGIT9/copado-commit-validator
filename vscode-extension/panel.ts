@@ -205,7 +205,7 @@ export class PromoterPanel {
   }
 
   private spawnCommand(args: string[], isFetch = false): void {
-    const proc = spawn(process.execPath, args, { shell: false });
+    const proc = spawn(process.execPath, args, { shell: false, env: { ...process.env, NODE_NO_WARNINGS: '1' } });
     this.activeProc = proc;
 
     this.activeTimer = setTimeout(() => {
