@@ -125707,6 +125707,7 @@ async function main() {
     }
     let storyMetadataNames = /* @__PURE__ */ new Set();
     let xmlTypeMetadata = [];
+    let hasApexMetadata = false;
     try {
       const metaResult = await conn.query(
         `SELECT copado__Metadata_API_Name__c, copado__Type__c FROM copado__User_Story_Metadata__c WHERE copado__User_Story__c = '${story.Id}'`
@@ -125717,6 +125718,7 @@ async function main() {
       xmlTypeMetadata = metaResult.records.filter((r2) => (r2.copado__Type__c ?? "").toLowerCase() === "xml").map((r2) => r2.copado__Metadata_API_Name__c ?? "Unknown");
       if (xmlTypeMetadata.length > 0)
         emit({ type: "debug", message: `${story.Name}: ${xmlTypeMetadata.length} metadata record(s) with Type=xml \u2014 will block promotion: ${xmlTypeMetadata.join(", ")}` });
+      hasApexMetadata = metaResult.records.some((r2) => /^apex/i.test(r2.copado__Type__c ?? ""));
     } catch {
     }
     let storyTests = [];
@@ -126004,6 +126006,7 @@ async function main() {
               );
               mcSiblingStories = mcSibRes.records.map((r2) => ({
                 name: r2.copado__User_Story__r?.Name,
+                env: srcEnvName,
                 credential: r2.copado__User_Story__r?.copado__Org_Credential__r?.Name ?? null,
                 developer: r2.copado__User_Story__r?.copado__Developer__r?.Name ?? null
               })).filter((s) => s.name).filter((s) => s.name.toUpperCase() !== story.Name.toUpperCase());
@@ -126031,10 +126034,11 @@ async function main() {
               if (storyCount > 1) {
                 try {
                   const sibRes = await conn.query(
-                    `SELECT copado__User_Story__r.Name, copado__User_Story__r.copado__Org_Credential__r.Name, copado__User_Story__r.copado__Developer__r.Name FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
+                    `SELECT copado__User_Story__r.Name, copado__User_Story__r.copado__Org_Credential__r.Name, copado__User_Story__r.copado__Environment__r.Name, copado__User_Story__r.copado__Developer__r.Name FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
                   );
                   siblingStories = sibRes.records.map((r2) => ({
                     name: r2.copado__User_Story__r?.Name,
+                    env: srcEnvName,
                     credential: r2.copado__User_Story__r?.copado__Org_Credential__r?.Name ?? null,
                     developer: r2.copado__User_Story__r?.copado__Developer__r?.Name ?? null
                   })).filter((s) => s.name).filter((s) => s.name.toUpperCase() !== story.Name.toUpperCase());
@@ -126049,6 +126053,7 @@ async function main() {
               );
               const siblingStories = sibRes.records.map((r2) => ({
                 name: r2.copado__User_Story__r?.Name,
+                env: srcEnvName,
                 credential: r2.copado__User_Story__r?.copado__Org_Credential__r?.Name ?? null,
                 developer: r2.copado__User_Story__r?.copado__Developer__r?.Name ?? null
               })).filter((s) => s.name).filter((s) => s.name.toUpperCase() !== story.Name.toUpperCase());
@@ -126110,6 +126115,7 @@ async function main() {
       prApproved: story.copado__Pull_Requests_Approved__c,
       hasMetadata: storyMetadataNames.size > 0,
       hasApexCode: story.copado__Has_Apex_Code__c,
+      hasApexMetadata,
       hasDeploymentTasks,
       parentStory,
       promotionCount,

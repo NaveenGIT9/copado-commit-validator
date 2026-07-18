@@ -6,6 +6,21 @@ import * as os from 'os';
 
 const RUNNER_PATH = path.join(__dirname, '..', 'runner.bundle.js');
 
+// VSCode's process.execPath is the Electron binary, not node — Electron's HTTP stack
+// can behave differently (e.g. after a VSCode update). Resolve system node instead.
+const NODE_EXEC_PATH = (() => {
+  try {
+    const r = spawnSync(
+      process.platform === 'win32' ? 'where' : 'which',
+      ['node'],
+      { encoding: 'utf8', shell: false, timeout: 5000 }
+    );
+    const first = (r.stdout ?? '').split(/\r?\n/)[0].trim();
+    if (first) return first;
+  } catch { /* fall through */ }
+  return process.execPath;
+})();
+
 interface StoryResult {
   storyName: string;
   storyId: string;
@@ -135,7 +150,7 @@ export class PromoterPanel {
   private runDescribeFields(orgAlias: string): void {
     if (!orgAlias) return;
     const args = [RUNNER_PATH, '--target-org', orgAlias, '--describe-object', 'copado__User_Story__c'];
-    const proc = spawn(process.execPath, args, { shell: false });
+    const proc = spawn(NODE_EXEC_PATH, args, { shell: false });
     const timer = setTimeout(() => proc.kill(), 30_000);
     let buf = '';
     proc.stdout.on('data', (chunk: Buffer) => {
@@ -205,7 +220,7 @@ export class PromoterPanel {
   }
 
   private spawnCommand(args: string[], isFetch = false): void {
-    const proc = spawn(process.execPath, args, { shell: false, env: { ...process.env, NODE_NO_WARNINGS: '1' } });
+    const proc = spawn(NODE_EXEC_PATH, args, { shell: false, env: { ...process.env, NODE_NO_WARNINGS: '1' } });
     this.activeProc = proc;
 
     this.activeTimer = setTimeout(() => {

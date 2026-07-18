@@ -787,6 +787,7 @@ async function main() {
     // Fetch story metadata component names (for coverage check) and detect 'xml' type records
     let storyMetadataNames = new Set();
     let xmlTypeMetadata = []; // file names whose Type = 'xml' — causes deployment registry errors
+    let hasApexMetadata = false; // true if any USM record has an Apex type (ApexClass, ApexTrigger, ApexPage, etc.)
     try {
       const metaResult = await conn.query(
         `SELECT copado__Metadata_API_Name__c, copado__Type__c FROM copado__User_Story_Metadata__c ` +
@@ -800,6 +801,7 @@ async function main() {
         .map(r => r.copado__Metadata_API_Name__c ?? 'Unknown');
       if (xmlTypeMetadata.length > 0)
         emit({ type: 'debug', message: `${story.Name}: ${xmlTypeMetadata.length} metadata record(s) with Type=xml — will block promotion: ${xmlTypeMetadata.join(', ')}` });
+      hasApexMetadata = metaResult.records.some(r => /^apex/i.test(r.copado__Type__c ?? ''));
     } catch { /* non-fatal — coverage check will be skipped */ }
 
     // Fetch test records
@@ -1158,6 +1160,7 @@ async function main() {
             mcSiblingStories = mcSibRes.records
               .map(r => ({
                 name:       r.copado__User_Story__r?.Name,
+                env:        srcEnvName,
                 credential: r.copado__User_Story__r?.copado__Org_Credential__r?.Name ?? null,
                 developer:  r.copado__User_Story__r?.copado__Developer__r?.Name ?? null,
               }))
@@ -1193,12 +1196,14 @@ async function main() {
               try {
                 const sibRes = await conn.query(
                   `SELECT copado__User_Story__r.Name, copado__User_Story__r.copado__Org_Credential__r.Name, ` +
+                  `copado__User_Story__r.copado__Environment__r.Name, ` +
                   `copado__User_Story__r.copado__Developer__r.Name ` +
                   `FROM copado__Promoted_User_Story__c WHERE copado__Promotion__c = '${promo.Id}'`
                 );
                 siblingStories = sibRes.records
                   .map(r => ({
                     name:       r.copado__User_Story__r?.Name,
+                    env:        srcEnvName,
                     credential: r.copado__User_Story__r?.copado__Org_Credential__r?.Name ?? null,
                     developer:  r.copado__User_Story__r?.copado__Developer__r?.Name ?? null,
                   }))
@@ -1223,6 +1228,7 @@ async function main() {
             const siblingStories = sibRes.records
               .map(r => ({
                 name:       r.copado__User_Story__r?.Name,
+                env:        srcEnvName,
                 credential: r.copado__User_Story__r?.copado__Org_Credential__r?.Name ?? null,
                 developer:  r.copado__User_Story__r?.copado__Developer__r?.Name ?? null,
               }))
@@ -1297,7 +1303,7 @@ async function main() {
       storyDeveloper: story.copado__Developer__r?.Name ?? null,
       tests: storyTests,
       prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
-      hasApexCode: story.copado__Has_Apex_Code__c, hasDeploymentTasks,
+      hasApexCode: story.copado__Has_Apex_Code__c, hasApexMetadata, hasDeploymentTasks,
       parentStory, promotionCount, lastPromoWarning, stalePromoInfo,
       latestCommitDate: story.copado__Latest_Commit_Date__c ?? null,
       latestUnregisteredCommitDate,

@@ -1315,10 +1315,11 @@ function upsertRow(storyName, branch, copadoCommits, extraCommits, unregisteredD
   row.innerHTML = html;
 }
 
-function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null, stalePromoInfo = null, baseBranch = null, dependencies = [], xmlTypeMetadata = [], customFields = []) {
+function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null, stalePromoInfo = null, baseBranch = null, dependencies = [], xmlTypeMetadata = [], customFields = [], hasApexMetadata = false) {
   const failedTests      = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
   const hasApexTest      = (tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || '') || /apex/i.test(t.name || ''));
-  const noApexTestClass  = hasApexCode && !hasApexTest;
+  const noApexTestClass  = hasApexMetadata && !hasApexTest;
+  const apexFlagMismatch = hasApexCode && !hasApexMetadata;
   const noCommits           = verdict === 'skip-no-commits';
   const noCommitsNoTasks    = noCommits && !hasDeploymentTasks;
   const commitOk            = (verdict === 'clean' || verdict === 'skip-covered-same-author' || verdict === 'skip-needs-verify' || noCommits) && !noCommitsNoTasks;
@@ -1378,8 +1379,10 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         ? `<span style="${ERR}">✗ Not approved</span>`
         : `<span style="${OK}">✓ Approved</span>`));
     }
-    if (!noCommits && hasApexCode && !hasApexTest) {
+    if (!noCommits && hasApexMetadata && !hasApexTest) {
       rows.push(kv('Apex Tests:', `<span style="${ERR}">✗ No test record found</span>`));
+    } else if (!noCommits && apexFlagMismatch) {
+      rows.push(kv('Apex Tests:', `<span style="${WARN}">⚠ Has Apex flag but no Apex metadata in story</span>`));
     }
     (tests || []).forEach(t => {
       const ok    = t.status === 'Success';
@@ -1412,7 +1415,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
             : `<span data-sib-tag="${(s.name ?? '').toUpperCase()}" style="color:#475569;font-size:9px;margin-left:8px">● not in list</span>`;
           return `<div style="margin-top:4px;display:flex;align-items:baseline;gap:0;flex-wrap:wrap">` +
             `<span style="color:#f8fafc;font-size:11px;font-weight:600">${s.name ?? ''}</span>` +
-            (s.credential ? `<span style="color:#7dd3fc;font-size:10px"> · ${s.credential}</span>` : '') +
+            ((s.env ?? s.credential) ? `<span style="color:#7dd3fc;font-size:10px"> · ${s.env ?? s.credential}</span>` : '') +
             (s.developer  ? `<span style="color:#94a3b8;font-size:10px"> · ${s.developer}</span>`  : '') +
             statusTag +
             `</div>`;
@@ -1631,9 +1634,10 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     }
 
     // Apex Tests
-    if ((tests || []).length > 0) {
-      const failedT  = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
-      const pendingT = (tests || []).filter(t => t.status !== 'Success' && t.status !== 'Failed' && t.status !== 'Error');
+    const apexTests = (tests || []).filter(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || '') || /apex/i.test(t.name || ''));
+    if (apexTests.length > 0) {
+      const failedT  = apexTests.filter(t => t.status === 'Failed' || t.status === 'Error');
+      const pendingT = apexTests.filter(t => t.status !== 'Success' && t.status !== 'Failed' && t.status !== 'Error');
       const testDot  = failedT.length > 0 ? 'err' : pendingT.length > 0 ? 'warn' : 'ok';
       const testVal  = failedT.length > 0
         ? `<span style="color:#f87171;font-size:11px">${failedT.length} failed</span>`
@@ -1641,8 +1645,10 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         ? `<span style="color:#fb923c;font-size:11px">Pending</span>`
         : `<span style="color:#4ade80;font-size:11px">Passed</span>`;
       tlItems.push(tlRow(testDot, 'Apex Tests', testVal));
-    } else if (!noCommits && hasApexCode && !hasApexTest) {
+    } else if (!noCommits && hasApexMetadata) {
       tlItems.push(tlRow('err', 'Apex Tests', `<span style="color:#f87171;font-size:11px">No test record</span>`));
+    } else if (!noCommits && apexFlagMismatch) {
+      tlItems.push(tlRow('warn', 'Apex Tests', `<span style="color:#fb923c;font-size:11px">Has Apex flag but no Apex metadata in story</span>`));
     }
 
     // Last promo
@@ -1721,7 +1727,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
             : `<span data-sib-tag="${sKey}" style="display:inline-flex;align-items:center;gap:4px;font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(71,85,105,0.15);border:1px solid rgba(71,85,105,0.3);color:#64748b">Not in the list</span>`;
           return `<div style="background:#0d1f35;border:1px solid rgba(26,184,232,0.12);border-radius:7px;padding:9px 11px">
             <div style="font-family:monospace;font-size:13px;color:#e0f4ff;font-weight:700">${s.name ?? ''}</div>
-            ${(s.credential || s.developer) ? `<div style="font-size:10px;color:#3a6a8a;margin-top:3px">${[s.credential, s.developer].filter(Boolean).join(' · ')}</div>` : ''}
+            ${((s.env ?? s.credential) || s.developer) ? `<div style="font-size:10px;color:#3a6a8a;margin-top:3px">${[s.env ?? s.credential, s.developer].filter(Boolean).join(' · ')}</div>` : ''}
             <div style="margin-top:6px">${statusTag}</div>
           </div>`;
         }).join('')}
@@ -2013,7 +2019,7 @@ window.addEventListener('message', (event) => {
     const failedTests     = (msg.tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
     const prBlocked       = msg.hasMetadata && !msg.prApproved;
     const hasApexTest     = (msg.tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || '') || /apex/i.test(t.name || ''));
-    const noApexTestClass = msg.hasApexCode && !hasApexTest;
+    const noApexTestClass = (msg.hasApexMetadata ?? false) && !hasApexTest;
     const parentBlocked       = msg.parentStory && !msg.parentStory.promoted;
     const noCommitsNoTasks    = msg.verdict === 'skip-no-commits' && !msg.hasDeploymentTasks;
     // Compute resolutionsStale for CR multi-story: if developer committed after conflict was resolved,
@@ -2042,7 +2048,7 @@ window.addEventListener('message', (event) => {
       msg.tests, prBlocked, msg.hasApexCode, msg.hasDeploymentTasks ?? false,
       msg.parentStory ?? null, msg.promotionCount ?? 0, lastPromoWarningForRow,
       msg.srcEnvName ?? null, msg.dstEnvName ?? null, msg.stalePromoInfo ?? null, msg.baseBranch ?? null,
-      msg.dependencies ?? [], msg.xmlTypeMetadata ?? [], msg.customFields ?? []
+      msg.dependencies ?? [], msg.xmlTypeMetadata ?? [], msg.customFields ?? [], msg.hasApexMetadata ?? false
     );
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html, msg.dstEnvName);
