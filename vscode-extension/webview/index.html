@@ -1315,7 +1315,7 @@ function upsertRow(storyName, branch, copadoCommits, extraCommits, unregisteredD
   row.innerHTML = html;
 }
 
-function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null, stalePromoInfo = null, baseBranch = null, dependencies = [], xmlTypeMetadata = [], customFields = [], hasApexMetadata = false) {
+function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null, stalePromoInfo = null, baseBranch = null, dependencies = [], xmlTypeMetadata = [], customFields = [], hasApexMetadata = false, storyDeveloper = null) {
   const failedTests      = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
   const hasApexTest      = (tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || '') || /apex/i.test(t.name || ''));
   const noApexTestClass  = hasApexMetadata && !hasApexTest;
@@ -1359,8 +1359,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 
     const rows = [];
     if (baseBranch) {
-      const parentCred = parentStory?.credential
-        ? `<span style="color:#7dd3fc;font-size:10px"> · ${parentStory.credential}</span>`
+      const parentCred = (parentStory?.env ?? parentStory?.credential)
+        ? `<span style="color:#7dd3fc;font-size:10px"> · ${parentStory.env ?? parentStory.credential}</span>`
         : '';
       rows.push(kv('Base branch:', `<span style="color:#fbbf24;font-size:10px">${baseBranch}</span>${parentCred}`));
     }
@@ -1772,9 +1772,9 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       ? `<div style="margin-top:8px"><span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#f87171;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.25);border-radius:4px;padding:3px 10px">✗ Not Promotable</span></div>`
       : `<div style="margin-top:8px"><span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:#4ade80;background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.25);border-radius:4px;padding:3px 10px">✓ Promotable</span></div>`;
 
-  const forceCbHtml = (isForcePromo || isForceDepBlocked) ? `
+  const forceCbHtml = (isForcePromo || isForceDepBlocked || !isPromotable) ? `
     <label style="display:flex;align-items:center;gap:6px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.22);border-radius:20px;padding:5px 14px;cursor:pointer;font-size:10px;color:#b8884a;text-transform:uppercase"
-           title="${isForceDepBlocked ? 'Parent story not yet ahead in pipeline. Check to force-promote anyway.' : 'Last promotion failed with no fix commit. Check to force-promote anyway.'}">
+           title="${!isPromotable && !isForcePromo && !isForceDepBlocked ? 'Story has issues preventing promotion. Check to force-promote anyway.' : isForceDepBlocked ? 'Parent story not yet ahead in pipeline. Check to force-promote anyway.' : 'Last promotion failed with no fix commit. Check to force-promote anyway.'}">
       <input type="checkbox" class="force-promote-cb" data-story="${storyName}" style="width:12px;height:12px;accent-color:#f59e0b;cursor:pointer" />
       Force
     </label>` : '';
@@ -1803,8 +1803,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
        <div data-cr-sibling-note style="display:none;font-size:8px;color:#f97316;margin-top:4px;max-width:110px;white-space:normal;line-height:1.3;text-align:center"></div>`
     : '';
 
-  // ── Developer label ──
-  const devName = (storyCommittedBy || []).length > 0 ? storyCommittedBy[0] : null;
+  // ── Developer label — prefer the Salesforce Developer lookup field ──
+  const devName = storyDeveloper ?? ((storyCommittedBy || []).length > 0 ? storyCommittedBy[0] : null);
 
   // ── Verifying state card ──
   if (isVerifying) {
@@ -1841,7 +1841,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
           <span style="font-size:11px;font-weight:600;color:#a78bfa">${dstEnvName ? dstEnvName.toUpperCase() : '?'}</span>
         </div>` : ''}
         ${devName ? `<div style="font-size:10px;color:#64748b;margin-top:2px">👤 ${devName}</div>` : ''}
-        ${baseBranch ? `<div style="font-size:11px;color:#f59e0b;font-weight:600;margin-top:4px">Base: <span style="color:#fbbf24">${baseBranch}</span>${parentStory?.credential ? `<span style="color:#7dd3fc;font-weight:400"> · ${parentStory.credential}</span>` : ''}</div>` : ''}
+        ${baseBranch ? `<div style="font-size:11px;color:#f59e0b;font-weight:600;margin-top:4px">Base: <span style="color:#fbbf24">${baseBranch}</span>${(parentStory?.env ?? parentStory?.credential) ? `<span style="color:#7dd3fc;font-weight:400"> · ${parentStory.env ?? parentStory.credential}</span>` : ''}</div>` : ''}
         ${identityStatusBadge}
       </div>
       <div class="card-timeline${showPromoPanel ? ' has-border' : ''}">
@@ -2048,7 +2048,8 @@ window.addEventListener('message', (event) => {
       msg.tests, prBlocked, msg.hasApexCode, msg.hasDeploymentTasks ?? false,
       msg.parentStory ?? null, msg.promotionCount ?? 0, lastPromoWarningForRow,
       msg.srcEnvName ?? null, msg.dstEnvName ?? null, msg.stalePromoInfo ?? null, msg.baseBranch ?? null,
-      msg.dependencies ?? [], msg.xmlTypeMetadata ?? [], msg.customFields ?? [], msg.hasApexMetadata ?? false
+      msg.dependencies ?? [], msg.xmlTypeMetadata ?? [], msg.customFields ?? [], msg.hasApexMetadata ?? false,
+      msg.storyDeveloper ?? null
     );
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html, msg.dstEnvName);
@@ -2156,6 +2157,38 @@ window.addEventListener('message', (event) => {
     } else if (dependencyBlocked) {
       // Story is otherwise eligible but a parent story is not yet ahead in the pipeline.
       // Treat same as isFailedPromo: show Force checkbox, not auto-included.
+      forcePromoStoryNames.add(msg.storyName);
+      const entry = {
+        name: msg.storyName, id: msg.storyId,
+        projectId: msg.projectId, credentialId: msg.credentialId,
+        projectName: msg.projectName ?? '',
+        sourceEnvName: msg.srcEnvName ?? null,
+        dstEnvName: msg.dstEnvName ?? null,
+        separate: false, skipped: false,
+        developer: msg.storyDeveloper ?? '',
+        forcePromo: true,
+      };
+      const row = document.getElementById('row-' + msg.storyName.replace(/[^a-z0-9]/gi, '_'));
+      const forceCb = row?.querySelector(`.force-promote-cb[data-story="${msg.storyName}"]`);
+      if (forceCb) {
+        forceCb.addEventListener('change', () => {
+          const idx = cleanStories.findIndex(s => s.name === msg.storyName);
+          if (forceCb.checked && idx === -1) cleanStories.push(entry);
+          else if (!forceCb.checked && idx !== -1) cleanStories.splice(idx, 1);
+          updatePromoteCount();
+          const promoSection = document.getElementById('promote-section');
+          if (cleanStories.length > 0) {
+            promoSection.style.display = 'block';
+            document.getElementById('promoteBtn').disabled = false;
+          } else {
+            promoSection.style.display = 'none';
+          }
+        });
+      }
+      return;
+    } else if (!isEligible) {
+      // Story is not promotable (failed tests, missing apex class, PR not approved, etc.)
+      // Show Force checkbox so user can override.
       forcePromoStoryNames.add(msg.storyName);
       const entry = {
         name: msg.storyName, id: msg.storyId,
