@@ -125644,11 +125644,18 @@ async function main() {
   }
   const credLevel = /* @__PURE__ */ new Map();
   let pipelineEdges = [];
+  const pipelineEnvIdToName = /* @__PURE__ */ new Map();
   try {
     const pipelineFilter = detectedPipelineId ? ` WHERE copado__Deployment_Flow__c = '${detectedPipelineId}'` : "";
     const stepsRes = await conn.query(
       `SELECT copado__Source_Environment__c, copado__Source_Environment__r.Name, copado__Destination_Environment__c, copado__Destination_Environment__r.Name FROM copado__Deployment_Flow_Step__c${pipelineFilter}`
     );
+    for (const s of stepsRes.records) {
+      if (s.copado__Source_Environment__c && s.copado__Source_Environment__r?.Name)
+        pipelineEnvIdToName.set(s.copado__Source_Environment__c, s.copado__Source_Environment__r.Name);
+      if (s.copado__Destination_Environment__c && s.copado__Destination_Environment__r?.Name)
+        pipelineEnvIdToName.set(s.copado__Destination_Environment__c, s.copado__Destination_Environment__r.Name);
+    }
     const edges = stepsRes.records.filter((s) => s.copado__Source_Environment__r?.Name && s.copado__Destination_Environment__r?.Name).map((s) => ({
       from: s.copado__Source_Environment__r.Name.toLowerCase(),
       to: s.copado__Destination_Environment__r.Name.toLowerCase(),
@@ -125676,6 +125683,22 @@ async function main() {
     emit({ type: "pipeline-info", envOrder: pipelineOrderedEnvs });
   } catch (pipelineErr) {
     emit({ type: "debug", message: `pipeline ERROR: ${pipelineErr}` });
+  }
+  async function resolveCredIdsToEnvNames(credIds) {
+    const result = /* @__PURE__ */ new Map();
+    if (!credIds.length) return result;
+    try {
+      const idList = [...new Set(credIds)].map((id) => `'${id}'`).join(", ");
+      const res = await conn.query(`SELECT Id, copado__Environment__c FROM copado__Org__c WHERE Id IN (${idList})`);
+      emit({ type: "debug", message: `resolveCredIds: queried ${credIds.length} cred(s), got ${res.records.length} org records: ${res.records.map((r2) => `${r2.Id}\u2192envId:${r2.copado__Environment__c ?? "NULL"}`).join(", ")} | pipelineEnvIdToName size=${pipelineEnvIdToName.size}` });
+      for (const r2 of res.records) {
+        const envName = pipelineEnvIdToName.get(r2.copado__Environment__c);
+        if (envName) result.set(r2.Id, envName);
+      }
+    } catch (e) {
+      emit({ type: "debug", message: `resolveCredIds error: ${e.message}` });
+    }
+    return result;
   }
   for (const story of stories) {
     const branchName = `feature/${story.Name}`;
@@ -125870,12 +125893,15 @@ async function main() {
       if (parentMatch) {
         const parentName = parentMatch[0];
         const parentRes = await conn.query(
-          `SELECT copado__Org_Credential__r.Name FROM copado__User_Story__c WHERE Name = '${parentName}' LIMIT 1`
+          `SELECT copado__Org_Credential__c, copado__Org_Credential__r.Name, copado__Environment__r.Name FROM copado__User_Story__c WHERE Name = '${parentName}' LIMIT 1`
         );
+        const parentCredId = parentRes.records[0]?.copado__Org_Credential__c ?? null;
         const parentCredName = parentRes.records[0]?.copado__Org_Credential__r?.Name ?? null;
+        const credIdMap = await resolveCredIdsToEnvNames(parentCredId ? [parentCredId] : []);
+        const parentEnvName = parentRes.records[0]?.copado__Environment__r?.Name ?? (parentCredId ? credIdMap.get(parentCredId) : null) ?? null;
         const currentCredName = story.copado__Org_Credential__r?.Name ?? null;
-        const currentLevel = currentCredName ? credLevel.get(currentCredName.toLowerCase()) ?? -1 : -1;
-        const parentLevel = parentCredName ? credLevel.get(parentCredName.toLowerCase()) ?? -1 : -1;
+        const currentLevel = credLevel.get(srcEnvName?.toLowerCase() ?? "") ?? -1;
+        const parentLevel = credLevel.get(parentEnvName?.toLowerCase() ?? "") ?? -1;
         let parentPromoted;
         if (parentCredName && currentCredName && parentCredName === currentCredName) {
           parentPromoted = false;
@@ -125884,7 +125910,7 @@ async function main() {
         } else {
           parentPromoted = true;
         }
-        parentStory = { name: parentName, promoted: parentPromoted, credential: parentCredName };
+        parentStory = { name: parentName, promoted: parentPromoted, env: parentEnvName ?? dstEnvName?.toUpperCase() ?? parentCredName, credential: parentCredName };
       }
     } catch {
     }
@@ -126073,13 +126099,22 @@ async function main() {
     let dependencies = [];
     try {
       const depRes = await conn.query(
-        `SELECT Id, copado__Relationship_Type__c, copado__Provider_User_Story__c, copado__Provider_User_Story__r.Name, copado__Provider_User_Story__r.copado__Org_Credential__r.Name, copado__Provider_User_Story__r.copado__Developer__r.Name FROM copado__Team_Dependency__c WHERE copado__Dependent_User_Story__c = '${story.Id}'`
+        `SELECT Id, copado__Relationship_Type__c, copado__Provider_User_Story__c, copado__Provider_User_Story__r.Name, copado__Provider_User_Story__r.copado__Org_Credential__c, copado__Provider_User_Story__r.copado__Org_Credential__r.Name, copado__Provider_User_Story__r.copado__Environment__r.Name, copado__Provider_User_Story__r.copado__Developer__r.Name FROM copado__Team_Dependency__c WHERE copado__Dependent_User_Story__c = '${story.Id}'`
       );
       const childLevel = credLevel.get(srcEnvName?.toLowerCase() ?? "") ?? -1;
       const siblingNames = new Set((lastPromoWarning?.siblingStories ?? []).map((s) => (s.name ?? "").toUpperCase()));
+      emit({ type: "debug", message: `dep-check ${story.Name}: srcEnvName=${srcEnvName} siblingCount=${siblingNames.size} siblings=[${[...siblingNames].join(",")}]` });
+      const providerCredIds = [...new Set(depRes.records.map((r2) => r2.copado__Provider_User_Story__r?.copado__Org_Credential__c).filter(Boolean))];
+      const provCredToEnv = providerCredIds.length > 0 ? await resolveCredIdsToEnvNames(providerCredIds) : /* @__PURE__ */ new Map();
+      emit({ type: "debug", message: `dep-check ${story.Name}: srcEnvName=${srcEnvName} provCredToEnv=[${[...provCredToEnv.entries()].map(([k2, v]) => `${k2}\u2192${v}`).join(", ")}]` });
       dependencies = depRes.records.map((r2) => {
         const parentName = r2.copado__Provider_User_Story__r?.Name ?? "";
-        const parentEnv = r2.copado__Provider_User_Story__r?.copado__Org_Credential__r?.Name ?? null;
+        const inSamePromo = siblingNames.has(parentName.toUpperCase());
+        const parentCredId = r2.copado__Provider_User_Story__r?.copado__Org_Credential__c ?? null;
+        const directEnv = r2.copado__Provider_User_Story__r?.copado__Environment__r?.Name ?? null;
+        const credEnv = parentCredId ? provCredToEnv.get(parentCredId) ?? null : null;
+        const parentEnv = inSamePromo ? srcEnvName : credLevel.has((directEnv ?? "").toLowerCase()) ? directEnv : credLevel.has((credEnv ?? "").toLowerCase()) ? credEnv : directEnv ?? credEnv ?? r2.copado__Provider_User_Story__r?.copado__Org_Credential__r?.Name ?? null;
+        emit({ type: "debug", message: `dep-resolve ${parentName}: inSamePromo=${inSamePromo} directEnv=${directEnv} credEnv=${credEnv} parentEnv=${parentEnv}` });
         const parentLevel = credLevel.get(parentEnv?.toLowerCase() ?? "") ?? -1;
         return {
           relationshipType: r2.copado__Relationship_Type__c ?? "",
@@ -126088,7 +126123,7 @@ async function main() {
           parentEnv,
           parentDeveloper: r2.copado__Provider_User_Story__r?.copado__Developer__r?.Name ?? null,
           parentAhead: parentLevel > childLevel,
-          parentInSamePromo: siblingNames.has(parentName.toUpperCase()),
+          parentInSamePromo: inSamePromo,
           promoName: lastPromoWarning?.name ?? null
         };
       });
