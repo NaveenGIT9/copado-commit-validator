@@ -974,6 +974,11 @@ function renderPipelineList(pipelines) {
 }
 
 function renderPipelineEnvs(envs, pipelineName) {
+  // Persist any unsaved filter state before wiping the DOM.
+  // Without this, filters set but not explicitly saved are lost when switching pipelines.
+  if (_pipelineEnvs.length) {
+    try { localStorage.setItem('fetchFiltersV3', JSON.stringify(_allEnvFilters())); } catch { /* non-fatal */ }
+  }
   _pipelineEnvs = envs;
   const track = document.getElementById('pipelineEnvTrack');
   const panelsContainer = document.getElementById('pipelineFilterPanels');
