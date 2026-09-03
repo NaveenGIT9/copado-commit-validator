@@ -55,6 +55,7 @@ const fetchEnvs           = args['fetch-envs'] ?? '';
 const fetchReadyToPromote = args['fetch-ready-to-promote'] !== 'false';
 const fetchFiltersJson    = args['filters'] ?? '';
 const doDescribeObject    = args['describe-object'] ?? '';
+const pipelineRepoUri     = args['pipeline-repo-uri'] ?? '';
 
 // Build a SOQL WHERE fragment from a dynamic filter state {logic, rows[{field, op, value}]}.
 function buildFilterClause(filters) {
@@ -204,18 +205,23 @@ async function main() {
       const stepsRes = await conn.query(
         `SELECT copado__Source_Environment__c, copado__Source_Environment__r.Name, ` +
         `copado__Destination_Environment__c, copado__Destination_Environment__r.Name, ` +
-        `copado__Deployment_Flow__c, copado__Deployment_Flow__r.Name ` +
+        `copado__Deployment_Flow__c, copado__Deployment_Flow__r.Name, ` +
+        `copado__Deployment_Flow__r.copado__Git_Repository__r.copado__URI__c ` +
         `FROM copado__Deployment_Flow_Step__c`
       );
 
       // Group steps by pipeline
-      const pipelineMap = new Map(); // pipelineId → { name, edges[], envIdToName }
+      const pipelineMap = new Map(); // pipelineId → { name, repoUri, edges[], envIdToName }
       for (const s of stepsRes.records) {
         const pid  = s.copado__Deployment_Flow__c;
         const pname = s.copado__Deployment_Flow__r?.Name ?? pid ?? 'Unknown';
         if (!pid) continue;
-        if (!pipelineMap.has(pid)) pipelineMap.set(pid, { name: pname, edges: [], envNames: new Set() });
+        if (!pipelineMap.has(pid)) pipelineMap.set(pid, { name: pname, repoUri: '', edges: [], envNames: new Set() });
         const p = pipelineMap.get(pid);
+        // Capture git repo URI from first step that has it
+        if (!p.repoUri) {
+          p.repoUri = s.copado__Deployment_Flow__r?.copado__Git_Repository__r?.copado__URI__c ?? '';
+        }
         const srcName  = s.copado__Source_Environment__r?.Name;
         const destName = s.copado__Destination_Environment__r?.Name;
         if (srcName)  p.envNames.add(srcName);
@@ -242,6 +248,7 @@ async function main() {
 
       const pipelines = [...pipelineMap.values()].map(p => ({
         name: p.name,
+        repoUri: p.repoUri,
         envs: bfsOrder(p.edges, p.envNames),
       })).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -689,6 +696,14 @@ async function main() {
     detectedPipelineName = rec?.copado__Project__r?.copado__Deployment_Flow__r?.Name ?? '';
     if (repoUri) emit({ type: 'git-repo-url', url: toHttpsUrl(repoUri).replace(/\.git$/, '') });
   } catch { /* non-fatal */ }
+
+  // If the user selected a specific pipeline in the UI, its repo URI overrides whatever
+  // the story's project chain returned (story may belong to a different pipeline's project).
+  if (pipelineRepoUri) {
+    repoUri = pipelineRepoUri;
+    detectedRepoName = repoNameFromUri(pipelineRepoUri);
+    emit({ type: 'git-repo-url', url: toHttpsUrl(pipelineRepoUri).replace(/\.git$/, '') });
+  }
 
   // Resolve which local git path to use.
   // If --repo-path was given and is a valid git dir, use it.

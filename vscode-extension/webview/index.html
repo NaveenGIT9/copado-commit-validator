@@ -420,6 +420,7 @@ let mergeDeployResults = [];   // [{success, promotionId, jobId?, error?}]
 let isPartialReVerify  = false; // true when re-verifying only force-promote stories
 let forcePromoStoryNames = new Set(); // ALL stories flagged as isFailedPromo (regardless of Force checkbox)
 let pipelineEnvOrder   = [];   // env names sorted by pipeline BFS level (lowest→highest)
+let _selectedPipelineRepoUri = ''; // git repo URI of the pipeline the user clicked
 let activeDestTab      = null; // currently selected destination tab (null = show all)
 let customFieldDefs    = [];   // [{label, apiName}] from Promoter_Config__mdt — empty if MDT not deployed
 
@@ -684,7 +685,7 @@ function reVerifyForceStories() {
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
   setStatus('info', `Re-verifying ${count} force stor${count === 1 ? 'y' : 'ies'}...`, true);
-  vscode.postMessage({ command: 'verify', stories: [...forcePromoStoryNames].join(','), orgAlias, repoPath });
+  vscode.postMessage({ command: 'verify', stories: [...forcePromoStoryNames].join(','), orgAlias, repoPath, pipelineRepoUri: _selectedPipelineRepoUri });
 }
 
 // ── Project grouping state ─────────────────────────────────────────────────
@@ -960,6 +961,7 @@ function renderPipelineList(pipelines) {
         b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
       });
       chip.style.background = '#4f7ef7'; chip.style.color = '#ffffff'; chip.style.borderColor = '#4f7ef7';
+      _selectedPipelineRepoUri = p.repoUri ?? '';
       renderPipelineEnvs(p.envs, p.name);
     };
     track.appendChild(chip);
@@ -1165,7 +1167,7 @@ function verify() {
   populateDatalist('orgAliasList', 'orgAliasHistory');
   populateDatalist('repoPathList', 'repoPathHistory');
 
-  vscode.postMessage({ command: 'verify', stories, orgAlias, repoPath });
+  vscode.postMessage({ command: 'verify', stories, orgAlias, repoPath, pipelineRepoUri: _selectedPipelineRepoUri });
 }
 
 function abort() {

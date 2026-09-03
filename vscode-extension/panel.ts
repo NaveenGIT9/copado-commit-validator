@@ -118,6 +118,7 @@ export class PromoterPanel {
     stories?: string;
     orgAlias?: string;
     repoPath?: string;
+    pipelineRepoUri?: string;
     envType?: string;
     filterJson?: string;
     url?: string;
@@ -127,7 +128,7 @@ export class PromoterPanel {
   }): void {
     if (msg.command === 'verify') {
       this.saveOrgHistory(msg.orgAlias ?? '');
-      this.runVerify(msg.stories ?? '', msg.orgAlias ?? '', msg.repoPath ?? '');
+      this.runVerify(msg.stories ?? '', msg.orgAlias ?? '', msg.repoPath ?? '', msg.pipelineRepoUri ?? '');
     } else if (msg.command === 'promote') {
       this.saveOrgHistory(msg.orgAlias ?? '');
       this.runPromote(msg.groups ?? [], msg.orgAlias ?? '', msg.mergeDeployAfter ?? false);
@@ -207,7 +208,7 @@ export class PromoterPanel {
     this.post({ type: 'aborted' });
   }
 
-  private runVerify(stories: string, orgAlias: string, repoPath: string): void {
+  private runVerify(stories: string, orgAlias: string, repoPath: string, pipelineRepoUri = ''): void {
     const storyList = stories.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).join(',');
     this.post({ type: 'run-start' });
 
@@ -216,6 +217,7 @@ export class PromoterPanel {
       '--stories', storyList,
       '--target-org', orgAlias,
       ...(repoPath ? ['--repo-path', repoPath] : []),
+      ...(pipelineRepoUri ? ['--pipeline-repo-uri', pipelineRepoUri] : []),
     ];
     this.spawnCommand(args);
   }
