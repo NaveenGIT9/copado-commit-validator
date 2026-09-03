@@ -421,6 +421,7 @@ let isPartialReVerify  = false; // true when re-verifying only force-promote sto
 let forcePromoStoryNames = new Set(); // ALL stories flagged as isFailedPromo (regardless of Force checkbox)
 let pipelineEnvOrder   = [];   // env names sorted by pipeline BFS level (lowest→highest)
 let _selectedPipelineRepoUri = ''; // git repo URI of the pipeline the user clicked
+let _selectedPipelineId      = ''; // Salesforce record ID of the selected pipeline
 let activeDestTab      = null; // currently selected destination tab (null = show all)
 let customFieldDefs    = [];   // [{label, apiName}] from Promoter_Config__mdt — empty if MDT not deployed
 
@@ -685,7 +686,7 @@ function reVerifyForceStories() {
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
   setStatus('info', `Re-verifying ${count} force stor${count === 1 ? 'y' : 'ies'}...`, true);
-  vscode.postMessage({ command: 'verify', stories: [...forcePromoStoryNames].join(','), orgAlias, repoPath, pipelineRepoUri: _selectedPipelineRepoUri });
+  vscode.postMessage({ command: 'verify', stories: [...forcePromoStoryNames].join(','), orgAlias, repoPath, pipelineRepoUri: _selectedPipelineRepoUri, pipelineId: _selectedPipelineId });
 }
 
 // ── Project grouping state ─────────────────────────────────────────────────
@@ -962,6 +963,7 @@ function renderPipelineList(pipelines) {
       });
       chip.style.background = '#4f7ef7'; chip.style.color = '#ffffff'; chip.style.borderColor = '#4f7ef7';
       _selectedPipelineRepoUri = p.repoUri ?? '';
+      _selectedPipelineId      = p.id ?? '';
       _resetState(); // wipe stories + results; keep org alias
       renderPipelineEnvs(p.envs, p.name);
     };
@@ -1168,7 +1170,7 @@ function verify() {
   populateDatalist('orgAliasList', 'orgAliasHistory');
   populateDatalist('repoPathList', 'repoPathHistory');
 
-  vscode.postMessage({ command: 'verify', stories, orgAlias, repoPath, pipelineRepoUri: _selectedPipelineRepoUri });
+  vscode.postMessage({ command: 'verify', stories, orgAlias, repoPath, pipelineRepoUri: _selectedPipelineRepoUri, pipelineId: _selectedPipelineId });
 }
 
 function abort() {

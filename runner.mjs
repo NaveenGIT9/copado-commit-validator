@@ -56,6 +56,7 @@ const fetchReadyToPromote = args['fetch-ready-to-promote'] !== 'false';
 const fetchFiltersJson    = args['filters'] ?? '';
 const doDescribeObject    = args['describe-object'] ?? '';
 const pipelineRepoUri     = args['pipeline-repo-uri'] ?? '';
+const selectedPipelineId  = args['pipeline-id'] ?? '';
 
 // Build a SOQL WHERE fragment from a dynamic filter state {logic, rows[{field, op, value}]}.
 function buildFilterClause(filters) {
@@ -246,7 +247,8 @@ async function main() {
         return ordered;
       }
 
-      const pipelines = [...pipelineMap.values()].map(p => ({
+      const pipelines = [...pipelineMap.entries()].map(([id, p]) => ({
+        id,
         name: p.name,
         repoUri: p.repoUri,
         envs: bfsOrder(p.edges, p.envNames),
@@ -697,9 +699,30 @@ async function main() {
     if (repoUri) emit({ type: 'git-repo-url', url: toHttpsUrl(repoUri).replace(/\.git$/, '') });
   } catch { /* non-fatal */ }
 
-  // If the user selected a specific pipeline in the UI, its repo URI overrides whatever
-  // the story's project chain returned (story may belong to a different pipeline's project).
-  if (pipelineRepoUri) {
+  // If the user selected a specific pipeline in the UI, query it directly by ID.
+  // This is more reliable than reading through the story's project chain, which always
+  // returns the story's own pipeline even when the user chose a different one (e.g. a
+  // release pipeline that promotes stories owned by another pipeline's projects).
+  if (selectedPipelineId) {
+    try {
+      const plRes = await conn.query(
+        `SELECT Name, copado__Git_Repository__r.copado__URI__c ` +
+        `FROM copado__Deployment_Flow__c WHERE Id = '${selectedPipelineId}'`
+      );
+      const plRec = plRes.records[0];
+      if (plRec) {
+        detectedPipelineId   = selectedPipelineId;
+        detectedPipelineName = plRec.Name ?? detectedPipelineName;
+        const uri = plRec?.copado__Git_Repository__r?.copado__URI__c ?? '';
+        if (uri) {
+          repoUri          = uri;
+          detectedRepoName = repoNameFromUri(uri);
+          emit({ type: 'git-repo-url', url: toHttpsUrl(uri).replace(/\.git$/, '') });
+        }
+      }
+    } catch { /* non-fatal — fall back to story-chain values */ }
+  } else if (pipelineRepoUri) {
+    // Legacy fallback: URI passed directly without an ID
     repoUri = pipelineRepoUri;
     detectedRepoName = repoNameFromUri(pipelineRepoUri);
     emit({ type: 'git-repo-url', url: toHttpsUrl(pipelineRepoUri).replace(/\.git$/, '') });

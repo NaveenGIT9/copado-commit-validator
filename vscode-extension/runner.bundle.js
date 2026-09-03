@@ -129342,6 +129342,7 @@ var fetchReadyToPromote = args["fetch-ready-to-promote"] !== "false";
 var fetchFiltersJson = args["filters"] ?? "";
 var doDescribeObject = args["describe-object"] ?? "";
 var pipelineRepoUri = args["pipeline-repo-uri"] ?? "";
+var selectedPipelineId = args["pipeline-id"] ?? "";
 function buildFilterClause(filters) {
   if (!filters || !Array.isArray(filters.rows) || filters.rows.length === 0) return "";
   const logic = filters.logic === "OR" ? " OR " : " AND ";
@@ -129512,7 +129513,8 @@ async function main() {
         if (destName) p2.envNames.add(destName);
         if (srcName && destName) p2.edges.push({ from: srcName, to: destName });
       }
-      const pipelines = [...pipelineMap.values()].map((p2) => ({
+      const pipelines = [...pipelineMap.entries()].map(([id, p2]) => ({
+        id,
         name: p2.name,
         repoUri: p2.repoUri,
         envs: bfsOrder2(p2.edges, p2.envNames)
@@ -129870,7 +129872,25 @@ async function main() {
     if (repoUri) emit({ type: "git-repo-url", url: toHttpsUrl(repoUri).replace(/\.git$/, "") });
   } catch {
   }
-  if (pipelineRepoUri) {
+  if (selectedPipelineId) {
+    try {
+      const plRes = await conn.query(
+        `SELECT Name, copado__Git_Repository__r.copado__URI__c FROM copado__Deployment_Flow__c WHERE Id = '${selectedPipelineId}'`
+      );
+      const plRec = plRes.records[0];
+      if (plRec) {
+        detectedPipelineId = selectedPipelineId;
+        detectedPipelineName = plRec.Name ?? detectedPipelineName;
+        const uri = plRec?.copado__Git_Repository__r?.copado__URI__c ?? "";
+        if (uri) {
+          repoUri = uri;
+          detectedRepoName = repoNameFromUri(uri);
+          emit({ type: "git-repo-url", url: toHttpsUrl(uri).replace(/\.git$/, "") });
+        }
+      }
+    } catch {
+    }
+  } else if (pipelineRepoUri) {
     repoUri = pipelineRepoUri;
     detectedRepoName = repoNameFromUri(pipelineRepoUri);
     emit({ type: "git-repo-url", url: toHttpsUrl(pipelineRepoUri).replace(/\.git$/, "") });
