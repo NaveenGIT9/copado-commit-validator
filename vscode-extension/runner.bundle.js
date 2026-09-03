@@ -129876,6 +129876,10 @@ async function main() {
     emit({ type: "git-repo-url", url: toHttpsUrl(pipelineRepoUri).replace(/\.git$/, "") });
   }
   let effectiveRepoPath = repoPath;
+  if (pipelineRepoUri && effectiveRepoPath && detectedRepoName) {
+    const endsWithRepo = effectiveRepoPath.endsWith(detectedRepoName) || effectiveRepoPath.endsWith("/" + detectedRepoName) || effectiveRepoPath.endsWith("\\" + detectedRepoName);
+    if (!endsWithRepo) effectiveRepoPath = "";
+  }
   let alreadyFetched = false;
   if (!effectiveRepoPath || !(0, import_fs.existsSync)((0, import_path.join)(effectiveRepoPath, ".git"))) {
     if (!repoUri) {

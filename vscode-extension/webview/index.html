@@ -2003,7 +2003,11 @@ window.addEventListener('message', (event) => {
     });
     const stories = msg.stories ?? [];
     document.getElementById('stories').value = stories.join('\n');
-    if (msg.repoPath) {
+    // Only auto-fill repo path from the story's project chain when no pipeline is
+    // explicitly selected. If _selectedPipelineRepoUri is set, the pipeline's own
+    // repo URI drives the path (via --pipeline-repo-uri on verify) — using the
+    // story-chain result here would point to the wrong repo.
+    if (msg.repoPath && !_selectedPipelineRepoUri) {
       document.getElementById('repoPath').value = msg.repoPath;
       saveHistory('repoPathHistory', msg.repoPath);
       populateDatalist('repoPathList', 'repoPathHistory');

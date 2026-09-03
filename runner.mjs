@@ -706,9 +706,17 @@ async function main() {
   }
 
   // Resolve which local git path to use.
-  // If --repo-path was given and is a valid git dir, use it.
-  // Otherwise auto-clone to a temp dir (once) and reuse on future runs.
+  // If --repo-path was given and is a valid git dir, use it — UNLESS
+  // --pipeline-repo-uri is set and the given path is for a different repo
+  // (e.g. a stale path from a previous pipeline selection), in which case
+  // discard it so we auto-resolve from the pipeline URI below.
   let effectiveRepoPath = repoPath;
+  if (pipelineRepoUri && effectiveRepoPath && detectedRepoName) {
+    const endsWithRepo = effectiveRepoPath.endsWith(detectedRepoName) ||
+                         effectiveRepoPath.endsWith('/' + detectedRepoName) ||
+                         effectiveRepoPath.endsWith('\\' + detectedRepoName);
+    if (!endsWithRepo) effectiveRepoPath = '';
+  }
   let alreadyFetched = false;
 
   if (!effectiveRepoPath || !existsSync(pathJoin(effectiveRepoPath, '.git'))) {
