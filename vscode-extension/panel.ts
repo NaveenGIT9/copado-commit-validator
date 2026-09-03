@@ -135,7 +135,7 @@ export class PromoterPanel {
       this.runPromote(msg.groups ?? [], msg.orgAlias ?? '', msg.mergeDeployAfter ?? false);
     } else if (msg.command === 'fetchReady') {
       this.saveOrgHistory(msg.orgAlias ?? '');
-      this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '', msg.filterJson ?? '');
+      this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '', msg.filterJson ?? '', msg.pipelineId ?? '');
     } else if (msg.command === 'fetchPipelineEnvs') {
       this.saveOrgHistory(msg.orgAlias ?? '');
       this.runFetchPipelineEnvs(msg.orgAlias ?? '');
@@ -172,13 +172,14 @@ export class PromoterPanel {
     proc.on('close', () => clearTimeout(timer));
   }
 
-  private runFetchReady(envType: string, orgAlias: string, filterJson: string): void {
+  private runFetchReady(envType: string, orgAlias: string, filterJson: string, pipelineId = ''): void {
     const args = [
       RUNNER_PATH,
       '--target-org', orgAlias,
       '--fetch-ready', 'true',
       '--env-type', envType,
       '--filters', filterJson,
+      ...(pipelineId ? ['--pipeline-id', pipelineId] : []),
     ];
     this.spawnCommand(args, true);
   }

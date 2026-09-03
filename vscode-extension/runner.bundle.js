@@ -129543,7 +129543,8 @@ async function main() {
       const readyToPromoteClause = fetchReadyToPromote ? ` AND copado__Promote_Change__c = true` : "";
       whereClause = `copado__Status__c = '${safeStatus}'${readyToPromoteClause}${envClause}`;
     }
-    const soql = `SELECT Id, Name FROM copado__User_Story__c WHERE ${whereClause} ORDER BY Name`;
+    const pipelineClause = selectedPipelineId ? ` AND copado__Project__r.copado__Deployment_Flow__c = '${selectedPipelineId}'` : "";
+    const soql = `SELECT Id, Name FROM copado__User_Story__c WHERE ${whereClause}${pipelineClause} ORDER BY Name`;
     emit({ type: "debug", message: `fetch filters: ${fetchFiltersJson ? "dynamic" : "legacy"}` });
     emit({ type: "debug", message: `fetch SOQL: ${soql}` });
     let storyIds = [], storyNames2 = [];

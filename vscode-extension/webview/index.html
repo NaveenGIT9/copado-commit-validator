@@ -1132,7 +1132,7 @@ function fetchReady(envType) {
   setStatus('info', `Fetching ${envType} ready stories from Copado...`, true);
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
-  vscode.postMessage({ command: 'fetchReady', envType, orgAlias, filterJson });
+  vscode.postMessage({ command: 'fetchReady', envType, orgAlias, filterJson, pipelineId: _selectedPipelineId });
 }
 
 
