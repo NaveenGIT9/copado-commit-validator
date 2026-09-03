@@ -49,6 +49,7 @@ const doPromote     = args.promote === 'true';
 const doMergeDeploy = args['merge-deploy'] === 'true';
 const doFetchReady  = args['fetch-ready'] === 'true';
 const fetchEnvType  = args['env-type'] ?? 'QA';
+const doFetchPipelineEnvs = args['fetch-pipeline-envs'] === 'true';
 const fetchStatus         = args['fetch-status'] ?? '';
 const fetchEnvs           = args['fetch-envs'] ?? '';
 const fetchReadyToPromote = args['fetch-ready-to-promote'] !== 'false';
@@ -197,6 +198,60 @@ async function main() {
     process.exit(0);
   }
 
+  // ── FETCH PIPELINE ENVS MODE ─────────────────────────────────────────────────
+  if (doFetchPipelineEnvs) {
+    try {
+      const stepsRes = await conn.query(
+        `SELECT copado__Source_Environment__c, copado__Source_Environment__r.Name, ` +
+        `copado__Destination_Environment__c, copado__Destination_Environment__r.Name, ` +
+        `copado__Deployment_Flow__c, copado__Deployment_Flow__r.Name ` +
+        `FROM copado__Deployment_Flow_Step__c`
+      );
+
+      // Group steps by pipeline
+      const pipelineMap = new Map(); // pipelineId → { name, edges[], envIdToName }
+      for (const s of stepsRes.records) {
+        const pid  = s.copado__Deployment_Flow__c;
+        const pname = s.copado__Deployment_Flow__r?.Name ?? pid ?? 'Unknown';
+        if (!pid) continue;
+        if (!pipelineMap.has(pid)) pipelineMap.set(pid, { name: pname, edges: [], envNames: new Set() });
+        const p = pipelineMap.get(pid);
+        const srcName  = s.copado__Source_Environment__r?.Name;
+        const destName = s.copado__Destination_Environment__r?.Name;
+        if (srcName)  p.envNames.add(srcName);
+        if (destName) p.envNames.add(destName);
+        if (srcName && destName) p.edges.push({ from: srcName, to: destName });
+      }
+
+      // BFS-order envs within each pipeline
+      function bfsOrder(edges, envNames) {
+        const allDest = new Set(edges.map(e => e.to));
+        const roots   = [...new Set(edges.map(e => e.from))].filter(n => !allDest.has(n));
+        const visited = new Set();
+        const ordered = [];
+        const queue   = [...roots];
+        while (queue.length) {
+          const cur = queue.shift();
+          if (visited.has(cur)) continue;
+          visited.add(cur); ordered.push(cur);
+          for (const e of edges.filter(e => e.from === cur)) queue.push(e.to);
+        }
+        for (const name of envNames) if (!visited.has(name)) ordered.push(name);
+        return ordered;
+      }
+
+      const pipelines = [...pipelineMap.values()].map(p => ({
+        name: p.name,
+        envs: bfsOrder(p.edges, p.envNames),
+      })).sort((a, b) => a.name.localeCompare(b.name));
+
+      emit({ type: 'pipeline-list', pipelines });
+    } catch (err) {
+      emit({ type: 'pipeline-envs-error', message: String(err) });
+    }
+    process.exit(0);
+  }
+
   // ── FETCH READY MODE ────────────────────────────────────────────────────────
   if (doFetchReady) {
     emit({ type: 'fetch-start', envType: fetchEnvType });
@@ -210,8 +265,8 @@ async function main() {
       } catch { /* invalid JSON — fall through to legacy */ }
     }
     if (!whereClause) {
-      // Legacy fallback for old cached webview HTML or direct CLI invocations.
-      const effectiveStatus = fetchStatus || (fetchEnvType === 'UAT' ? 'Ready for UAT deployment' : 'Ready for QA deployment');
+      // Legacy fallback: build a generic status clause from env name, or use explicit fetch-status arg.
+      const effectiveStatus = fetchStatus || `Ready for ${fetchEnvType} deployment`;
       const safeStatus = effectiveStatus.replace(/'/g, "\\'");
       const envList = fetchEnvs.split(',').map(e => e.trim()).filter(Boolean);
       const envClause = envList.length > 0

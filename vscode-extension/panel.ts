@@ -134,6 +134,9 @@ export class PromoterPanel {
     } else if (msg.command === 'fetchReady') {
       this.saveOrgHistory(msg.orgAlias ?? '');
       this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '', msg.filterJson ?? '');
+    } else if (msg.command === 'fetchPipelineEnvs') {
+      this.saveOrgHistory(msg.orgAlias ?? '');
+      this.runFetchPipelineEnvs(msg.orgAlias ?? '');
     } else if (msg.command === 'describeFields') {
       this.runDescribeFields(msg.orgAlias ?? '');
     } else if (msg.command === 'saveFilters') {
@@ -176,6 +179,26 @@ export class PromoterPanel {
       '--filters', filterJson,
     ];
     this.spawnCommand(args, true);
+  }
+
+  private runFetchPipelineEnvs(orgAlias: string): void {
+    if (!orgAlias) return;
+    const args = [RUNNER_PATH, '--target-org', orgAlias, '--fetch-pipeline-envs', 'true'];
+    const proc = spawn(NODE_EXEC_PATH, args, { shell: false });
+    const timer = setTimeout(() => proc.kill(), 30_000);
+    let buf = '';
+    proc.stdout.on('data', (chunk: Buffer) => {
+      buf += chunk.toString();
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines.filter(l => l.trim())) {
+        try {
+          const evt = JSON.parse(line) as Record<string, unknown>;
+          if (evt.type === 'pipeline-list' || evt.type === 'pipeline-envs-error') this.post(evt);
+        } catch { /* ignore non-JSON */ }
+      }
+    });
+    proc.on('close', () => clearTimeout(timer));
   }
 
   private abortRun(): void {
