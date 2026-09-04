@@ -129873,31 +129873,8 @@ async function main() {
     if (repoUri) emit({ type: "git-repo-url", url: toHttpsUrl(repoUri).replace(/\.git$/, "") });
   } catch {
   }
-  if (selectedPipelineId) {
-    try {
-      const plRes = await conn.query(
-        `SELECT Name, copado__Git_Repository__r.copado__URI__c FROM copado__Deployment_Flow__c WHERE Id = '${selectedPipelineId}'`
-      );
-      const plRec = plRes.records[0];
-      if (plRec) {
-        detectedPipelineId = selectedPipelineId;
-        detectedPipelineName = plRec.Name ?? detectedPipelineName;
-        const uri = plRec?.copado__Git_Repository__r?.copado__URI__c ?? "";
-        if (uri) {
-          repoUri = uri;
-          detectedRepoName = repoNameFromUri(uri);
-          emit({ type: "git-repo-url", url: toHttpsUrl(uri).replace(/\.git$/, "") });
-        }
-      }
-    } catch {
-    }
-  } else if (pipelineRepoUri) {
-    repoUri = pipelineRepoUri;
-    detectedRepoName = repoNameFromUri(pipelineRepoUri);
-    emit({ type: "git-repo-url", url: toHttpsUrl(pipelineRepoUri).replace(/\.git$/, "") });
-  }
   let effectiveRepoPath = repoPath;
-  if (pipelineRepoUri && effectiveRepoPath && detectedRepoName) {
+  if (effectiveRepoPath && detectedRepoName) {
     const endsWithRepo = effectiveRepoPath.endsWith(detectedRepoName) || effectiveRepoPath.endsWith("/" + detectedRepoName) || effectiveRepoPath.endsWith("\\" + detectedRepoName);
     if (!endsWithRepo) effectiveRepoPath = "";
   }

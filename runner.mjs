@@ -704,42 +704,16 @@ async function main() {
     if (repoUri) emit({ type: 'git-repo-url', url: toHttpsUrl(repoUri).replace(/\.git$/, '') });
   } catch { /* non-fatal */ }
 
-  // If the user selected a specific pipeline in the UI, query it directly by ID.
-  // This is more reliable than reading through the story's project chain, which always
-  // returns the story's own pipeline even when the user chose a different one (e.g. a
-  // release pipeline that promotes stories owned by another pipeline's projects).
-  if (selectedPipelineId) {
-    try {
-      const plRes = await conn.query(
-        `SELECT Name, copado__Git_Repository__r.copado__URI__c ` +
-        `FROM copado__Deployment_Flow__c WHERE Id = '${selectedPipelineId}'`
-      );
-      const plRec = plRes.records[0];
-      if (plRec) {
-        detectedPipelineId   = selectedPipelineId;
-        detectedPipelineName = plRec.Name ?? detectedPipelineName;
-        const uri = plRec?.copado__Git_Repository__r?.copado__URI__c ?? '';
-        if (uri) {
-          repoUri          = uri;
-          detectedRepoName = repoNameFromUri(uri);
-          emit({ type: 'git-repo-url', url: toHttpsUrl(uri).replace(/\.git$/, '') });
-        }
-      }
-    } catch { /* non-fatal — fall back to story-chain values */ }
-  } else if (pipelineRepoUri) {
-    // Legacy fallback: URI passed directly without an ID
-    repoUri = pipelineRepoUri;
-    detectedRepoName = repoNameFromUri(pipelineRepoUri);
-    emit({ type: 'git-repo-url', url: toHttpsUrl(pipelineRepoUri).replace(/\.git$/, '') });
-  }
+  // The story's project chain (above) is the authoritative source for the repo.
+  // --pipeline-id is used only for fetch scoping, NOT to override the repo here.
+  // This ensures a story always verifies against its own pipeline's repo, regardless
+  // of which pipeline tab the user has selected in the UI.
 
   // Resolve which local git path to use.
-  // If --repo-path was given and is a valid git dir, use it — UNLESS
-  // --pipeline-repo-uri is set and the given path is for a different repo
-  // (e.g. a stale path from a previous pipeline selection), in which case
-  // discard it so we auto-resolve from the pipeline URI below.
+  // Discard --repo-path if it points to a different repo than the one the story belongs to
+  // (e.g. a path left over from a previous pipeline selection).
   let effectiveRepoPath = repoPath;
-  if (pipelineRepoUri && effectiveRepoPath && detectedRepoName) {
+  if (effectiveRepoPath && detectedRepoName) {
     const endsWithRepo = effectiveRepoPath.endsWith(detectedRepoName) ||
                          effectiveRepoPath.endsWith('/' + detectedRepoName) ||
                          effectiveRepoPath.endsWith('\\' + detectedRepoName);
