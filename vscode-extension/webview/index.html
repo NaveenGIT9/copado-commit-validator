@@ -1148,12 +1148,17 @@ function fetchReady(envType) {
 function verify() {
   const stories  = document.getElementById('stories').value.trim();
   const orgAlias = document.getElementById('orgAlias').value.trim();
-  const repoPath = document.getElementById('repoPath').value.trim();
 
   if (!stories || !orgAlias) {
     setStatus('error', 'Enter story names and Copado org alias / username before verifying.');
     return;
   }
+
+  // Always wipe the repo path on verify — the runner detects the correct repo
+  // from the story's pipeline chain. A stale path here would cause it to use
+  // the wrong repo.
+  document.getElementById('repoPath').value = '';
+
   currentOrg           = orgAlias;
   cleanStories         = [];
   verifiedStoryNames   = new Set();
@@ -1180,11 +1185,9 @@ function verify() {
   setStatus('info', 'Starting verification...', true);
 
   saveHistory('orgAliasHistory', orgAlias);
-  saveHistory('repoPathHistory', repoPath);
   populateDatalist('orgAliasList', 'orgAliasHistory');
-  populateDatalist('repoPathList', 'repoPathHistory');
 
-  vscode.postMessage({ command: 'verify', stories, orgAlias, repoPath, pipelineRepoUri: _selectedPipelineRepoUri, pipelineId: _selectedPipelineId });
+  vscode.postMessage({ command: 'verify', stories, orgAlias, repoPath: '', pipelineRepoUri: _selectedPipelineRepoUri, pipelineId: _selectedPipelineId });
 }
 
 function abort() {
