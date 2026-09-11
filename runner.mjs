@@ -787,13 +787,15 @@ async function main() {
   const credLevel = new Map(); // envName (lowercase) → numeric level
   let pipelineEdges = []; // { from, to, fromId, toId }[]
   const pipelineEnvIdToName = new Map(); // envId → original-case env name
+  const orgBranchNames = new Set(); // lowercase source-branch names of all pipeline steps — for org-branch-merge detection
   try {
     const pipelineFilter = detectedPipelineId
       ? ` WHERE copado__Deployment_Flow__c = '${detectedPipelineId}'`
       : '';
     const stepsRes = await conn.query(
       `SELECT copado__Source_Environment__c, copado__Source_Environment__r.Name, ` +
-      `copado__Destination_Environment__c, copado__Destination_Environment__r.Name ` +
+      `copado__Destination_Environment__c, copado__Destination_Environment__r.Name, ` +
+      `copado__Branch__c ` +
       `FROM copado__Deployment_Flow_Step__c${pipelineFilter}`
     );
     for (const s of stepsRes.records) {
@@ -801,6 +803,7 @@ async function main() {
         pipelineEnvIdToName.set(s.copado__Source_Environment__c, s.copado__Source_Environment__r.Name);
       if (s.copado__Destination_Environment__c && s.copado__Destination_Environment__r?.Name)
         pipelineEnvIdToName.set(s.copado__Destination_Environment__c, s.copado__Destination_Environment__r.Name);
+      if (s.copado__Branch__c) orgBranchNames.add(s.copado__Branch__c.toLowerCase());
     }
     const edges = stepsRes.records
       .filter(s => s.copado__Source_Environment__r?.Name && s.copado__Destination_Environment__r?.Name)
@@ -831,6 +834,8 @@ async function main() {
       .map(([name]) => name);
     emit({ type: 'pipeline-info', envOrder: pipelineOrderedEnvs });
   } catch (pipelineErr) { emit({ type: 'debug', message: `pipeline ERROR: ${pipelineErr}` }); }
+
+  emit({ type: 'debug', message: `org branch names in pipeline: ${[...orgBranchNames].join(', ') || '(none)'}` });
 
   // Resolve credential IDs → env name using pipelineEnvIdToName.
   // Queries copado__Org__c by primary key (Id) — always indexed/fast.
@@ -945,9 +950,90 @@ async function main() {
       } catch { /* skip */ }
     }
 
-    // Get all commits on feature branch ahead of the story's base branch (falls back to master).
     const storyBaseBranch = (story.copado__Base_Branch__c ?? '').trim();
     const diffBase        = storyBaseBranch ? `origin/${storyBaseBranch}` : 'origin/master';
+
+    // ── Phase 1: fast org-branch merge detection (first-parent only, milliseconds) ─────────────
+    // --first-parent traverses ONLY the mainline so it skips all merged-branch history.
+    // For a bloated branch (e.g. rbkintcsad merged in) this finishes instantly instead of
+    // reading 3000+ commit objects. Uses two detection methods so we're not dependent on any
+    // single commit-message format:
+    //   Method A — subject regex: catches "Merge branch 'X'" and "Merge remote-tracking branch 'origin/X'"
+    //   Method B — second-parent ancestry: reliable regardless of commit message
+    const orgBranchMerges = [];
+    let firstParentCommits = []; // the developer's own commits (small count, used if we fast-block)
+    let firstParentRaw = '';
+    try {
+      firstParentRaw = await git.raw(['log', '--first-parent', '--format=%H%x00%P%x00%s',
+        `${diffBase}..${remoteBranch}`]);
+      for (const line of firstParentRaw.split('\n').filter(l => l.includes('\0'))) {
+        const [hashRaw, parentsRaw = '', subject = ''] = line.split('\0');
+        const hash = hashRaw.trim();
+        if (hash.length !== 40) continue;
+        firstParentCommits.push(hash);
+
+        if (orgBranchNames.size > 0) {
+          // Method A: subject-based
+          const m = subject.match(/^Merge (?:remote-tracking )?branch '(?:origin\/)?([^']+)'/i);
+          if (m && orgBranchNames.has(m[1].toLowerCase()))
+            orgBranchMerges.push({ sha: hash.slice(0, 10), mergedBranch: m[1] });
+        }
+      }
+
+      // Method B: parent-based fallback (if subject matching caught nothing)
+      if (orgBranchMerges.length === 0 && orgBranchNames.size > 0) {
+        for (const line of firstParentRaw.split('\n').filter(l => l.includes('\0'))) {
+          const [hashRaw, parentsRaw = ''] = line.split('\0');
+          const hash = hashRaw.trim();
+          const parents = parentsRaw.trim().split(/\s+/).filter(Boolean);
+          if (parents.length < 2) continue; // not a merge commit
+          const mergedParent = parents[1]; // second parent = what was merged in
+          for (const branchName of orgBranchNames) {
+            try {
+              await git.raw(['merge-base', '--is-ancestor', mergedParent, `origin/${branchName}`]);
+              orgBranchMerges.push({ sha: hash.slice(0, 10), mergedBranch: branchName });
+              break;
+            } catch { /* not reachable from this branch */ }
+          }
+          if (orgBranchMerges.length > 0) break;
+        }
+      }
+    } catch { /* Phase 1 failed (e.g. branch not fetched yet) — fall through to Phase 2 */ }
+
+    if (orgBranchMerges.length > 0) {
+      const _srcEnv = story.copado__Environment__r?.Name ?? story.copado__Org_Credential__r?.Name ?? null;
+      const _dstEnv = _srcEnv ? (pipelineEdges.find(e => e.from === _srcEnv.toLowerCase())?.to ?? null) : null;
+      emit({ type: 'debug', message: `${story.Name}: org-branch merge detected (fast-fail): ${orgBranchMerges.map(m => `${m.mergedBranch}@${m.sha}`).join(', ')}` });
+      emit({
+        type: 'story-verified',
+        storyName: story.Name, storyId: story.Id,
+        projectId: story.copado__Project__c,
+        projectName: story.copado__Project__r?.Name ?? 'Unknown Project',
+        credentialId: story.copado__Org_Credential__c,
+        branch: branchName, extraCommits: firstParentCommits, copadoCommits,
+        unregistered: [], unregisteredDetail: [],
+        storyCommittedBy: [...storyAuthorNames], extraCommittedBy: [],
+        storyDeveloper: story.copado__Developer__r?.Name ?? null,
+        tests: storyTests,
+        prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
+        hasApexCode: story.copado__Has_Apex_Code__c, hasApexMetadata, hasDeploymentTasks,
+        parentStory: null, promotionCount: 0, lastPromoWarning: null, stalePromoInfo: null,
+        latestCommitDate: story.copado__Latest_Commit_Date__c ?? null,
+        latestUnregisteredCommitDate: null,
+        srcEnvName: _srcEnv, dstEnvName: _dstEnv,
+        baseBranch: (story.copado__Base_Branch__c ?? '').trim() || null,
+        dependencies: [],
+        xmlTypeMetadata,
+        orgBranchMerges,
+        customFields: customFieldConfigs.map(f => ({ label: f.label, value: story[f.apiName] ?? null })),
+        verdict: 'skip-unregistered',
+      });
+      continue;
+    }
+
+    // ── Phase 2: full commit list for clean branches (no org-branch merge detected) ─────────────
+    // Only reached when Phase 1 found no org-branch merges. Uses plain --format=%H
+    // (no subject needed) which is slightly faster than the combined format.
     let extraCommits = [];
     try {
       const raw = await git.raw(['log', '--format=%H', `${diffBase}..${remoteBranch}`]);
@@ -1050,6 +1136,11 @@ async function main() {
 
     const extraCommittedBy = [...new Set(unregisteredDetail.map(d => d.authorName).filter(Boolean))];
 
+    const srcEnvName = story.copado__Environment__r?.Name ?? story.copado__Org_Credential__r?.Name ?? null;
+    const dstEnvName = srcEnvName
+      ? (pipelineEdges.find(e => e.from === srcEnvName.toLowerCase())?.to ?? null)
+      : null;
+
     // Check if this story's Base Branch points to another story's feature branch.
     // If yes, that parent story must be in a higher environment before this one deploys.
     // Source: copado__Base_Branch__c field (e.g. "feature/US-0004674") — no git needed.
@@ -1084,8 +1175,9 @@ async function main() {
           parentPromoted = true;
         }
         parentStory = { name: parentName, promoted: parentPromoted, env: parentEnvName ?? dstEnvName?.toUpperCase() ?? parentCredName, credential: parentCredName };
+        emit({ type: 'debug', message: `parentStory ${story.Name}: name=${parentName} env=${parentEnvName} cred=${parentCredName} promoted=${parentPromoted} → sameEnv=${parentEnvName?.toLowerCase() === srcEnvName?.toLowerCase()}` });
       }
-    } catch { /* non-fatal */ }
+    } catch (e) { emit({ type: 'debug', message: `parentStory ${story.Name}: ERROR ${e.message}` }); }
 
     // Count how many times this story has been successfully promoted (for re-deploy badge).
     let promotionCount = 0;
@@ -1098,13 +1190,6 @@ async function main() {
       promotionCount = countRes.totalSize ?? 0;
     } catch { /* non-fatal */ }
 
-    // Compute env names once — used both for lastPromoWarning comparison and the env column.
-    // Name-based lookup is more reliable than ID-based: the story's Org__c record and the
-    // pipeline step's Org__c record may be different objects pointing to the same environment.
-    const srcEnvName = story.copado__Environment__r?.Name ?? story.copado__Org_Credential__r?.Name ?? null;
-    const dstEnvName = srcEnvName
-      ? (pipelineEdges.find(e => e.from === srcEnvName.toLowerCase())?.to ?? null)
-      : null;
     emit({ type: 'debug', message: `env ${story.Name}: envName=${srcEnvName} → dst=${dstEnvName ?? 'NOT FOUND'}` });
 
     // Check if the story's latest promotion (same source+target) is in a warning state.
@@ -1437,8 +1522,11 @@ async function main() {
       latestUnregisteredCommitDate,
       srcEnvName, dstEnvName,
       baseBranch: (story.copado__Base_Branch__c ?? '').trim() || null,
+      baseBranchSameEnv: !!(parentStory?.env && srcEnvName && parentStory.env.toLowerCase() === srcEnvName.toLowerCase()),
+      baseBranchStoryEnv: parentStory?.env ?? null,
       dependencies,
       xmlTypeMetadata,
+      orgBranchMerges,
       customFields: customFieldConfigs.map(f => ({ label: f.label, value: story[f.apiName] ?? null })),
       verdict,
     });

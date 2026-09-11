@@ -1415,7 +1415,7 @@ function upsertRow(storyName, branch, copadoCommits, extraCommits, unregisteredD
   row.innerHTML = html;
 }
 
-function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null, stalePromoInfo = null, baseBranch = null, dependencies = [], xmlTypeMetadata = [], customFields = [], hasApexMetadata = false, storyDeveloper = null) {
+function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregisteredDetail, verdict, storyCommittedBy, extraCommittedBy, tests, prBlocked, hasApexCode, hasDeploymentTasks, parentStory = null, promotionCount = 0, lastPromoWarning = null, srcEnvName = null, dstEnvName = null, stalePromoInfo = null, baseBranch = null, dependencies = [], xmlTypeMetadata = [], customFields = [], hasApexMetadata = false, storyDeveloper = null, orgBranchMerges = [], baseBranchSameEnv = false, baseBranchStoryEnv = null) {
   const failedTests      = (tests || []).filter(t => t.status === 'Failed' || t.status === 'Error');
   const hasApexTest      = (tests || []).some(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || '') || /apex/i.test(t.name || ''));
   const noApexTestClass  = hasApexMetadata && !hasApexTest;
@@ -1426,7 +1426,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
   const effectivePrBlock    = noCommits ? false : prBlocked;
   const isVerifying         = verdict === 'verifying' || tests === undefined;
   const parentBlocked       = parentStory && !parentStory.promoted;
-  const isPromotable        = commitOk && failedTests.length === 0 && !effectivePrBlock && !(noCommits ? false : noApexTestClass) && !parentBlocked && xmlTypeMetadata.length === 0;
+  const isPromotable        = commitOk && failedTests.length === 0 && !effectivePrBlock && !(noCommits ? false : noApexTestClass) && !parentBlocked && xmlTypeMetadata.length === 0 && orgBranchMerges.length === 0;
   const isMergeConflict      = lastPromoWarning?.status === 'Merge Conflict';
   const isInnocentConflict   = isMergeConflict && lastPromoWarning?.isConflictOnCurrentStory === false;
   const isAlreadyInProg      = lastPromoWarning?.status === 'In Progress';
@@ -1470,6 +1470,11 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     if (xmlTypeMetadata.length > 0) {
       rows.push(kv('Metadata:', `<span style="${ERR}">⛔ ${xmlTypeMetadata.length} item(s) with Type=xml — deployment will fail (missing registry type)</span>`));
       rows.push(kv('', `<span style="color:#9ca3af;font-size:9px;word-break:break-all">${xmlTypeMetadata.slice(0, 5).join(', ')}${xmlTypeMetadata.length > 5 ? ` +${xmlTypeMetadata.length - 5} more` : ''}</span>`));
+    }
+    if (orgBranchMerges.length > 0) {
+      const branchList = [...new Set(orgBranchMerges.map(m => m.mergedBranch))].join(', ');
+      rows.push(kv('Branch:', `<span style="${ERR}">⛔ Org branch merged into feature branch — commit validation will fail</span>`));
+      rows.push(kv('', `<span style="color:#9ca3af;font-size:9px;word-break:break-all">Merged: ${branchList} — remove these commits before promoting</span>`));
     }
     if (noCommitsNoTasks) {
       rows.push(kv('Commits:', `<span style="${ERR}">✗ No commits or deployment tasks on story</span>`));
@@ -1676,7 +1681,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     const commitsVal = noCommitsNoTasks
       ? `<span style="color:#f87171;font-size:11px">No commits or tasks</span>`
       : copadoCommits !== null
-      ? `<span style="color:#475569;font-size:11px;font-weight:500">${copadoCommits.length} Copado · ${extraCommits !== null ? extraCommits.length : '?'} Branch</span>`
+      ? `<span style="color:#475569;font-size:11px;font-weight:500">${copadoCommits.length} Copado · ${extraCommits !== null ? (orgBranchMerges.length > 0 ? extraCommits.length + '+' : extraCommits.length) : '?'} Branch</span>`
       : '<span style="color:#475569">—</span>';
     tlItems.push(tlRow(commitsDot, 'Commits', commitsVal));
 
@@ -1797,6 +1802,12 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     // XML type issues
     if (xmlTypeMetadata.length > 0) {
       tlItems.push(tlRow('err', 'Metadata', `<span style="color:#f87171;font-size:10px">⛔ ${xmlTypeMetadata.length} xml-type issue${xmlTypeMetadata.length > 1 ? 's' : ''}</span>`));
+    }
+
+    // Org branch merge detection
+    if (orgBranchMerges.length > 0) {
+      const _brList = [...new Set(orgBranchMerges.map(m => m.mergedBranch))].join(', ');
+      tlItems.push(tlRow('err', 'Branch', `<span style="color:#f87171;font-size:10px">⛔ Org branch merged into feature — ${_brList}</span>`));
     }
   }
 
@@ -1942,6 +1953,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         </div>` : ''}
         ${devName ? `<div style="font-size:10px;color:#64748b;margin-top:2px">👤 ${devName}</div>` : ''}
         ${baseBranch ? `<div style="font-size:11px;color:#f59e0b;font-weight:600;margin-top:4px">Base: <span style="color:#fbbf24">${baseBranch}</span>${(parentStory?.env ?? parentStory?.credential) ? `<span style="color:#4a8fd9;font-weight:400"> · ${parentStory.env ?? parentStory.credential}</span>` : ''}</div>` : ''}
+        ${baseBranch && baseBranchSameEnv ? `<div style="margin-top:6px;padding:5px 9px;background:#FEE2E2;border:1.5px solid #FCA5A5;border-radius:6px;font-size:10px;font-weight:700;color:#B91C1C;display:flex;align-items:center;gap:5px">⛔ Cannot promote beyond base branch &mdash; ${parentStory?.name ?? ''} is still in <strong>${(baseBranchStoryEnv ?? srcEnvName ?? '').toUpperCase()}</strong></div>` : ''}
         ${identityStatusBadge}
       </div>
       <div class="card-timeline${showPromoPanel ? ' has-border' : ''}">
@@ -2170,7 +2182,7 @@ window.addEventListener('message', (event) => {
       msg.parentStory ?? null, msg.promotionCount ?? 0, lastPromoWarningForRow,
       msg.srcEnvName ?? null, msg.dstEnvName ?? null, msg.stalePromoInfo ?? null, msg.baseBranch ?? null,
       msg.dependencies ?? [], msg.xmlTypeMetadata ?? [], msg.customFields ?? [], msg.hasApexMetadata ?? false,
-      msg.storyDeveloper ?? null
+      msg.storyDeveloper ?? null, msg.orgBranchMerges ?? [], msg.baseBranchSameEnv ?? false, msg.baseBranchStoryEnv ?? null
     );
     ensureProjectSection(msg.projectId, msg.projectName);
     insertGroupedRow(msg.storyName, msg.projectId, html, msg.dstEnvName);
@@ -2190,7 +2202,8 @@ window.addEventListener('message', (event) => {
         && !noCommitsNoTasks
         && failedTests.length === 0 && !(noCommits ? false : prBlocked) && !(noCommits ? false : noApexTestClass) && !parentBlocked
         && !dependencyBlocked
-        && (msg.xmlTypeMetadata ?? []).length === 0;
+        && (msg.xmlTypeMetadata ?? []).length === 0
+        && (msg.orgBranchMerges ?? []).length === 0;
 
     if (isEligible) {
       if (!isLastPromoWarning || isConflictsResolved || isInnocentConflict || isValidatedPromo) {
