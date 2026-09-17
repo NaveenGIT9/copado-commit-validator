@@ -2,7 +2,7 @@ import { SfCommand, Flags } from '@salesforce/sf-plugins-core';
 import { Connection } from '@salesforce/core';
 import { simpleGit } from 'simple-git';
 
-type Verdict = 'clean' | 'skip-no-commits' | 'skip-unregistered' | 'error';
+type Verdict = 'clean' | 'skip-no-commits' | 'skip-unregistered' | 'no-apex-tests' | 'error';
 
 interface StoryRecord {
   Id: string;
@@ -10,6 +10,7 @@ interface StoryRecord {
   copado__Org_Credential__c: string;
   copado__Project__c: string;
   copado__Status__c: string;
+  copado__Has_Apex_Code__c: boolean;
   copado__Environment__r?: { Name: string } | null;
 }
 
@@ -76,7 +77,7 @@ export default class PromoterRun extends SfCommand<void> {
     let stories: StoryRecord[] = [];
     try {
       const result = await conn.query<StoryRecord>(
-        `SELECT Id, Name, copado__Org_Credential__c, copado__Project__c, copado__Status__c, copado__Environment__r.Name ` +
+        `SELECT Id, Name, copado__Org_Credential__c, copado__Project__c, copado__Status__c, copado__Has_Apex_Code__c, copado__Environment__r.Name ` +
         `FROM copado__User_Story__c WHERE Name IN (${nameList})`
       );
       stories = result.records;
@@ -180,6 +181,32 @@ export default class PromoterRun extends SfCommand<void> {
         verdict = 'clean';
       }
 
+      // 4d: Apex test record check — only required when Has Apex Code is true
+      let apexTestRecordExists: boolean | null = null;
+      if (story.copado__Has_Apex_Code__c) {
+        try {
+          const testRes = await conn.query<{ Id: string }>(
+            `SELECT Id FROM copado__Result__c WHERE copado__User_Story__c = '${story.Id}' ` +
+            `AND copado__Function__r.Name LIKE '%test%' LIMIT 1`
+          );
+          apexTestRecordExists = testRes.totalSize > 0;
+        } catch {
+          // fallback: try simpler query without function filter
+          try {
+            const testRes2 = await conn.query<{ Id: string }>(
+              `SELECT Id FROM copado__Apex_Test_Result__c WHERE copado__User_Story__c = '${story.Id}' LIMIT 1`
+            );
+            apexTestRecordExists = testRes2.totalSize > 0;
+          } catch {
+            apexTestRecordExists = null; // can't determine — don't block
+          }
+        }
+
+        if (apexTestRecordExists === false) {
+          verdict = 'no-apex-tests';
+        }
+      }
+
       this.emit({
         type: 'story-verified',
         storyName: story.Name,
@@ -188,6 +215,8 @@ export default class PromoterRun extends SfCommand<void> {
         extraCommits,
         copadoCommits,
         unregistered,
+        hasApexCode: story.copado__Has_Apex_Code__c,
+        apexTestRecordExists,
         verdict,
       });
     }
