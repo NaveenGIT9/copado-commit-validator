@@ -319,7 +319,7 @@
     <div id="pipelineFilterPanels"></div>
   </div>
   <div id="storiesWrap">
-    <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado" onblur="renderStoryTags()"></textarea>
+    <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado" onblur="renderStoryTags(true)"></textarea>
     <div id="storyDevTags" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
   </div>
 </div>
@@ -1369,7 +1369,7 @@ function ghBranchLink(branch) {
   return `<a href="#" onclick="openUrl('${gitRepoUrl}/tree/${encodeURIComponent(branch)}');return false;" style="color:#8a9bb0;text-decoration:underline;text-decoration-color:rgba(42,106,138,0.4);cursor:pointer">${branch}</a>`;
 }
 
-function renderStoryTags() {
+function renderStoryTags(triggerLookup = false) {
   const tagsEl = document.getElementById('storyDevTags');
   if (!tagsEl) return;
   const names = (document.getElementById('stories').value || '')
@@ -1384,6 +1384,16 @@ function renderStoryTags() {
     return `<span ${clickable} style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background:rgba(79,126,247,0.1);border:1px solid rgba(79,126,247,0.25);font-size:11px;font-family:monospace;color:#3b5fc0;white-space:nowrap"><b>${n}</b>${dev}${id && instanceUrl ? '<span style="font-size:9px;margin-left:3px;opacity:0.5">↗</span>' : ''}</span>`;
   }).join('');
   tagsEl.style.display = 'flex';
+
+  if (triggerLookup) {
+    const unknown = names.filter(n => !storyDevMap[n] && !fetchedStoryIdMap[n] && !storyIdMap[n]);
+    if (unknown.length > 0) {
+      const orgAlias = document.getElementById('orgAlias')?.value?.trim() || '';
+      if (orgAlias) {
+        vscode.postMessage({ command: 'lookupStories', storyNames: unknown, orgAlias });
+      }
+    }
+  }
 }
 
 function setStatus(type, msg, spinner = false) {
@@ -2079,6 +2089,12 @@ window.addEventListener('message', (event) => {
     } else {
       setStatus('success', `${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} loaded. Click Verify Stories to proceed.`);
     }
+  }
+
+  else if (msg.type === 'story-lookup-result') {
+    Object.assign(storyDevMap, msg.storyDevMap ?? {});
+    Object.assign(fetchedStoryIdMap, msg.storyIdMap ?? {});
+    renderStoryTags();
   }
 
   else if (msg.type === 'run-start') {

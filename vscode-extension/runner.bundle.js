@@ -129332,6 +129332,7 @@ var fetchEnvs = args["fetch-envs"] ?? "";
 var fetchReadyToPromote = args["fetch-ready-to-promote"] !== "false";
 var fetchFiltersJson = args["filters"] ?? "";
 var doDescribeObject = args["describe-object"] ?? "";
+var doLookupStories = args["lookup-stories"] === "true";
 var pipelineRepoUri = args["pipeline-repo-uri"] ?? "";
 var selectedPipelineId = args["pipeline-id"] ?? "";
 function buildFilterClause(filters) {
@@ -129471,6 +129472,26 @@ async function main() {
       emit({ type: "fields", fields });
     } catch (err) {
       emit({ type: "fields-error", message: String(err) });
+    }
+    process.exit(0);
+  }
+  if (doLookupStories) {
+    try {
+      const nameList = (args.stories || "").split(",").map((s) => s.trim()).filter(Boolean);
+      if (nameList.length === 0) { emit({ type: "story-lookup-result", storyDevMap: {}, storyIdMap: {} }); process.exit(0); }
+      const inClause = nameList.map((n) => `'${n.replace(/'/g, "\\'")}'`).join(",");
+      const res = await conn.query(`SELECT Id, Name, copado__Developer__r.Name FROM copado__User_Story__c WHERE Name IN (${inClause})`);
+      const storyDevMap = {};
+      const storyIdMap = {};
+      for (const r of res.records ?? []) {
+        if (r.Name) {
+          if (r.copado__Developer__r?.Name) storyDevMap[r.Name] = r.copado__Developer__r.Name;
+          if (r.Id) storyIdMap[r.Name] = r.Id;
+        }
+      }
+      emit({ type: "story-lookup-result", storyDevMap, storyIdMap });
+    } catch (err) {
+      emit({ type: "story-lookup-error", message: String(err) });
     }
     process.exit(0);
   }

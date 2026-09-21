@@ -126,6 +126,7 @@ export class PromoterPanel {
     filters?: unknown;
     groups?: Array<{ projectId: string; credentialId: string; stories: string[]; storyIds: string[] }>;
     mergeDeployAfter?: boolean;
+    storyNames?: string[];
   }): void {
     if (msg.command === 'verify') {
       this.saveOrgHistory(msg.orgAlias ?? '');
@@ -141,6 +142,8 @@ export class PromoterPanel {
       this.runFetchPipelineEnvs(msg.orgAlias ?? '');
     } else if (msg.command === 'describeFields') {
       this.runDescribeFields(msg.orgAlias ?? '');
+    } else if (msg.command === 'lookupStories') {
+      this.runLookupStories(msg.storyNames ?? [], msg.orgAlias ?? '');
     } else if (msg.command === 'saveFilters') {
       void this.context.globalState.update('promoter.fetchFilters', msg.filters);
     } else if (msg.command === 'abort') {
@@ -150,6 +153,31 @@ export class PromoterPanel {
     } else if (msg.command === 'openUrl') {
       void vscode.env.openExternal(vscode.Uri.parse(msg.url ?? ''));
     }
+  }
+
+  private runLookupStories(storyNames: string[], orgAlias: string): void {
+    if (!orgAlias || storyNames.length === 0) return;
+    const args = [
+      RUNNER_PATH,
+      '--target-org', orgAlias,
+      '--lookup-stories', 'true',
+      '--stories', storyNames.join(','),
+    ];
+    const proc = spawn(NODE_EXEC_PATH, args, { shell: false, env: { ...process.env, NODE_NO_WARNINGS: '1' } });
+    const timer = setTimeout(() => proc.kill(), 30_000);
+    let buf = '';
+    proc.stdout.on('data', (chunk: Buffer) => {
+      buf += chunk.toString();
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines.filter(l => l.trim())) {
+        try {
+          const msg = JSON.parse(line) as Record<string, unknown>;
+          if (msg.type === 'story-lookup-result' || msg.type === 'story-lookup-error') this.post(msg);
+        } catch { /* ignore non-JSON */ }
+      }
+    });
+    proc.on('close', () => clearTimeout(timer));
   }
 
   private runDescribeFields(orgAlias: string): void {
