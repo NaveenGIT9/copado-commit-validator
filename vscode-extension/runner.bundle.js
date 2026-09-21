@@ -129615,6 +129615,20 @@ async function main() {
     const storyIdMap = {};
     validStories.forEach((s) => { if (s.id) storyIdMap[s.name] = s.id; });
     emit({ type: "fetch-done", stories: validStories.map((s) => s.name), storyIdMap, repoName, envType: fetchEnvType });
+    // Dev name lookup in the same process — no extra auth overhead
+    try {
+      const idList = validStories.map((s) => `'${s.id}'`).join(",");
+      const devRes = await conn.query(`SELECT Id, Name, copado__Developer__r.Name FROM copado__User_Story__c WHERE Id IN (${idList})`);
+      const devMap = {};
+      const idMap = {};
+      for (const r of devRes.records ?? []) {
+        if (r.Name) {
+          if (r.copado__Developer__r?.Name) devMap[r.Name] = r.copado__Developer__r.Name;
+          if (r.Id) idMap[r.Name] = r.Id;
+        }
+      }
+      emit({ type: "story-lookup-result", storyDevMap: devMap, storyIdMap: idMap });
+    } catch { /* dev names are best-effort — don't block exit */ }
     process.exit(0);
   }
   if (doPromote) {

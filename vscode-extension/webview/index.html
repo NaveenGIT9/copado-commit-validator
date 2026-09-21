@@ -2073,11 +2073,6 @@ window.addEventListener('message', (event) => {
     Object.assign(fetchedStoryIdMap, msg.storyIdMap ?? {});
     document.getElementById('stories').value = stories.join('\n');
     renderStoryTags();
-    // Background lookup for developer names — runs after pills are already shown
-    if (stories.length > 0) {
-      const orgAlias = document.getElementById('orgAlias')?.value?.trim() || '';
-      if (orgAlias) vscode.postMessage({ command: 'lookupStories', storyNames: stories, orgAlias });
-    }
     // Only auto-fill repo path from the story's project chain when no pipeline is
     // explicitly selected. If _selectedPipelineRepoUri is set, the pipeline's own
     // repo URI drives the path (via --pipeline-repo-uri on verify) — using the
