@@ -319,7 +319,7 @@
     <div id="pipelineFilterPanels"></div>
   </div>
   <div id="storiesWrap">
-    <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado" onblur="setTimeout(() => renderStoryTags(true), 0)"></textarea>
+    <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado" onblur="onStoriesBlur(event)"></textarea>
     <div id="storyDevTags" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
   </div>
 </div>
@@ -1150,6 +1150,14 @@ function fetchReady(envType) {
 }
 
 
+function onStoriesBlur(e) {
+  // When the blur is caused by clicking Verify Stories, skip showing tags here —
+  // verify() handles it directly inside the click handler, avoiding layout shift
+  // that would push the button down between mousedown and mouseup (dropping the click).
+  if (e.relatedTarget && e.relatedTarget.id === 'verifyBtn') return;
+  setTimeout(() => renderStoryTags(true), 0);
+}
+
 function verify() {
   const stories  = document.getElementById('stories').value.trim();
   const orgAlias = document.getElementById('orgAlias').value.trim();
@@ -1159,7 +1167,7 @@ function verify() {
     return;
   }
 
-  renderStoryTags(true); // show pills + kick off dev-name lookup in parallel
+  renderStoryTags(true); // show pills + kick off dev-name lookup in parallel (click already captured)
 
   // Always wipe the repo path on verify — the runner detects the correct repo
   // from the story's pipeline chain. A stale path here would cause it to use
