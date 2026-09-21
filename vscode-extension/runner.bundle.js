@@ -129564,17 +129564,16 @@ async function main() {
       whereClause = `copado__Status__c = '${safeStatus}'${readyToPromoteClause}${envClause}`;
     }
     const pipelineClause = selectedPipelineId ? ` AND copado__Project__r.copado__Deployment_Flow__c = '${selectedPipelineId}'` : "";
-    const soql = `SELECT Id, Name, copado__Developer__r.Name FROM copado__User_Story__c WHERE ${whereClause}${pipelineClause} ORDER BY Name`;
+    const soql = `SELECT Id, Name FROM copado__User_Story__c WHERE ${whereClause}${pipelineClause} ORDER BY Name`;
     emit({ type: "debug", message: `fetch filters: ${fetchFiltersJson ? "dynamic" : "legacy"}` });
     emit({ type: "debug", message: `fetch SOQL: ${soql}` });
-    let storyIds = [], storyNames2 = [], storyDevelopers2 = [];
+    let storyIds = [], storyNames2 = [];
     try {
       const res = await conn.query(soql);
       for (const r2 of res.records ?? []) {
         if (r2.Id && r2.Name) {
           storyIds.push(r2.Id);
           storyNames2.push(r2.Name);
-          storyDevelopers2.push(r2.copado__Developer__r?.Name ?? '');
         }
       }
     } catch (err) {
@@ -129600,7 +129599,7 @@ async function main() {
       const storyId = storyIds[i2];
       const storyName = storyNames2[i2];
       const latestCommitDate = latestCommitDateMap[storyId] ?? null;
-      validStories.push({ id: storyId, name: storyName, developer: storyDevelopers2[i2] ?? '' });
+      validStories.push({ id: storyId, name: storyName });
     }
     let repoName = "";
     if (validStories.length > 0) {
@@ -129613,13 +129612,9 @@ async function main() {
       } catch {
       }
     }
-    const storyDevMap = {};
     const storyIdMap = {};
-    validStories.forEach((s) => {
-      if (s.developer) storyDevMap[s.name] = s.developer;
-      if (s.id) storyIdMap[s.name] = s.id;
-    });
-    emit({ type: "fetch-done", stories: validStories.map((s) => s.name), storyDevMap, storyIdMap, repoName, envType: fetchEnvType });
+    validStories.forEach((s) => { if (s.id) storyIdMap[s.name] = s.id; });
+    emit({ type: "fetch-done", stories: validStories.map((s) => s.name), storyIdMap, repoName, envType: fetchEnvType });
     process.exit(0);
   }
   if (doPromote) {
