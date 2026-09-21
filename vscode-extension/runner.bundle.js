@@ -130129,9 +130129,18 @@ async function main() {
           const parents = parentsRaw.trim().split(/\s+/).filter(Boolean);
           if (parents.length < 2) continue;
           const mergedParent = parents[1];
+          // Skip merge commits that pull the story's own remote tracking branch (git pull self-merge)
+          const [, , subjectRaw = ""] = line.split("\0");
+          const selfMergeMatch = subjectRaw.match(/^Merge (?:remote-tracking )?branch '(?:origin\/)?([^']+)'/i);
+          if (selfMergeMatch && selfMergeMatch[1].toLowerCase() === branchName.replace(/^origin\//, "").toLowerCase()) continue;
           for (const branchName2 of orgBranchNames) {
             try {
               await git.raw(["merge-base", "--is-ancestor", mergedParent, `origin/${branchName2}`]);
+              // Exclude false positives: if the merged parent is already in the base branch
+              // it's just common history (e.g. a previously promoted commit), not contamination
+              let inBase = false;
+              try { await git.raw(["merge-base", "--is-ancestor", mergedParent, diffBase]); inBase = true; } catch { /* not in base */ }
+              if (inBase) continue;
               orgBranchMerges.push({ sha: hash.slice(0, 10), mergedBranch: branchName2 });
               break;
             } catch {
