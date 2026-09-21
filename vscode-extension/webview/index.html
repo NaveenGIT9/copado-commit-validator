@@ -410,6 +410,7 @@
 const vscode = acquireVsCodeApi();
 
 let storyDevMap        = {};   // storyName → developer name (populated on fetch)
+let fetchedStoryIdMap  = {};   // storyName → Salesforce record Id (populated on fetch)
 let cleanStories       = [];   // [{name, id, projectId, credentialId, sourceEnvName, dstEnvName, skipped}]
 let groupByEnv         = false; // toggle: group promote list by source environment instead of project
 let verifiedStoryNames = new Set(); // all story names that came back from verify (uppercased), for culprit-in-list check
@@ -1262,6 +1263,7 @@ function _resetState() {
   document.getElementById('stories').value = '';
   document.getElementById('repoPath').value = '';
   storyDevMap = {};
+  fetchedStoryIdMap = {};
   const tagsEl = document.getElementById('storyDevTags');
   if (tagsEl) { tagsEl.innerHTML = ''; tagsEl.style.display = 'none'; }
   cleanStories         = [];
@@ -1375,7 +1377,11 @@ function renderStoryTags() {
   if (!names.length) { tagsEl.innerHTML = ''; tagsEl.style.display = 'none'; return; }
   tagsEl.innerHTML = names.map(n => {
     const dev = storyDevMap[n] ? `<span style="color:#6b7280;font-family:sans-serif"> - ${storyDevMap[n]}</span>` : '';
-    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background:rgba(79,126,247,0.1);border:1px solid rgba(79,126,247,0.25);font-size:11px;font-family:monospace;color:#3b5fc0;white-space:nowrap"><b>${n}</b>${dev}</span>`;
+    const id = fetchedStoryIdMap[n] || storyIdMap[n];
+    const clickable = instanceUrl && id
+      ? `onclick="openUrl('${instanceUrl}/lightning/r/copado__User_Story__c/${id}/view');return false;" style="cursor:pointer;" title="Open in Salesforce"`
+      : '';
+    return `<span ${clickable} style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background:rgba(79,126,247,0.1);border:1px solid rgba(79,126,247,0.25);font-size:11px;font-family:monospace;color:#3b5fc0;white-space:nowrap"><b>${n}</b>${dev}${id && instanceUrl ? '<span style="font-size:9px;margin-left:3px;opacity:0.5">↗</span>' : ''}</span>`;
   }).join('');
   tagsEl.style.display = 'flex';
 }
@@ -2054,6 +2060,7 @@ window.addEventListener('message', (event) => {
     });
     const stories = msg.stories ?? [];
     Object.assign(storyDevMap, msg.storyDevMap ?? {});
+    Object.assign(fetchedStoryIdMap, msg.storyIdMap ?? {});
     document.getElementById('stories').value = stories.join('\n');
     renderStoryTags();
     // Only auto-fill repo path from the story's project chain when no pipeline is

@@ -129593,8 +129593,12 @@ async function main() {
       }
     }
     const storyDevMap = {};
-    validStories.forEach((s) => { if (s.developer) storyDevMap[s.name] = s.developer; });
-    emit({ type: "fetch-done", stories: validStories.map((s) => s.name), storyDevMap, repoName, envType: fetchEnvType });
+    const storyIdMap = {};
+    validStories.forEach((s) => {
+      if (s.developer) storyDevMap[s.name] = s.developer;
+      if (s.id) storyIdMap[s.name] = s.id;
+    });
+    emit({ type: "fetch-done", stories: validStories.map((s) => s.name), storyDevMap, storyIdMap, repoName, envType: fetchEnvType });
     process.exit(0);
   }
   if (doPromote) {
