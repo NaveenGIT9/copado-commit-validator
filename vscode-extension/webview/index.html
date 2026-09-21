@@ -319,7 +319,7 @@
     <div id="pipelineFilterPanels"></div>
   </div>
   <div id="storiesWrap">
-    <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado"></textarea>
+    <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado" onblur="renderStoryTags()"></textarea>
     <div id="storyDevTags" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
   </div>
 </div>
@@ -409,6 +409,7 @@
 <script>
 const vscode = acquireVsCodeApi();
 
+let storyDevMap        = {};   // storyName → developer name (populated on fetch)
 let cleanStories       = [];   // [{name, id, projectId, credentialId, sourceEnvName, dstEnvName, skipped}]
 let groupByEnv         = false; // toggle: group promote list by source environment instead of project
 let verifiedStoryNames = new Set(); // all story names that came back from verify (uppercased), for culprit-in-list check
@@ -1260,6 +1261,7 @@ function _resetState() {
   document.getElementById('cancelBtn').style.display = 'none';
   document.getElementById('stories').value = '';
   document.getElementById('repoPath').value = '';
+  storyDevMap = {};
   const tagsEl = document.getElementById('storyDevTags');
   if (tagsEl) { tagsEl.innerHTML = ''; tagsEl.style.display = 'none'; }
   cleanStories         = [];
@@ -1363,6 +1365,19 @@ function sfPromoLink(name, id) {
 function ghBranchLink(branch) {
   if (!gitRepoUrl || !branch) return branch || '—';
   return `<a href="#" onclick="openUrl('${gitRepoUrl}/tree/${encodeURIComponent(branch)}');return false;" style="color:#8a9bb0;text-decoration:underline;text-decoration-color:rgba(42,106,138,0.4);cursor:pointer">${branch}</a>`;
+}
+
+function renderStoryTags() {
+  const tagsEl = document.getElementById('storyDevTags');
+  if (!tagsEl) return;
+  const names = (document.getElementById('stories').value || '')
+    .split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  if (!names.length) { tagsEl.innerHTML = ''; tagsEl.style.display = 'none'; return; }
+  tagsEl.innerHTML = names.map(n => {
+    const dev = storyDevMap[n] ? `<span style="color:#6b7280;font-family:sans-serif"> - ${storyDevMap[n]}</span>` : '';
+    return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background:rgba(79,126,247,0.1);border:1px solid rgba(79,126,247,0.25);font-size:11px;font-family:monospace;color:#3b5fc0;white-space:nowrap"><b>${n}</b>${dev}</span>`;
+  }).join('');
+  tagsEl.style.display = 'flex';
 }
 
 function setStatus(type, msg, spinner = false) {
@@ -2038,16 +2053,9 @@ window.addEventListener('message', (event) => {
       if (el) el.style.display = '';
     });
     const stories = msg.stories ?? [];
-    const devMap = msg.storyDevMap ?? {};
+    Object.assign(storyDevMap, msg.storyDevMap ?? {});
     document.getElementById('stories').value = stories.join('\n');
-    const tagsEl = document.getElementById('storyDevTags');
-    if (tagsEl) {
-      tagsEl.innerHTML = stories.map(n => {
-        const dev = devMap[n] ? ` - ${devMap[n]}` : '';
-        return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background:rgba(79,126,247,0.1);border:1px solid rgba(79,126,247,0.25);font-size:11px;font-family:monospace;color:#3b5fc0;white-space:nowrap"><b>${n}</b><span style="color:#6b7280;font-family:sans-serif">${dev}</span></span>`;
-      }).join('');
-      tagsEl.style.display = stories.length ? 'flex' : 'none';
-    }
+    renderStoryTags();
     // Only auto-fill repo path from the story's project chain when no pipeline is
     // explicitly selected. If _selectedPipelineRepoUri is set, the pipeline's own
     // repo URI drives the path (via --pipeline-repo-uri on verify) — using the
