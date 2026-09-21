@@ -130068,6 +130068,7 @@ async function main() {
     let storyMetadataNames = /* @__PURE__ */ new Set();
     let xmlTypeMetadata = [];
     let hasApexMetadata = false;
+    let hasCustomLabelMetadata = false;
     try {
       const metaResult = await conn.query(
         `SELECT copado__Metadata_API_Name__c, copado__Type__c FROM copado__User_Story_Metadata__c WHERE copado__User_Story__c = '${story.Id}'`
@@ -130079,6 +130080,10 @@ async function main() {
       if (xmlTypeMetadata.length > 0)
         emit({ type: "debug", message: `${story.Name}: ${xmlTypeMetadata.length} metadata record(s) with Type=xml \u2014 will block promotion: ${xmlTypeMetadata.join(", ")}` });
       hasApexMetadata = metaResult.records.some((r2) => /^apex/i.test(r2.copado__Type__c ?? ""));
+      // Developers commit individual CustomLabel components but the git file is always the
+      // shared CustomLabels container. Treat a committed CustomLabels file as covered whenever
+      // the story has at least one CustomLabel (singular) metadata entry.
+      hasCustomLabelMetadata = metaResult.records.some((r2) => (r2.copado__Type__c ?? "").toLowerCase() === "customlabel");
     } catch {
     }
     let storyTests = [];
@@ -130286,6 +130291,8 @@ async function main() {
       const components = [...new Set(files.map(parseApiName).filter(Boolean))];
       const isCovered = (c3) => {
         const cl = c3.toLowerCase();
+        // CustomLabels (whole file) is covered when the story has any CustomLabel (individual) entry
+        if (cl === "customlabels" && hasCustomLabelMetadata) return true;
         return storyMetadataNames.has(cl) || [...storyMetadataNames].some((m) => m.startsWith(cl + "."));
       };
       const coveredComponents = components.filter((c3) => isCovered(c3));

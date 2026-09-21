@@ -319,7 +319,7 @@
     <div id="pipelineFilterPanels"></div>
   </div>
   <div id="storiesWrap">
-    <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado" onblur="renderStoryTags(true)"></textarea>
+    <textarea id="stories" rows="4" placeholder="US-0023250&#10;US-0023251&#10;US-0023252&#10;&#10;or use Fetch buttons above to auto-load from Copado" onblur="setTimeout(() => renderStoryTags(true), 0)"></textarea>
     <div id="storyDevTags" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
   </div>
 </div>
@@ -1158,6 +1158,8 @@ function verify() {
     setStatus('error', 'Enter story names and Copado org alias / username before verifying.');
     return;
   }
+
+  renderStoryTags(true); // show pills + kick off dev-name lookup in parallel
 
   // Always wipe the repo path on verify — the runner detects the correct repo
   // from the story's pipeline chain. A stale path here would cause it to use
