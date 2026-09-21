@@ -1378,10 +1378,11 @@ function renderStoryTags(triggerLookup = false) {
   tagsEl.innerHTML = names.map(n => {
     const dev = storyDevMap[n] ? `<span style="color:#6b7280;font-family:sans-serif"> - ${storyDevMap[n]}</span>` : '';
     const id = fetchedStoryIdMap[n] || storyIdMap[n];
-    const clickable = instanceUrl && id
-      ? `onclick="openUrl('${instanceUrl}/lightning/r/copado__User_Story__c/${id}/view');return false;" style="cursor:pointer;" title="Open in Salesforce"`
-      : '';
-    return `<span ${clickable} style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background:rgba(79,126,247,0.1);border:1px solid rgba(79,126,247,0.25);font-size:11px;font-family:monospace;color:#3b5fc0;white-space:nowrap"><b>${n}</b>${dev}${id && instanceUrl ? '<span style="font-size:9px;margin-left:3px;opacity:0.5">↗</span>' : ''}</span>`;
+    const canLink = !!(instanceUrl && id);
+    const onclick = canLink ? `onclick="openUrl('${instanceUrl}/lightning/r/copado__User_Story__c/${id}/view');return false;"` : '';
+    const title = canLink ? `title="Open in Salesforce"` : '';
+    const cursor = canLink ? 'cursor:pointer;' : '';
+    return `<span ${onclick} ${title} style="${cursor}display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:4px;background:rgba(79,126,247,0.1);border:1px solid rgba(79,126,247,0.25);font-size:11px;font-family:monospace;color:#3b5fc0;white-space:nowrap"><b>${n}</b>${dev}${canLink ? '<span style="font-size:9px;margin-left:3px;opacity:0.5">↗</span>' : ''}</span>`;
   }).join('');
   tagsEl.style.display = 'flex';
 
