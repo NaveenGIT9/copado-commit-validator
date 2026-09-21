@@ -129339,8 +129339,16 @@ function buildFilterClause(filters) {
   const logic = filters.logic === "OR" ? " OR " : " AND ";
   const safe = (v) => (v || "").replace(/'/g, "\\'");
   const fragments = [];
+  const LOOKUP_REMAP = {
+    "copado__Org_Credential__c": "copado__Org_Credential__r.Name",
+    "copado__Environment__c": "copado__Environment__r.Name",
+    "copado__Project__c": "copado__Project__r.Name",
+    "copado__Sprint__c": "copado__Sprint__r.Name",
+    "copado__Feature__c": "copado__Feature__r.Name",
+  };
   for (const row of filters.rows) {
-    const { field, op, value } = row;
+    const { field: rawField, op, value } = row;
+    const field = LOOKUP_REMAP[rawField] || rawField;
     if (!field || !op) continue;
     const vals = (value || "").split(",").map((v) => v.trim()).filter(Boolean);
     let frag = "";
