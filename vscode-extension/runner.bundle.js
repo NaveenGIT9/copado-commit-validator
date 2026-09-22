@@ -130121,10 +130121,12 @@ async function main() {
     const storyBaseBranch = (story.copado__Base_Branch__c ?? "").trim();
     const diffBase = storyBaseBranch ? `origin/${storyBaseBranch}` : "origin/master";
     let branchExists = true;
-    try {
-      await git.raw(["rev-parse", "--verify", remoteBranch]);
-    } catch {
-      branchExists = false;
+    if (storyMetadataNames.size > 0 || copadoCommits.length > 0) {
+      try {
+        await git.raw(["rev-parse", "--verify", remoteBranch]);
+      } catch {
+        branchExists = false;
+      }
     }
     if (!branchExists) {
       const _srcEnv2 = story.copado__Environment__r?.Name ?? story.copado__Org_Credential__r?.Name ?? null;
