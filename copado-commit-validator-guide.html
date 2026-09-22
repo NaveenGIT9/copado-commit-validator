@@ -1,0 +1,751 @@
+<title>Copado Commit Validator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+
+<style>
+  /* Comfortable dark — not pitch black, easy on eyes */
+  :root {
+    --bg:           #152030;
+    --card:         #1D2E42;
+    --border:       #2A4060;
+    --text:         #D8EBF8;
+    --text-2:       #7FB0CC;
+    --text-3:       #4A7490;
+    --accent:       #5AABFF;
+    --accent-dim:   #122540;
+    --red:          #F07878;
+    --red-dim:      #2A0E0E;
+    --red-border:   rgba(240,120,120,0.22);
+    --amber:        #FCD34D;
+    --amber-dim:    #2A1C04;
+    --amber-border: rgba(252,211,77,0.18);
+    --hero-bg:      #0C1622;
+    --hero-fade:    rgba(255,255,255,0.08);
+    --hero-blue:    #5AABFF;
+    --hero-muted:   #82AECA;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.7;
+    padding-inline: 24px;
+    padding-block: 0;
+  }
+
+  /* ─── HERO ─── */
+  .hero {
+    background: var(--hero-bg);
+    margin-inline: -24px;
+    padding: 52px 24px 56px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero-inner { max-width: 780px; margin-inline: auto; }
+
+  .hero-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--hero-fade);
+    background: rgba(91,163,251,0.08);
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--hero-blue);
+    margin-bottom: 26px;
+  }
+  .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--hero-blue); flex-shrink: 0; }
+
+  .hero h1 {
+    font-size: clamp(34px, 5.5vw, 58px);
+    font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+    color: #FFFFFF;
+    text-wrap: balance;
+    margin-bottom: 18px;
+  }
+
+  .hero-tagline {
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--hero-muted);
+    line-height: 1.6;
+    max-width: 560px;
+    margin-bottom: 36px;
+  }
+
+  .hero-pills { display: flex; flex-wrap: wrap; gap: 10px; }
+  .hero-pill {
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 15px;
+    border-radius: 9px;
+    border: 1px solid var(--hero-fade);
+    background: rgba(255,255,255,0.04);
+    font-size: 13px; font-weight: 500; color: var(--hero-muted);
+  }
+  .hero-pill svg { color: var(--hero-blue); flex-shrink: 0; }
+
+  /* ─── CONTENT ─── */
+  .wrap {
+    max-width: 780px;
+    margin-inline: auto;
+    padding-block: 60px;
+    display: flex;
+    flex-direction: column;
+    gap: 64px;
+  }
+
+  .eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
+  }
+
+  .block-title {
+    font-size: clamp(22px, 3.5vw, 30px);
+    font-weight: 700; letter-spacing: -0.02em; line-height: 1.2;
+    color: var(--text); text-wrap: balance; margin-bottom: 14px;
+  }
+
+  .block-body {
+    font-size: 15.5px; color: var(--text-2); line-height: 1.75; max-width: 680px;
+  }
+  .block-body + .block-body { margin-top: 12px; }
+
+  /* ─── HOW IT WORKS diagram-style box ─── */
+  .flow-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 26px;
+    margin-top: 24px;
+  }
+
+  .flow-label {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 18px;
+  }
+
+  .flow-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .flow-step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    position: relative;
+  }
+
+  .flow-step + .flow-step { margin-top: 20px; }
+
+  .flow-step + .flow-step::before {
+    content: '';
+    position: absolute;
+    left: 13px;
+    top: -20px;
+    height: 20px;
+    width: 1px;
+    background: var(--border);
+  }
+
+  .flow-num {
+    flex-shrink: 0;
+    width: 27px; height: 27px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    border: 1.5px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: var(--accent);
+  }
+
+  .flow-text {
+    font-size: 14.5px;
+    color: var(--text-2);
+    line-height: 1.65;
+    padding-top: 2px;
+  }
+
+  .flow-text strong { color: var(--text); font-weight: 600; }
+
+  /* ─── CALLOUT ─── */
+  .callout {
+    background: var(--accent-dim);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+    font-size: 14.5px; color: var(--text-2); line-height: 1.7;
+    margin-top: 20px;
+  }
+
+  /* ─── PROBLEMS ─── */
+  .problems-stack { display: flex; flex-direction: column; gap: 16px; margin-top: 28px; }
+
+  .problem-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--red);
+    border-radius: 0 12px 12px 0;
+    padding: 26px 26px 22px;
+  }
+
+  .problem-kicker {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--red); margin-bottom: 6px;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .problem-kicker::before { content:''; width:4px; height:4px; border-radius:50%; background:currentColor; flex-shrink:0; }
+
+  .problem-name {
+    font-size: 19px; font-weight: 700; letter-spacing: -0.01em;
+    color: var(--text); line-height: 1.25; margin-bottom: 12px;
+  }
+
+  .problem-text { font-size: 14.5px; color: var(--text-2); line-height: 1.72; margin-bottom: 14px; }
+  .problem-text + .problem-text { margin-top: -4px; }
+
+  .how-box {
+    background: var(--red-dim);
+    border: 1px solid var(--red-border);
+    border-radius: 8px;
+    padding: 13px 16px;
+    font-size: 13.5px; color: var(--text-2); line-height: 1.62;
+    margin-top: 6px;
+  }
+  .how-label {
+    display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.11em;
+    text-transform: uppercase; color: var(--red); margin-bottom: 5px;
+  }
+
+  /* ─── EXAMPLE COUNTER ─── */
+  .count-example {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 14px 0;
+  }
+
+  .count-pill {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13.5px; font-weight: 600;
+  }
+
+  .count-pill.git { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(27,110,243,0.2); }
+  .count-pill.copado { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber-border); }
+  .count-pill.gap { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
+
+  .count-pill svg { flex-shrink: 0; }
+
+  /* ─── FEATURES ─── */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    gap: 12px; margin-top: 28px;
+  }
+
+  .feat {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 22px;
+    display: flex; gap: 15px; align-items: flex-start;
+  }
+
+  .feat-icon {
+    flex-shrink: 0; width: 34px; height: 34px;
+    background: var(--accent-dim); border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .feat-icon svg { color: var(--accent); }
+
+  .feat h4 { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; line-height: 1.3; }
+  .feat p  { font-size: 13.5px; color: var(--text-2); line-height: 1.6; }
+
+  /* ─── WHEN ─── */
+  .when-box {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 32px;
+  }
+
+  .when-list { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+
+  .when-list li {
+    display: flex; gap: 11px; align-items: flex-start;
+    font-size: 14.5px; color: var(--text-2); line-height: 1.62;
+  }
+
+  .tick {
+    flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); display: flex; align-items: center; justify-content: center;
+    margin-top: 3px;
+  }
+  .tick svg { color: #fff; }
+
+  /* ─── FOOTER ─── */
+  .footer {
+    max-width: 780px; margin-inline: auto;
+    border-top: 1px solid var(--border); padding: 24px 0 44px;
+    display: flex; justify-content: space-between; flex-wrap: wrap;
+    gap: 6px; font-size: 12px; color: var(--text-3);
+  }
+
+  /* ─── PIPELINE SECTION ─── */
+  .pipeline-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 28px 24px;
+    margin-top: 24px;
+    margin-bottom: 20px;
+  }
+
+  .pipeline-steps {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    flex-wrap: wrap;
+  }
+
+  .pipe-step {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .pipe-icon {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    background: var(--accent-dim);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .pipe-icon svg { color: var(--accent); }
+
+  .pipe-text {
+    font-size: 13.5px;
+    color: var(--text-2);
+    line-height: 1.55;
+    padding-top: 2px;
+  }
+
+  .pipe-text strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+
+  .pipe-arrow {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    padding-top: 7px;
+    color: var(--text-3);
+    flex-shrink: 0;
+  }
+
+  .benefit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+  }
+
+  .benefit-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--accent);
+    border-radius: 0 0 10px 10px;
+    padding: 18px 20px;
+  }
+
+  .benefit-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+
+  .benefit-item p {
+    font-size: 13.5px;
+    color: var(--text-2);
+    line-height: 1.6;
+  }
+
+  @media (max-width: 600px) {
+    .pipeline-steps { flex-direction: column; gap: 14px; }
+    .pipe-arrow { display: none; }
+  }
+
+  @media (max-width: 520px) {
+    .hero { padding: 38px 24px 42px; }
+    .wrap { padding-block: 44px; gap: 48px; }
+    .features-grid { grid-template-columns: 1fr; }
+    .when-box { padding: 22px; }
+    .footer { flex-direction: column; }
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<!-- ═══ HERO ═══ -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-chip"><span class="chip-dot"></span>VSCode Extension &nbsp;·&nbsp; v2.0</div>
+    <h1>Copado Commit<br>Validator</h1>
+    <p class="hero-tagline">Before you promote to the next environment, know exactly what's going out — and catch anything that will silently fail to deploy.</p>
+    <div class="hero-pills">
+      <span class="hero-pill">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+        Pre-deployment validation
+      </span>
+      <span class="hero-pill">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Last promotion status
+      </span>
+      <span class="hero-pill">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        Promote from VSCode
+      </span>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ CONTENT ═══ -->
+<main class="wrap">
+
+  <!-- WHAT IS IT -->
+  <section>
+    <div class="eyebrow">What it does</div>
+    <h2 class="block-title">The gap between committing and actually deploying</h2>
+
+    <p class="block-body">When a developer commits in Copado, two things are supposed to happen together — the files land in git <em>and</em> Copado registers those files against the User Story. If both happen correctly, the deployment works. If they get out of sync, Copado will silently skip those files at deploy time — and the developer's changes never reach the target org.</p>
+    <p class="block-body">This tool runs a check before any promotion starts. Here's exactly what it does:</p>
+
+    <div class="flow-box">
+      <div class="flow-label">How the validator works</div>
+      <div class="flow-steps">
+        <div class="flow-step">
+          <div class="flow-num">1</div>
+          <div class="flow-text">It counts <strong>how many commits are on the feature branch</strong> in git — say a developer made 5 commits.</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">2</div>
+          <div class="flow-text">It counts <strong>how many of those commits are registered in Copado</strong> against the User Story with a status of "Complete".</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">3</div>
+          <div class="flow-text">If the numbers don't match, there are <strong>unregistered commits</strong> — commits sitting in git that Copado has no record of.</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num">4</div>
+          <div class="flow-text">For <strong>every commit on the branch</strong> — registered or not — it checks: are the metadata components in that commit listed on the User Story? If any component is in git but not on the story's component list, Copado will skip it at deployment. The file stays in git but never reaches the target org.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Why this matters:</strong> Copado doesn't deploy everything in git. It only deploys components that are registered on the User Story. Think of it like a shopping list — Copado only buys what's on the list. If your Apex class is in any commit on the branch but isn't on the story's component list, it gets left behind every single deployment — whether that commit was registered or not. The developer eventually comes to the DevOps team saying "my changes didn't deploy" — and that's exactly what this tool prevents.
+    </div>
+  </section>
+
+  <!-- PIPELINE FEATURE -->
+  <section>
+    <div class="eyebrow">Pipeline Integration</div>
+    <h2 class="block-title">Start from the pipeline, not the story</h2>
+    <p class="block-body">Instead of hunting through Copado's browser UI to find the right stories, you can pull in your entire pipeline directly from the Copado governance org. Pick a pipeline, and the tool lays out every environment in it — from Dev all the way through to Production — in one view.</p>
+
+    <div class="pipeline-card">
+      <div class="pipeline-steps">
+
+        <div class="pipe-step">
+          <div class="pipe-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+          </div>
+          <div class="pipe-text">
+            <strong>Fetch pipelines</strong>
+            Connect to your Copado governance org and retrieve all available pipelines in one click.
+          </div>
+        </div>
+
+        <div class="pipe-arrow" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+
+        <div class="pipe-step">
+          <div class="pipe-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </div>
+          <div class="pipe-text">
+            <strong>See all environments</strong>
+            Select a pipeline and every environment in it is listed — Dev, QA, UAT, Production and any others in between.
+          </div>
+        </div>
+
+        <div class="pipe-arrow" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+
+        <div class="pipe-step">
+          <div class="pipe-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+          </div>
+          <div class="pipe-text">
+            <strong>Filter per environment</strong>
+            Each environment gets its own filter. Narrow down to exactly the stories you need — by name, status, team, or any field — without scrolling through everything.
+          </div>
+        </div>
+
+        <div class="pipe-arrow" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+
+        <div class="pipe-step">
+          <div class="pipe-icon">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="pipe-text">
+            <strong>Verify and promote</strong>
+            Run all the validation checks on the fetched stories and promote directly — without opening Copado in the browser at any point.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="benefit-grid">
+      <div class="benefit-item">
+        <div class="benefit-label">Time saving</div>
+        <p>What normally takes multiple browser tabs and manual navigation — opening Copado, finding the pipeline, switching between environments, locating each story — happens in seconds from one panel.</p>
+      </div>
+      <div class="benefit-item">
+        <div class="benefit-label">Precision</div>
+        <p>Filters on each environment mean you're always working with exactly the right stories. No accidental selection, no missed stories sitting in an environment you didn't check.</p>
+      </div>
+      <div class="benefit-item">
+        <div class="benefit-label">Full workflow in one place</div>
+        <p>Fetch → filter → verify → promote. The entire release cycle for a pipeline lives inside VSCode. You never need to leave your editor to manage a deployment.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROBLEMS -->
+  <section>
+    <div class="eyebrow">What it catches</div>
+    <h2 class="block-title">Three things that silently break Copado deployments</h2>
+    <p class="block-body">Each of these happens without any obvious error in Copado's UI. By the time someone notices, the deployment has already failed — or the wrong changes already reached production.</p>
+
+    <div class="problems-stack">
+
+      <!-- PROBLEM 1 -->
+      <article class="problem-card">
+        <div class="problem-kicker">Issue 1</div>
+        <div class="problem-name">Commits in git that Copado won't deploy</div>
+
+        <p class="problem-text">This is the most common and most confusing one. A developer commits 5 times on their feature branch. But Copado only has 3 of those registered as "Complete" on the User Story. The other 2 are unregistered — they're in git, but Copado has no record of them.</p>
+
+        <div class="count-example" aria-label="Example mismatch">
+          <span class="count-pill git">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/><line x1="12" y1="12" x2="12" y2="15"/></svg>
+            5 commits in git
+          </span>
+          <span class="count-pill copado">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            3 registered in Copado
+          </span>
+          <span class="count-pill gap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg>
+            2 unregistered
+          </span>
+        </div>
+
+        <p class="problem-text">The validator then goes through <strong>every commit on the branch</strong> — registered and unregistered — and checks each metadata component inside them against the User Story's component list. It's not just the unregistered commits that matter. Even a registered commit can carry a component that isn't properly on the story's list. If an Apex class is in any commit on the branch but not on the story's component list, Copado will skip it during deployment. The class changes stay in git forever but never reach the target org.</p>
+
+        <div class="how-box">
+          <span class="how-label">What the developer sees</span>
+          They push the promotion, it completes with no errors, they go to the target org — their changes aren't there. They come to the DevOps team saying "my changes didn't deploy." The validator catches this before promotion starts.
+        </div>
+      </article>
+
+      <!-- PROBLEM 2 -->
+      <article class="problem-card">
+        <div class="problem-kicker">Issue 2</div>
+        <div class="problem-name">Child story tries to promote before the parent has gone first</div>
+        <p class="problem-text">In Copado, stories can have a parent-child dependency. The rule is simple: the parent must reach the target environment before the child can follow. If the child promotes first, things break in the target org.</p>
+        <p class="problem-text">The validator checks where the parent story currently sits and tells you whether the child is safe to promote:</p>
+        <p class="problem-text">
+          <strong>Parent is ahead of the child</strong> — for example, parent is already in QA and child is still in DEV. The dependency is satisfied. Child is promotable.<br><br>
+          <strong>Parent is in the same environment as the child</strong> — parent hasn't moved forward yet. Child is not promotable. You'll see this flagged clearly. There is a force-promote option, but it should be a conscious decision, not an accident.
+        </p>
+        <p class="problem-text">This check covers both ways the parent-child relationship can exist in your setup:</p>
+        <p class="problem-text">
+          <strong>1. Copado User Story Dependency</strong> — the parent is officially configured in Copado's dependency setup for that child story.<br><br>
+          <strong>2. Base branch relationship</strong> — the child story's feature branch was created off the parent's feature branch (not off main or org branch). The child's git history already includes the parent's changes, so the parent still needs to go first for the deployment to land correctly.
+        </p>
+        <div class="how-box">
+          <span class="how-label">What this looks like without the check</span>
+          A developer promotes their child story to QA. The parent is still sitting in DEV. QA gets the child's changes without the parent's foundation — the feature is broken, and it takes the team time to figure out why something that "worked in DEV" is failing in QA.
+        </div>
+      </article>
+
+      <!-- PROBLEM 3 -->
+      <article class="problem-card">
+        <div class="problem-kicker">Issue 3</div>
+        <div class="problem-name">A hidden git merge that silently ships unrelated stories to QA</div>
+        <p class="problem-text">This one is subtle and easy to miss. A developer runs into merge conflicts while working. Instead of resolving conflicts through Copado the right way, they go directly into git and fix them manually. In doing so, they accidentally merge the <strong>target org branch</strong> (e.g. INT) into their own <strong>feature branch</strong>.</p>
+        <p class="problem-text">Here's why nobody catches it:</p>
+        <p class="problem-text">
+          <strong>The PR looks clean.</strong> The developer raises a PR against the INT target branch as normal. The reviewer sees no unexpected changes in the diff — because the INT branch is already the target, so those changes don't show up as new. The reviewer approves. It deploys to INT fine.
+        </p>
+        <p class="problem-text">
+          <strong>The damage happens on the next promotion.</strong> When this story promotes beyond INT — to QA — its feature branch is now carrying INT's entire branch history inside it. That means every story sitting in INT that was never meant to go to QA yet gets pushed to QA through this developer's feature branch. Those stories deploy before they were supposed to, without any approval, without anyone realising it happened.
+        </p>
+        <div class="how-box">
+          <span class="how-label">Why it's impossible to catch manually</span>
+          You can't review every single commit in every feature branch before deployment. The PR diff shows nothing wrong. The only way to detect it is to specifically check whether the target org branch has been merged into the feature branch — which is exactly what the validator does.
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section>
+    <div class="eyebrow">What's in the panel</div>
+    <h2 class="block-title">Everything you need before you hit Promote</h2>
+    <p class="block-body">Enter your User Story IDs and your org alias. The extension pulls the data and lays it out in one place.</p>
+
+    <div class="features-grid">
+
+      <div class="feat">
+        <div class="feat-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9"/><line x1="12" y1="12" x2="12" y2="15"/></svg>
+        </div>
+        <div>
+          <h4>Commit Count Comparison</h4>
+          <p>Shows commits on the branch vs. Copado's "Complete" commit records. Any gap means there are unregistered commits the validator then checks further.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div>
+          <h4>Component Coverage Check</h4>
+          <p>For every commit on the branch — registered or not — identifies each metadata component and cross-checks it against the User Story's component list. Flags any component that's in git but missing from the list.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div>
+          <h4>Story Metadata Summary</h4>
+          <p>Lists every component registered on the User Story — type, API name, status — so you can see the full scope of what Copado will actually deploy.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+        </div>
+        <div>
+          <h4>Parent Story Guard</h4>
+          <p>Checks parent-child dependencies — both Copado's official dependency config and base-branch relationships — and tells you whether the child story is promotable or blocked until the parent moves ahead.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        </div>
+        <div>
+          <h4>Org Branch Merge Detection</h4>
+          <p>Detects if the target org branch (e.g. INT) has been merged into the feature branch — the hidden contamination that silently carries unrelated stories to QA through someone else's promotion.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div>
+          <h4>Last Promotion Status</h4>
+          <p>Shows when the last promotion ran and whether it succeeded or failed — right in the panel, without opening Copado in the browser.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        </div>
+        <div>
+          <h4>Promote from VSCode</h4>
+          <p>Once the checks pass, trigger the Copado promotion directly from the panel. Status updates stream back in real time — no browser tab needed.</p>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="feat-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </div>
+        <div>
+          <h4>Direct Copado Links</h4>
+          <p>Every User Story ID is a clickable link. Opens the Copado record directly — useful when you need to review the full commit log or deployment history.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- WHEN TO USE -->
+  <section>
+    <div class="when-box">
+      <div class="eyebrow">When to use it</div>
+      <h2 class="block-title" style="font-size: clamp(20px, 3vw, 26px);">Run it before every promotion</h2>
+      <p class="block-body">The check takes under two minutes. That's a lot cheaper than diagnosing a failed deployment after it reaches UAT or production.</p>
+      <ul class="when-list">
+        <li>
+          <span class="tick" aria-hidden="true"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+          Before any promotion — confirm that every commit on the branch has a matching Copado commit record, and that every metadata component in those commits is registered on the User Story's component list.
+        </li>
+        <li>
+          <span class="tick" aria-hidden="true"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+          When promoting a child story — verify the parent dependency is satisfied. The validator tells you whether the parent story is ahead of the child (promotable) or still in the same environment (blocked), covering both Copado dependency config and base-branch relationships.
+        </li>
+        <li>
+          <span class="tick" aria-hidden="true"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+          When you suspect branch contamination — check whether the target org branch (e.g. INT) was accidentally merged into the feature branch by a developer resolving git conflicts outside of Copado.
+        </li>
+        <li>
+          <span class="tick" aria-hidden="true"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>
+          When the last promotion failed — the validator shows when the failure happened and whether the developer made any new commit on the feature branch after that failure. If they did, it signals that a fix was applied since the last attempt and you can proceed with confidence.
+        </li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══ FOOTER ═══ -->
+<footer class="footer">
+  <span>Copado Commit Validator &nbsp;·&nbsp; VSCode Extension v2.0</span>
+  <span>Rubrik Salesforce DevOps &nbsp;·&nbsp; Internal</span>
+</footer>
