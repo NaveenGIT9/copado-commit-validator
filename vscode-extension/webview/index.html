@@ -1653,11 +1653,13 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     ? `<span class="tag tag-promoted">✓ Promoted</span>`
     : verdict === 'promote-failed'
     ? `<span class="tag tag-error">✗ Promote failed</span>`
+    : verdict === 'branch-not-found'
+    ? `<span class="tag tag-skip">⚠ Branch deleted</span>`
     : `<span class="tag tag-error">✗ Error</span>`;
 
   const detail = unregisteredDetail || [];
   let unregHtml;
-  if (detail.length === 0 && verdict !== 'verifying' && extraCommits !== null) {
+  if (detail.length === 0 && verdict !== 'verifying' && verdict !== 'branch-not-found' && extraCommits !== null) {
     unregHtml = '<span style="color:#34d399">None</span>';
   } else if (detail.length === 0) {
     unregHtml = '—';
@@ -1693,7 +1695,9 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     }).join('<hr style="border-color:rgba(79,126,247,0.1);margin:4px 0">');
   }
 
-  const extraHtml  = extraCommits  !== null ? `${extraCommits.length} commit${extraCommits.length !== 1 ? 's' : ''}`   : '—';
+  const extraHtml  = verdict === 'branch-not-found'
+    ? `<span style="color:#8a9bb0;font-style:italic;font-size:11px">Branch no longer present</span>`
+    : extraCommits  !== null ? `${extraCommits.length} commit${extraCommits.length !== 1 ? 's' : ''}`   : '—';
   const copadoHtml = copadoCommits !== null ? `${copadoCommits.length} commit${copadoCommits.length !== 1 ? 's' : ''}` : '—';
 
   const storyByHtml = (storyCommittedBy || []).length > 0
@@ -1702,7 +1706,7 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 
   const extraByHtml = (extraCommittedBy || []).length > 0
     ? (extraCommittedBy || []).map(n => `<span style="font-size:11px">${n}</span>`).join('<br>')
-    : (verdict === 'verifying' || extraCommits === null ? '—' : '<span style="color:#34d399;font-size:11px">None</span>');
+    : (verdict === 'verifying' || verdict === 'branch-not-found' || extraCommits === null ? '—' : '<span style="color:#34d399;font-size:11px">None</span>');
 
   // A story is "will be promoted" only if it passes the same gate as the cleanStories eligibility check:
   // no warning, OR Conflicts Resolved, OR innocent Merge Conflict. Only these get interactive checkboxes.
@@ -1725,6 +1729,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     const commitsDot = noCommitsNoTasks ? 'err' : commitOk ? 'ok' : 'warn';
     const commitsVal = noCommitsNoTasks
       ? `<span style="color:#f87171;font-size:11px">No commits or tasks</span>`
+      : verdict === 'branch-not-found'
+      ? `<span style="color:#8a9bb0;font-size:11px;font-style:italic">${copadoCommits?.length ?? 0} Copado · Branch no longer present</span>`
       : copadoCommits !== null
       ? `<span style="color:#475569;font-size:11px;font-weight:500">${copadoCommits.length} Copado · ${extraCommits !== null ? (orgBranchMerges.length > 0 ? extraCommits.length + '+' : extraCommits.length) : '?'} Branch</span>`
       : '<span style="color:#475569">—</span>';

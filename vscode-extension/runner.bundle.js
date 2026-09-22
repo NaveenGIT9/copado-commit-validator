@@ -130120,6 +130120,46 @@ async function main() {
     }
     const storyBaseBranch = (story.copado__Base_Branch__c ?? "").trim();
     const diffBase = storyBaseBranch ? `origin/${storyBaseBranch}` : "origin/master";
+    let branchExists = true;
+    try {
+      await git.raw(["rev-parse", "--verify", remoteBranch]);
+    } catch {
+      branchExists = false;
+    }
+    if (!branchExists) {
+      const _srcEnv2 = story.copado__Environment__r?.Name ?? story.copado__Org_Credential__r?.Name ?? null;
+      emit({
+        type: "story-verified",
+        storyName: story.Name,
+        storyId: story.Id,
+        projectId: story.copado__Project__c,
+        projectName: story.copado__Project__r?.Name ?? "Unknown Project",
+        credentialId: story.copado__Org_Credential__c,
+        branch: branchName,
+        extraCommits: [],
+        copadoCommits,
+        unregistered: [],
+        unregisteredDetail: [],
+        storyCommittedBy: [],
+        extraCommittedBy: [],
+        tests: storyTests,
+        prApproved: story.copado__Pull_Requests_Approved__c,
+        hasMetadata: storyMetadataNames.size > 0,
+        hasApexCode: story.copado__Has_Apex_Code__c,
+        parentStory: null,
+        promotionCount: 0,
+        lastPromotionFailed: false,
+        srcEnvName: _srcEnv2,
+        dstEnvName: _srcEnv2 ? pipelineEdges.find((e) => e.from === _srcEnv2.toLowerCase())?.to ?? null : null,
+        baseBranch: (story.copado__Base_Branch__c ?? "").trim() || null,
+        dependencies: [],
+        xmlTypeMetadata,
+        orgBranchMerges: [],
+        customFields: customFieldConfigs.map((f) => ({ label: f.label, value: story[f.apiName] ?? null })),
+        verdict: "branch-not-found"
+      });
+      continue;
+    }
     const orgBranchMerges = [];
     let firstParentCommits = [];
     let firstParentRaw = "";
