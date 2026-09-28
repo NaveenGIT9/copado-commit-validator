@@ -415,6 +415,46 @@ let cleanStories       = [];   // [{name, id, projectId, credentialId, sourceEnv
 let groupByEnv         = false; // toggle: group promote list by source environment instead of project
 let verifiedStoryNames = new Set(); // all story names that came back from verify (uppercased), for culprit-in-list check
 let storyWarningMap    = new Map(); // upperName → lastPromoWarning | null, for sibling tag rendering
+let verifiedResultCache = new Map(); // storyName → last story-verified msg, so a test-status poll can re-render the full row
+let pendingTestPollMap  = new Map(); // storyId → storyName, still has a non-terminal Apex test status
+let testPollTimer          = null;
+let testPollInFlight       = false;
+let testPollCyclesRemaining = 0;
+const TEST_POLL_INTERVAL_MS = 20000;
+const TEST_POLL_MAX_CYCLES  = 30; // ~10 minutes of polling before giving up silently
+
+function isTerminalTestStatus(status) {
+  return status === 'Success' || status === 'Failed' || status === 'Error';
+}
+
+function notePendingTests(msg) {
+  if (!msg.storyId) return;
+  const hasNonTerminal = (msg.tests || []).some(t => !isTerminalTestStatus(t.status));
+  if (hasNonTerminal) pendingTestPollMap.set(msg.storyId, msg.storyName);
+  else pendingTestPollMap.delete(msg.storyId);
+}
+
+function stopTestPolling() {
+  if (testPollTimer) { clearInterval(testPollTimer); testPollTimer = null; }
+  pendingTestPollMap = new Map();
+  testPollInFlight = false;
+}
+
+function startTestPollingIfNeeded() {
+  if (testPollTimer || pendingTestPollMap.size === 0) return;
+  testPollCyclesRemaining = TEST_POLL_MAX_CYCLES;
+  testPollTimer = setInterval(pollPendingTests, TEST_POLL_INTERVAL_MS);
+}
+
+function pollPendingTests() {
+  if (testPollInFlight) return;
+  if (pendingTestPollMap.size === 0 || testPollCyclesRemaining <= 0) { stopTestPolling(); return; }
+  testPollCyclesRemaining--;
+  testPollInFlight = true;
+  const orgAlias = document.getElementById('orgAlias')?.value?.trim() || currentOrg || '';
+  vscode.postMessage({ command: 'pollTests', storyIds: [...pendingTestPollMap.keys()], orgAlias });
+}
+
 let currentOrg         = '';
 let instanceUrl        = '';
 let gitRepoUrl         = '';   // GitHub HTTPS base URL (no trailing slash, no .git)
@@ -779,15 +819,31 @@ const NUM_OPS = [
 const NO_VALUE_OPS = new Set(['is_null','not_null','equals_true','equals_false']);
 
 let _frCounter = 0;
-let _dynamicFields = null; // set when org describe completes
+let _dynamicFields = null; // set when org describe completes (or from cache, below)
+
+function _fieldsCacheKey(orgAlias) {
+  return `describedFields_${orgAlias}`;
+}
+
+function _loadCachedFields(orgAlias) {
+  try {
+    const raw = localStorage.getItem(_fieldsCacheKey(orgAlias));
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+  } catch { return null; }
+}
+
+function _saveCachedFields(orgAlias, fields) {
+  try { localStorage.setItem(_fieldsCacheKey(orgAlias), JSON.stringify(fields)); } catch { /* best-effort */ }
+}
 
 function getFieldList() {
   return _dynamicFields || FILTER_FIELDS;
 }
 
-// Rebuild all field <select> dropdowns across both prefixes with latest field list
+// Rebuild all field <select> dropdowns across every rendered env with the latest field list
 function rebuildAllFieldSelects() {
-  ['qa','uat'].forEach(prefix => {
+  _pipelineEnvs.map(envName => envName.toLowerCase().replace(/[^a-z0-9]/g, '_')).forEach(prefix => {
     const container = document.getElementById(`${prefix}FilterRows`);
     if (!container) return;
     const fields = getFieldList();
@@ -820,6 +876,12 @@ function rebuildAllFieldSelects() {
 function requestDescribeFields() {
   const orgAlias = (document.getElementById('orgAlias').value.trim()) || (window.__defaultOrg ?? '');
   if (!orgAlias) return;
+  // Use last-known-good fields immediately (avoids the generic fallback list while the
+  // fresh describe call — which needs to spawn a process and re-authenticate — is in flight).
+  if (!_dynamicFields) {
+    const cached = _loadCachedFields(orgAlias);
+    if (cached) { _dynamicFields = cached; rebuildAllFieldSelects(); }
+  }
   vscode.postMessage({ command: 'describeFields', orgAlias });
 }
 
@@ -835,15 +897,23 @@ function addFilterRow(prefix, saved) {
   const id   = `${prefix}_fr_${++_frCounter}`;
   const container = document.getElementById(`${prefix}FilterRows`);
   const fields    = getFieldList();
-  const fieldDef  = saved ? (fields.find(f => f.api === saved.field) || fields[0]) : fields[0];
+  const knownDef  = saved ? fields.find(f => f.api === saved.field) : null;
+  // Saved field not in the current list — either a custom-API field or a real org field whose
+  // describe result hasn't loaded yet. Keep the saved value as its own synthetic option instead
+  // of silently falling back to fields[0]; rebuildAllFieldSelects() will replace it with the
+  // properly-labeled real field once describe results arrive, if one matches.
+  const unknownSaved = !!(saved && !knownDef);
+  const fieldDef  = knownDef || (unknownSaved ? { lbl: saved.field, label: saved.field, api: saved.field, type: 'text' } : fields[0]);
   const ops       = _opsForField(fieldDef?.type || 'text');
   const savedOp   = saved?.op || ops[0].key;
   const noVal     = NO_VALUE_OPS.has(savedOp);
 
   // Build field options using current field list (static fallback or real org fields)
-  const fieldOpts = fields.map(f =>
-    `<option value="${f.api}"${f.api === (saved?.field || fields[0]?.api) ? ' selected' : ''}>${f.label || f.lbl}</option>`
-  ).join('');
+  const targetApi = saved?.field || fields[0]?.api;
+  const fieldOpts = (unknownSaved ? `<option value="${saved.field}" selected>${saved.field}</option>` : '')
+    + fields.map(f =>
+      `<option value="${f.api}"${!unknownSaved && f.api === targetApi ? ' selected' : ''}>${f.label || f.lbl}</option>`
+    ).join('');
 
   // Build operator options
   const opOpts = ops.map(o =>
@@ -872,7 +942,11 @@ function addFilterRow(prefix, saved) {
   </div>`;
 
   container.insertAdjacentHTML('beforeend', rowHtml);
-  saveFetchFilters();
+  // Only auto-save when this is a genuinely new row the user just added (no `saved` arg).
+  // When restoring rows from persisted state, the real org field list often hasn't loaded
+  // yet (requestDescribeFields() runs after all rows are restored) — saving here would
+  // capture the fallback-list's default selection and silently corrupt the persisted filter.
+  if (!saved) saveFetchFilters();
 }
 
 function onFrChange(id, prefix) {
@@ -1089,6 +1163,10 @@ function _loadAllEnvFilters(pipelineId = '') {
     if (pipelineId) {
       const scoped = JSON.parse(localStorage.getItem(`fetchFilters_${pipelineId}`) || 'null');
       if (scoped) return scoped;
+      // localStorage can be wiped (extension reinstall, webview recreated) — fall back to the
+      // durable per-pipeline copy kept in globalState by the extension host.
+      const persisted = window.__savedFiltersByPipeline?.[pipelineId];
+      if (persisted) return persisted;
     }
     // Fall back to legacy single-key or globalState-injected filters (first load only)
     return window.__savedFilters ?? JSON.parse(localStorage.getItem('fetchFiltersV3') || 'null');
@@ -1105,18 +1183,19 @@ function saveFetchFilters() {
     const prefix = envName.toLowerCase().replace(/[^a-z0-9]/g, '_');
     _updateEnvChip(envName, prefix); _updateGearHighlight(prefix);
   });
+  // Persist durably (globalState, pipeline-scoped) on every edit, not just on an explicit
+  // "Save" click — localStorage alone can be lost on webview/extension reload.
+  vscode.postMessage({ command: 'saveFilters', pipelineId: _currentRenderPipelineId, filters: _allEnvFilters() });
 }
 
 function saveEnvFiltersPermanently(envName, prefix) {
   saveFetchFilters();
-  vscode.postMessage({ command: 'saveFilters', filters: _allEnvFilters() });
   const fb = document.getElementById(`savefb-${prefix}`);
   if (fb) { fb.style.display = 'inline'; setTimeout(() => { fb.style.display = 'none'; }, 2500); }
 }
 
 function saveFiltersPermanently() {
   saveFetchFilters();
-  vscode.postMessage({ command: 'saveFilters', filters: _allEnvFilters() });
 }
 
 function restoreFetchFilters() {
@@ -1178,6 +1257,8 @@ function verify() {
   cleanStories         = [];
   verifiedStoryNames   = new Set();
   storyWarningMap      = new Map();
+  verifiedResultCache  = new Map();
+  stopTestPolling();
   forcePromoStoryNames = new Set();
   runCompleted         = false;
   projectHeaderMap     = {};
@@ -1279,6 +1360,8 @@ function _resetState() {
   cleanStories         = [];
   verifiedStoryNames   = new Set();
   storyWarningMap      = new Map();
+  verifiedResultCache  = new Map();
+  stopTestPolling();
   forcePromoStoryNames = new Set();
   groupByEnv           = false;
   setGroupBy('project');
@@ -1397,7 +1480,7 @@ function renderStoryTags(triggerLookup = false) {
   tagsEl.style.display = 'flex';
 
   if (triggerLookup) {
-    const unknown = names.filter(n => !storyDevMap[n] && !fetchedStoryIdMap[n] && !storyIdMap[n]);
+    const unknown = names.filter(n => !storyDevMap[n]);
     if (unknown.length > 0) {
       const orgAlias = document.getElementById('orgAlias')?.value?.trim() || '';
       if (orgAlias) {
@@ -1535,10 +1618,13 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       rows.push(kv('Apex Tests:', `<span style="${WARN}">⚠ Has Apex flag but no Apex metadata in story</span>`));
     }
     (tests || []).forEach(t => {
-      const ok    = t.status === 'Success';
-      const col   = ok ? OK : (t.status === 'Failed' || t.status === 'Error' ? ERR : WARN);
-      const label = t.tool || t.type || (t.name || '').replace(/\s*-\s*US-\d+.*/i, '').trim() || 'Apex Tests';
-      rows.push(kv(`${label}:`, `<span style="${col}">${ok ? '✓' : '✗'} ${t.status || '—'}</span>`));
+      const ok      = t.status === 'Success';
+      const failed  = t.status === 'Failed' || t.status === 'Error';
+      const running = !ok && !failed && /in progress|queued|processing/i.test(t.status || '');
+      const col     = ok ? OK : failed ? ERR : running ? WARN : WARN;
+      const icon    = ok ? '✓' : failed ? '✗' : running ? '⏳' : '✗';
+      const label   = t.tool || t.type || (t.name || '').replace(/\s*-\s*US-\d+.*/i, '').trim() || 'Apex Tests';
+      rows.push(kv(`${label}:`, `<span style="${col}">${icon} ${t.status || '—'}</span>`));
     });
     if (lastPromoWarning && !isMergeConflict && !isAlreadyInProg) {
       const { status, name, id: promoId } = lastPromoWarning;
@@ -1794,10 +1880,15 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
     const apexTests = (tests || []).filter(t => /apex/i.test(t.type || '') || /apex/i.test(t.tool || '') || /apex/i.test(t.name || ''));
     if (apexTests.length > 0) {
       const failedT  = apexTests.filter(t => t.status === 'Failed' || t.status === 'Error');
-      const pendingT = apexTests.filter(t => t.status !== 'Success' && t.status !== 'Failed' && t.status !== 'Error');
-      const testDot  = failedT.length > 0 ? 'err' : pendingT.length > 0 ? 'warn' : 'ok';
+      const runningT = apexTests.filter(t => t.status !== 'Success' && t.status !== 'Failed' && t.status !== 'Error'
+        && /in progress|queued|processing/i.test(t.status || ''));
+      const pendingT = apexTests.filter(t => t.status !== 'Success' && t.status !== 'Failed' && t.status !== 'Error'
+        && !/in progress|queued|processing/i.test(t.status || ''));
+      const testDot  = failedT.length > 0 ? 'err' : (runningT.length > 0 || pendingT.length > 0) ? 'warn' : 'ok';
       const testVal  = failedT.length > 0
         ? `<span style="color:#f87171;font-size:11px">${failedT.length} failed</span>`
+        : runningT.length > 0
+        ? `<span style="color:#fb923c;font-size:11px">⏳ Running</span>`
         : pendingT.length > 0
         ? `<span style="color:#fb923c;font-size:11px">Pending</span>`
         : `<span style="color:#4ade80;font-size:11px">Passed</span>`;
@@ -2023,8 +2114,10 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 }
 
 window.addEventListener('message', (event) => {
-  const msg = event.data;
+  handleIncomingMessage(event.data);
+});
 
+function handleIncomingMessage(msg) {
   if (msg.type === 'debug') {
     document.getElementById('debugLogWrap').style.display = 'block';
     const log = document.getElementById('debugLog');
@@ -2069,6 +2162,8 @@ window.addEventListener('message', (event) => {
     if (Array.isArray(msg.fields) && msg.fields.length > 0) {
       _dynamicFields = msg.fields;
       rebuildAllFieldSelects();
+      const orgAlias = (document.getElementById('orgAlias').value.trim()) || (window.__defaultOrg ?? '');
+      if (orgAlias) _saveCachedFields(orgAlias, msg.fields);
     }
   }
 
@@ -2089,7 +2184,7 @@ window.addEventListener('message', (event) => {
     const stories = msg.stories ?? [];
     Object.assign(fetchedStoryIdMap, msg.storyIdMap ?? {});
     document.getElementById('stories').value = stories.join('\n');
-    renderStoryTags();
+    renderStoryTags(true);
     // Only auto-fill repo path from the story's project chain when no pipeline is
     // explicitly selected. If _selectedPipelineRepoUri is set, the pipeline's own
     // repo URI drives the path (via --pipeline-repo-uri on verify) — using the
@@ -2248,6 +2343,8 @@ window.addEventListener('message', (event) => {
     insertGroupedRow(msg.storyName, msg.projectId, html, msg.dstEnvName);
     verifiedStoryNames.add(msg.storyName.toUpperCase());
     storyWarningMap.set(msg.storyName.toUpperCase(), msg.lastPromoWarning ?? null);
+    verifiedResultCache.set(msg.storyName, msg);
+    notePendingTests(msg);
 
     const isLastPromoWarning  = !!msg.lastPromoWarning;
     const isConflictsResolved = msg.lastPromoWarning?.status === 'Conflicts Resolved';
@@ -2477,6 +2574,8 @@ window.addEventListener('message', (event) => {
       }
       return; // promote-summary already set the status bar
     }
+
+    startTestPollingIfNeeded();
 
     // Post-process Conflicts Resolved multi-story groups.
     // If ALL sibling stories from the promotion are present in cleanStories → safe to re-trigger together.
@@ -2717,7 +2816,25 @@ window.addEventListener('message', (event) => {
       endRun();
     }
   }
-});
+
+  else if (msg.type === 'test-status-update') {
+    testPollInFlight = false;
+    const storyName = pendingTestPollMap.get(msg.storyId);
+    const cached = storyName ? verifiedResultCache.get(storyName) : null;
+    if (!(msg.tests || []).some(t => !isTerminalTestStatus(t.status))) {
+      pendingTestPollMap.delete(msg.storyId);
+    }
+    if (cached) {
+      handleIncomingMessage({ ...cached, tests: msg.tests ?? [], type: 'story-verified' });
+    }
+    if (pendingTestPollMap.size === 0) stopTestPolling();
+  }
+
+  else if (msg.type === 'test-status-error') {
+    testPollInFlight = false;
+    // non-fatal — leave existing status displayed; next scheduled cycle retries
+  }
+}
 </script>
 </body>
 </html>

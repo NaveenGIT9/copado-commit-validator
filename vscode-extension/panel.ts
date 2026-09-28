@@ -127,6 +127,7 @@ export class PromoterPanel {
     groups?: Array<{ projectId: string; credentialId: string; stories: string[]; storyIds: string[] }>;
     mergeDeployAfter?: boolean;
     storyNames?: string[];
+    storyIds?: string[];
   }): void {
     if (msg.command === 'verify') {
       this.saveOrgHistory(msg.orgAlias ?? '');
@@ -144,8 +145,16 @@ export class PromoterPanel {
       this.runDescribeFields(msg.orgAlias ?? '');
     } else if (msg.command === 'lookupStories') {
       this.runLookupStories(msg.storyNames ?? [], msg.orgAlias ?? '');
+    } else if (msg.command === 'pollTests') {
+      this.runPollTests(msg.storyIds ?? [], msg.orgAlias ?? '');
     } else if (msg.command === 'saveFilters') {
       void this.context.globalState.update('promoter.fetchFilters', msg.filters);
+      const pipelineId: string = msg.pipelineId ?? '';
+      if (pipelineId) {
+        const byPipeline = this.context.globalState.get<Record<string, unknown>>('promoter.fetchFiltersByPipeline', {});
+        byPipeline[pipelineId] = msg.filters;
+        void this.context.globalState.update('promoter.fetchFiltersByPipeline', byPipeline);
+      }
     } else if (msg.command === 'abort') {
       this.abortRun();
     } else if (msg.command === 'getDefaultOrg') {
@@ -174,6 +183,31 @@ export class PromoterPanel {
         try {
           const msg = JSON.parse(line) as Record<string, unknown>;
           if (msg.type === 'story-lookup-result' || msg.type === 'story-lookup-error') this.post(msg);
+        } catch { /* ignore non-JSON */ }
+      }
+    });
+    proc.on('close', () => clearTimeout(timer));
+  }
+
+  private runPollTests(storyIds: string[], orgAlias: string): void {
+    if (!orgAlias || storyIds.length === 0) return;
+    const args = [
+      RUNNER_PATH,
+      '--target-org', orgAlias,
+      '--poll-tests', 'true',
+      '--story-ids', storyIds.join(','),
+    ];
+    const proc = spawn(NODE_EXEC_PATH, args, { shell: false, env: { ...process.env, NODE_NO_WARNINGS: '1' } });
+    const timer = setTimeout(() => proc.kill(), 20_000);
+    let buf = '';
+    proc.stdout.on('data', (chunk: Buffer) => {
+      buf += chunk.toString();
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines.filter(l => l.trim())) {
+        try {
+          const msg = JSON.parse(line) as Record<string, unknown>;
+          if (msg.type === 'test-status-update' || msg.type === 'test-status-error') this.post(msg);
         } catch { /* ignore non-JSON */ }
       }
     });
@@ -336,9 +370,10 @@ export class PromoterPanel {
       const defaultOrg = this.getDefaultOrg();
       const orgHistory: string[] = this.context.globalState.get('promoter.orgHistory', []);
       const savedFilters = this.context.globalState.get('promoter.fetchFilters', null);
+      const savedFiltersByPipeline = this.context.globalState.get('promoter.fetchFiltersByPipeline', {});
       html = html.replace(
         '<script>',
-        `<script>window.__defaultOrg = ${JSON.stringify(defaultOrg)};\nwindow.__orgHistory = ${JSON.stringify(orgHistory)};\nwindow.__savedFilters = ${JSON.stringify(savedFilters)};\n`,
+        `<script>window.__defaultOrg = ${JSON.stringify(defaultOrg)};\nwindow.__orgHistory = ${JSON.stringify(orgHistory)};\nwindow.__savedFilters = ${JSON.stringify(savedFilters)};\nwindow.__savedFiltersByPipeline = ${JSON.stringify(savedFiltersByPipeline)};\n`,
       );
       return html;
     }

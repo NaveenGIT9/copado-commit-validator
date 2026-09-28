@@ -55,6 +55,9 @@ const fetchEnvs           = args['fetch-envs'] ?? '';
 const fetchReadyToPromote = args['fetch-ready-to-promote'] !== 'false';
 const fetchFiltersJson    = args['filters'] ?? '';
 const doDescribeObject    = args['describe-object'] ?? '';
+const doLookupStories     = args['lookup-stories'] === 'true';
+const doPollTests         = args['poll-tests'] === 'true';
+const pollStoryIds        = (args['story-ids'] ?? '').split(',').map(s => s.trim()).filter(Boolean);
 const pipelineRepoUri     = args['pipeline-repo-uri'] ?? '';
 const selectedPipelineId  = args['pipeline-id'] ?? '';
 
@@ -64,8 +67,18 @@ function buildFilterClause(filters) {
   const logic = filters.logic === 'OR' ? ' OR ' : ' AND ';
   const safe = v => (v || '').replace(/'/g, "\\'");
   const fragments = [];
+  // copado__Org_Credential__c etc. are Lookup (ID) fields — SOQL rejects filtering
+  // them with a string like 'RBKQA'. Rewrite to the relationship-name equivalent.
+  const LOOKUP_REMAP = {
+    'copado__Org_Credential__c': 'copado__Org_Credential__r.Name',
+    'copado__Environment__c':    'copado__Environment__r.Name',
+    'copado__Project__c':        'copado__Project__r.Name',
+    'copado__Sprint__c':         'copado__Sprint__r.Name',
+    'copado__Feature__c':        'copado__Feature__r.Name',
+  };
   for (const row of filters.rows) {
-    const { field, op, value } = row;
+    const { field: rawField, op, value } = row;
+    const field = LOOKUP_REMAP[rawField] || rawField;
     if (!field || !op) continue;
     const vals = (value || '').split(',').map(v => v.trim()).filter(Boolean);
     let frag = '';
@@ -196,6 +209,65 @@ async function main() {
       emit({ type: 'fields', fields });
     } catch (err) {
       emit({ type: 'fields-error', message: String(err) });
+    }
+    process.exit(0);
+  }
+
+  // ── LOOKUP STORIES MODE ─────────────────────────────────────────────────────
+  // Fast developer-name lookup for manually typed story names (shown as tags before Verify).
+  if (doLookupStories) {
+    try {
+      const nameList = (args.stories || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (nameList.length === 0) {
+        emit({ type: 'story-lookup-result', storyDevMap: {}, storyIdMap: {} });
+        process.exit(0);
+      }
+      const inClause = nameList.map(n => `'${n.replace(/'/g, "\\'")}'`).join(',');
+      const res = await conn.query(`SELECT Id, Name, copado__Developer__r.Name FROM copado__User_Story__c WHERE Name IN (${inClause})`);
+      const storyDevMap = {};
+      const storyIdMap = {};
+      for (const r of res.records ?? []) {
+        if (r.Name) {
+          if (r.copado__Developer__r?.Name) storyDevMap[r.Name] = r.copado__Developer__r.Name;
+          if (r.Id) storyIdMap[r.Name] = r.Id;
+        }
+      }
+      emit({ type: 'story-lookup-result', storyDevMap, storyIdMap });
+    } catch (err) {
+      emit({ type: 'story-lookup-error', message: String(err) });
+    }
+    process.exit(0);
+  }
+
+  // ── POLL TESTS MODE ──────────────────────────────────────────────────────────
+  // Lightweight, frequently-callable check: re-reads copado__Test__c status for a
+  // known set of story Ids. No git/PR/promotion work — safe to poll on an interval.
+  if (doPollTests) {
+    try {
+      if (pollStoryIds.length === 0) {
+        process.exit(0);
+      }
+      const idList = pollStoryIds.map(id => `'${id}'`).join(',');
+      const testRes = await conn.query(
+        `SELECT copado__User_Story__c, Name, copado__Type__c, copado__Test_Tool__c, copado__Latest_Result_Status__c ` +
+        `FROM copado__Test__c WHERE copado__User_Story__c IN (${idList})`
+      );
+      const testsByStory = new Map();
+      for (const r of testRes.records) {
+        const sid = r.copado__User_Story__c;
+        if (!testsByStory.has(sid)) testsByStory.set(sid, []);
+        testsByStory.get(sid).push({
+          name: r.Name,
+          type: r.copado__Type__c,
+          tool: r.copado__Test_Tool__c,
+          status: r.copado__Latest_Result_Status__c,
+        });
+      }
+      for (const storyId of pollStoryIds) {
+        emit({ type: 'test-status-update', storyId, tests: testsByStory.get(storyId) ?? [] });
+      }
+    } catch (err) {
+      emit({ type: 'test-status-error', message: String(err) });
     }
     process.exit(0);
   }
@@ -349,7 +421,23 @@ async function main() {
       } catch { /* non-fatal */ }
     }
 
-    emit({ type: 'fetch-done', stories: validStories.map(s => s.name), repoName, envType: fetchEnvType });
+    const storyIdMap = {};
+    validStories.forEach(s => { if (s.id) storyIdMap[s.name] = s.id; });
+    emit({ type: 'fetch-done', stories: validStories.map(s => s.name), storyIdMap, repoName, envType: fetchEnvType });
+    // Dev name lookup in the same process — no extra auth overhead
+    try {
+      const idList = validStories.map(s => `'${s.id}'`).join(',');
+      const devRes = await conn.query(`SELECT Id, Name, copado__Developer__r.Name FROM copado__User_Story__c WHERE Id IN (${idList})`);
+      const devMap = {};
+      const idMap = {};
+      for (const r of devRes.records ?? []) {
+        if (r.Name) {
+          if (r.copado__Developer__r?.Name) devMap[r.Name] = r.copado__Developer__r.Name;
+          if (r.Id) idMap[r.Name] = r.Id;
+        }
+      }
+      emit({ type: 'story-lookup-result', storyDevMap: devMap, storyIdMap: idMap });
+    } catch { /* dev names are best-effort — don't block exit */ }
     process.exit(0);
   }
 
@@ -898,6 +986,7 @@ async function main() {
     let storyMetadataNames = new Set();
     let xmlTypeMetadata = []; // file names whose Type = 'xml' — causes deployment registry errors
     let hasApexMetadata = false; // true if any USM record has an Apex type (ApexClass, ApexTrigger, ApexPage, etc.)
+    let hasCustomLabelMetadata = false;
     try {
       const metaResult = await conn.query(
         `SELECT copado__Metadata_API_Name__c, copado__Type__c FROM copado__User_Story_Metadata__c ` +
@@ -912,6 +1001,10 @@ async function main() {
       if (xmlTypeMetadata.length > 0)
         emit({ type: 'debug', message: `${story.Name}: ${xmlTypeMetadata.length} metadata record(s) with Type=xml — will block promotion: ${xmlTypeMetadata.join(', ')}` });
       hasApexMetadata = metaResult.records.some(r => /^apex/i.test(r.copado__Type__c ?? ''));
+      // Developers commit individual CustomLabel components but the git file is always the
+      // shared CustomLabels container. Treat a committed CustomLabels file as covered whenever
+      // the story has at least one CustomLabel (singular) metadata entry.
+      hasCustomLabelMetadata = metaResult.records.some(r => (r.copado__Type__c ?? '').toLowerCase() === 'customlabel');
     } catch { /* non-fatal — coverage check will be skipped */ }
 
     // Fetch test records
@@ -953,6 +1046,44 @@ async function main() {
     const storyBaseBranch = (story.copado__Base_Branch__c ?? '').trim();
     const diffBase        = storyBaseBranch ? `origin/${storyBaseBranch}` : 'origin/master';
 
+    let branchExists = true;
+    if (storyMetadataNames.size > 0 || copadoCommits.length > 0) {
+      try {
+        await git.raw(['rev-parse', '--verify', remoteBranch]);
+      } catch {
+        branchExists = false;
+      }
+    }
+    if (!branchExists) {
+      const _srcEnv2 = story.copado__Environment__r?.Name ?? story.copado__Org_Credential__r?.Name ?? null;
+      emit({
+        type: 'story-verified',
+        storyName: story.Name, storyId: story.Id,
+        projectId: story.copado__Project__c,
+        projectName: story.copado__Project__r?.Name ?? 'Unknown Project',
+        credentialId: story.copado__Org_Credential__c,
+        branch: branchName, extraCommits: [], copadoCommits,
+        unregistered: [], unregisteredDetail: [],
+        storyCommittedBy: [], extraCommittedBy: [],
+        storyDeveloper: story.copado__Developer__r?.Name ?? null,
+        tests: storyTests,
+        prApproved: story.copado__Pull_Requests_Approved__c, hasMetadata: storyMetadataNames.size > 0,
+        hasApexCode: story.copado__Has_Apex_Code__c, hasApexMetadata, hasDeploymentTasks,
+        parentStory: null, promotionCount: 0, lastPromoWarning: null, stalePromoInfo: null,
+        latestCommitDate: story.copado__Latest_Commit_Date__c ?? null,
+        latestUnregisteredCommitDate: null,
+        srcEnvName: _srcEnv2,
+        dstEnvName: _srcEnv2 ? (pipelineEdges.find(e => e.from === _srcEnv2.toLowerCase())?.to ?? null) : null,
+        baseBranch: (story.copado__Base_Branch__c ?? '').trim() || null,
+        dependencies: [],
+        xmlTypeMetadata,
+        orgBranchMerges: [],
+        customFields: customFieldConfigs.map(f => ({ label: f.label, value: story[f.apiName] ?? null })),
+        verdict: 'branch-not-found',
+      });
+      continue;
+    }
+
     // ── Phase 1: fast org-branch merge detection (first-parent only, milliseconds) ─────────────
     // --first-parent traverses ONLY the mainline so it skips all merged-branch history.
     // For a bloated branch (e.g. rbkintcsad merged in) this finishes instantly instead of
@@ -983,15 +1114,23 @@ async function main() {
       // Method B: parent-based fallback (if subject matching caught nothing)
       if (orgBranchMerges.length === 0 && orgBranchNames.size > 0) {
         for (const line of firstParentRaw.split('\n').filter(l => l.includes('\0'))) {
-          const [hashRaw, parentsRaw = ''] = line.split('\0');
+          const [hashRaw, parentsRaw = '', subjectRaw = ''] = line.split('\0');
           const hash = hashRaw.trim();
           const parents = parentsRaw.trim().split(/\s+/).filter(Boolean);
           if (parents.length < 2) continue; // not a merge commit
           const mergedParent = parents[1]; // second parent = what was merged in
-          for (const branchName of orgBranchNames) {
+          // Skip merge commits that pull the story's own remote tracking branch (git pull self-merge)
+          const selfMergeMatch = subjectRaw.match(/^Merge (?:remote-tracking )?branch '(?:origin\/)?([^']+)'/i);
+          if (selfMergeMatch && selfMergeMatch[1].toLowerCase() === branchName.replace(/^origin\//, '').toLowerCase()) continue;
+          for (const branchName2 of orgBranchNames) {
             try {
-              await git.raw(['merge-base', '--is-ancestor', mergedParent, `origin/${branchName}`]);
-              orgBranchMerges.push({ sha: hash.slice(0, 10), mergedBranch: branchName });
+              await git.raw(['merge-base', '--is-ancestor', mergedParent, `origin/${branchName2}`]);
+              // Exclude false positives: if the merged parent is already in the base branch
+              // it's just common history (e.g. a previously promoted commit), not contamination
+              let inBase = false;
+              try { await git.raw(['merge-base', '--is-ancestor', mergedParent, diffBase]); inBase = true; } catch { /* not in base */ }
+              if (inBase) continue;
+              orgBranchMerges.push({ sha: hash.slice(0, 10), mergedBranch: branchName2 });
               break;
             } catch { /* not reachable from this branch */ }
           }
@@ -1111,7 +1250,10 @@ async function main() {
       // per object in git but tracked individually (Object.Name) in Copado metadata.
       const isCovered = (c) => {
         const cl = c.toLowerCase();
-        return storyMetadataNames.has(cl) || [...storyMetadataNames].some(m => m.startsWith(cl + '.'));
+        if (storyMetadataNames.has(cl) || [...storyMetadataNames].some(m => m.startsWith(cl + '.'))) return true;
+        // CustomLabels (whole file) is covered when the story has any CustomLabel (individual) entry
+        if (cl === 'customlabels' && hasCustomLabelMetadata) return true;
+        return false;
       };
       const coveredComponents   = components.filter(c => isCovered(c));
       const uncoveredComponents = components.filter(c => !isCovered(c));
