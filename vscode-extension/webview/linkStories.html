@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Link Stories to Promotion</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { color-scheme: light; }
+  html { background: #ffffff !important; }
+  body {
+    background: #ffffff !important;
+    color: #2d3748;
+    font-family: -apple-system, BlinkMacSystemFont, 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    padding: 20px;
+    min-height: 100vh;
+  }
+
+  .logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  h1 { font-size: 14px; font-weight: 700; color: #2d3748; letter-spacing: 0.1px; margin: 0; }
+  .subtitle { color: #8a9bb0; font-size: 12px; margin-bottom: 22px; }
+
+  .section { margin-bottom: 18px; }
+  .section-title {
+    font-size: 11px; font-weight: 700; color: #8a9bb0;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    margin-bottom: 8px; margin-top: 20px;
+  }
+
+  label {
+    display: block; font-size: 10px; font-weight: 700;
+    color: #8a9bb0; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;
+  }
+
+  textarea, input[type="text"] {
+    width: 100%;
+    background: #dde4f0 !important;
+    border: none !important;
+    box-shadow: inset 3px 3px 8px rgba(0,0,0,0.09), inset -3px -3px 8px rgba(255,255,255,0.85) !important;
+    border-radius: 10px;
+    color: #2d3748 !important;
+    padding: 8px 11px;
+    font-size: 12px;
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    resize: vertical;
+    outline: none;
+    transition: box-shadow 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  textarea:focus, input[type="text"]:focus {
+    box-shadow: inset 4px 4px 10px rgba(0,0,0,0.1), inset -4px -4px 10px rgba(255,255,255,0.8), 0 0 0 2px rgba(79,126,247,0.25) !important;
+  }
+  textarea::placeholder, input[type="text"]::placeholder { color: #a0aec0; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .btn {
+    padding: 8px 20px; border-radius: 50px; border: none;
+    font-size: 12px; font-weight: 700; cursor: pointer;
+    letter-spacing: 0.3px; transition: all 0.2s;
+    background: #e8edf5;
+    color: #2d3748;
+    box-shadow: 5px 5px 12px #bdc6d0, -5px -5px 12px #ffffff;
+  }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn:hover:not(:disabled) { box-shadow: 7px 7px 16px #bdc6d0, -7px -7px 16px #ffffff; }
+
+  .btn-primary {
+    background: #4f7ef7;
+    color: #fff;
+    box-shadow: 5px 5px 15px rgba(79,126,247,0.4), -3px -3px 8px rgba(255,255,255,0.6);
+  }
+  .btn-primary:hover:not(:disabled) {
+    box-shadow: 7px 7px 20px rgba(79,126,247,0.5), -3px -3px 10px rgba(255,255,255,0.7);
+    transform: translateY(-1px);
+  }
+
+  .btn-reset {
+    background: #e8edf5;
+    color: #8a9bb0;
+    border: none !important;
+    box-shadow: 5px 5px 12px #bdc6d0, -5px -5px 12px #ffffff;
+  }
+  .btn-reset:hover:not(:disabled) { box-shadow: 7px 7px 16px #bdc6d0, -7px -7px 16px #ffffff; }
+
+  .btn-row { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
+
+  .status-bar {
+    background: #e8edf5;
+    border: none;
+    box-shadow: 6px 6px 16px #bdc6d0, -6px -6px 16px #ffffff;
+    border-radius: 12px; padding: 10px 14px; font-size: 12px;
+    color: #4a5568; margin-top: 16px; min-height: 38px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .status-bar.error   { background: #fef2f2; color: #c53030; box-shadow: 6px 6px 16px #d4b8b8, -6px -6px 16px #fff8f8; }
+  .status-bar.success { background: #f0fdf4; color: #166534; box-shadow: 6px 6px 16px #b8d4c2, -6px -6px 16px #f8fff8; }
+
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid #c5cdd8;
+    border-top-color: #4f7ef7;
+    border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .result-list { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .result-row {
+    display: flex; align-items: center; gap: 8px;
+    background: #ffffff; border-radius: 10px; padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    font-size: 12px;
+  }
+  .tag {
+    display: inline-block; padding: 2px 10px;
+    border-radius: 50px; font-size: 10px; font-weight: 700;
+  }
+  .tag-clean { background: rgba(16,185,129,0.12); color: #059669; border: 1px solid rgba(16,185,129,0.3); }
+  .tag-error { background: rgba(239,68,68,0.12); color: #dc2626; border: 1px solid rgba(239,68,68,0.3); }
+</style>
+</head>
+<body>
+
+<div class="logo-row">
+  <h1>Link Stories to Promotion</h1>
+</div>
+<p class="subtitle">Add existing User Stories onto an existing Copado Promotion — by Number, no Salesforce Ids needed.</p>
+
+<div class="row section">
+  <div>
+    <label>Copado Org Alias / Username</label>
+    <input type="text" id="orgAlias" placeholder="Auto-detecting..." />
+  </div>
+  <div>
+    <label>Promotion Number</label>
+    <input type="text" id="promotionName" placeholder="e.g. P26926" />
+  </div>
+</div>
+
+<div class="section">
+  <label>User Story Numbers (one per line or comma-separated)</label>
+  <textarea id="storyNames" rows="6" placeholder="US-0023250, US-0023251&#10;US-0023252"></textarea>
+</div>
+
+<div class="btn-row">
+  <button class="btn btn-primary" id="insertBtn" onclick="linkStories()">Insert</button>
+  <button class="btn btn-reset" onclick="resetForm()">Reset</button>
+</div>
+
+<div class="status-bar" id="statusBar" style="display:none;"></div>
+<div class="result-list" id="resultList"></div>
+
+<script>
+const vscode = acquireVsCodeApi();
+
+if (window.__defaultOrg) {
+  document.getElementById('orgAlias').value = window.__defaultOrg;
+}
+
+function setStatus(type, message, spinner = false) {
+  const bar = document.getElementById('statusBar');
+  bar.className = 'status-bar' + (type ? ' ' + type : '');
+  bar.style.display = 'flex';
+  bar.innerHTML = (spinner ? '<div class="spinner"></div>' : '') + '<span>' + message + '</span>';
+}
+
+function resetForm() {
+  document.getElementById('promotionName').value = '';
+  document.getElementById('storyNames').value = '';
+  document.getElementById('statusBar').style.display = 'none';
+  document.getElementById('resultList').innerHTML = '';
+  document.getElementById('insertBtn').disabled = false;
+}
+
+function linkStories() {
+  const orgAlias = document.getElementById('orgAlias').value.trim();
+  const promotionName = document.getElementById('promotionName').value.trim();
+  const storyNames = document.getElementById('storyNames').value
+    .split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+
+  document.getElementById('resultList').innerHTML = '';
+
+  if (!orgAlias) { setStatus('error', 'Enter a Copado org alias / username.'); return; }
+  if (!promotionName) { setStatus('error', 'Enter a Promotion Number.'); return; }
+  if (storyNames.length === 0) { setStatus('error', 'Enter at least one User Story Number.'); return; }
+
+  document.getElementById('insertBtn').disabled = true;
+  setStatus('info', 'Linking stories...', true);
+
+  vscode.postMessage({ command: 'linkStories', promotionName, storyNames, orgAlias });
+}
+
+window.addEventListener('message', (event) => {
+  const msg = event.data;
+
+  if (msg.type === 'link-stories-error') {
+    document.getElementById('insertBtn').disabled = false;
+    setStatus('error', msg.message);
+  }
+
+  else if (msg.type === 'link-story-result') {
+    const row = document.createElement('div');
+    row.className = 'result-row';
+    row.innerHTML = msg.success
+      ? '<span class="tag tag-clean">&#10003; Added</span><span>' + msg.storyName + '</span>'
+      : '<span class="tag tag-error">&#10007; Failed</span><span>' + msg.storyName + ' — ' + (msg.error || 'Unknown error') + '</span>';
+    document.getElementById('resultList').appendChild(row);
+  }
+
+  else if (msg.type === 'link-stories-done') {
+    document.getElementById('insertBtn').disabled = false;
+    setStatus('success', 'Done — linked to ' + msg.promotionName + '.');
+  }
+});
+</script>
+</body>
+</html>

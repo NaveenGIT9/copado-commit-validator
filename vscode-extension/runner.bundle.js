@@ -125102,6 +125102,8 @@ var fetchReadyToPromote = args["fetch-ready-to-promote"] !== "false";
 var fetchFiltersJson = args["filters"] ?? "";
 var doDescribeObject = args["describe-object"] ?? "";
 var doLookupStories = args["lookup-stories"] === "true";
+var doLinkStories = args["link-stories"] === "true";
+var linkPromotionName = (args["promotion-name"] ?? "").trim();
 var doPollTests = args["poll-tests"] === "true";
 var pollStoryIds = (args["story-ids"] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 var pipelineRepoUri = args["pipeline-repo-uri"] ?? "";
@@ -125266,6 +125268,53 @@ async function main() {
       emit({ type: "story-lookup-result", storyDevMap, storyIdMap });
     } catch (err) {
       emit({ type: "story-lookup-error", message: String(err) });
+    }
+    process.exit(0);
+  }
+  if (doLinkStories) {
+    try {
+      if (!linkPromotionName) {
+        emit({ type: "link-stories-error", message: "Promotion Number is required." });
+        process.exit(1);
+      }
+      const nameList2 = (args.stories || "").split(",").map((s) => s.trim()).filter(Boolean);
+      if (nameList2.length === 0) {
+        emit({ type: "link-stories-error", message: "At least one User Story Number is required." });
+        process.exit(1);
+      }
+      const promoRes = await conn.query(
+        `SELECT Id, Name FROM copado__Promotion__c WHERE Name = '${linkPromotionName.replace(/'/g, "\\'")}'`
+      );
+      if (promoRes.records.length === 0) {
+        emit({ type: "link-stories-error", message: `No Promotion found with Number "${linkPromotionName}".` });
+        process.exit(1);
+      }
+      const promotionId = promoRes.records[0].Id;
+      const inClause = nameList2.map((n) => `'${n.replace(/'/g, "\\'")}'`).join(",");
+      const storyRes = await conn.query(`SELECT Id, Name FROM copado__User_Story__c WHERE Name IN (${inClause})`);
+      const storyIdByName = {};
+      for (const r2 of storyRes.records ?? []) {
+        if (r2.Name && r2.Id) storyIdByName[r2.Name] = r2.Id;
+      }
+      for (const storyName of nameList2) {
+        const storyId = storyIdByName[storyName];
+        if (!storyId) {
+          emit({ type: "link-story-result", storyName, success: false, error: `No User Story found with Number "${storyName}".` });
+          continue;
+        }
+        try {
+          await conn.sobject("copado__Promoted_User_Story__c").create({
+            copado__Promotion__c: promotionId,
+            copado__User_Story__c: storyId
+          });
+          emit({ type: "link-story-result", storyName, storyId, success: true, promotionId, promotionName: linkPromotionName });
+        } catch (err) {
+          emit({ type: "link-story-result", storyName, storyId, success: false, error: parseCopadoError(err) });
+        }
+      }
+      emit({ type: "link-stories-done", promotionId, promotionName: linkPromotionName });
+    } catch (err) {
+      emit({ type: "link-stories-error", message: `Link stories failed: ${String(err)}` });
     }
     process.exit(0);
   }

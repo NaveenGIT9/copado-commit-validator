@@ -18,6 +18,10 @@
       {
         "command": "promoter.open",
         "title": "Copado Commit Validator: Open Dashboard"
+      },
+      {
+        "command": "promoter.openLinkStories",
+        "title": "Copado: Link Stories to Promotion"
       }
     ]
   },

@@ -56,6 +56,8 @@ const fetchReadyToPromote = args['fetch-ready-to-promote'] !== 'false';
 const fetchFiltersJson    = args['filters'] ?? '';
 const doDescribeObject    = args['describe-object'] ?? '';
 const doLookupStories     = args['lookup-stories'] === 'true';
+const doLinkStories       = args['link-stories'] === 'true';
+const linkPromotionName   = (args['promotion-name'] ?? '').trim();
 const doPollTests         = args['poll-tests'] === 'true';
 const pollStoryIds        = (args['story-ids'] ?? '').split(',').map(s => s.trim()).filter(Boolean);
 const pipelineRepoUri     = args['pipeline-repo-uri'] ?? '';
@@ -235,6 +237,61 @@ async function main() {
       emit({ type: 'story-lookup-result', storyDevMap, storyIdMap });
     } catch (err) {
       emit({ type: 'story-lookup-error', message: String(err) });
+    }
+    process.exit(0);
+  }
+
+  // ── LINK STORIES MODE ───────────────────────────────────────────────────────
+  // Adds existing User Stories (by Name) onto an existing Promotion (by Name) —
+  // replaces the manual Excel + data-load flow for copado__Promoted_User_Story__c.
+  // Standalone utility, unrelated to the verify/promote flow above.
+  if (doLinkStories) {
+    try {
+      if (!linkPromotionName) {
+        emit({ type: 'link-stories-error', message: 'Promotion Number is required.' });
+        process.exit(1);
+      }
+      const nameList = (args.stories || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (nameList.length === 0) {
+        emit({ type: 'link-stories-error', message: 'At least one User Story Number is required.' });
+        process.exit(1);
+      }
+
+      const promoRes = await conn.query(
+        `SELECT Id, Name FROM copado__Promotion__c WHERE Name = '${linkPromotionName.replace(/'/g, "\\'")}'`
+      );
+      if (promoRes.records.length === 0) {
+        emit({ type: 'link-stories-error', message: `No Promotion found with Number "${linkPromotionName}".` });
+        process.exit(1);
+      }
+      const promotionId = promoRes.records[0].Id;
+
+      const inClause = nameList.map(n => `'${n.replace(/'/g, "\\'")}'`).join(',');
+      const storyRes = await conn.query(`SELECT Id, Name FROM copado__User_Story__c WHERE Name IN (${inClause})`);
+      const storyIdByName = {};
+      for (const r of storyRes.records ?? []) {
+        if (r.Name && r.Id) storyIdByName[r.Name] = r.Id;
+      }
+
+      for (const storyName of nameList) {
+        const storyId = storyIdByName[storyName];
+        if (!storyId) {
+          emit({ type: 'link-story-result', storyName, success: false, error: `No User Story found with Number "${storyName}".` });
+          continue;
+        }
+        try {
+          await conn.sobject('copado__Promoted_User_Story__c').create({
+            copado__Promotion__c: promotionId,
+            copado__User_Story__c: storyId,
+          });
+          emit({ type: 'link-story-result', storyName, storyId, success: true, promotionId, promotionName: linkPromotionName });
+        } catch (err) {
+          emit({ type: 'link-story-result', storyName, storyId, success: false, error: parseCopadoError(err) });
+        }
+      }
+      emit({ type: 'link-stories-done', promotionId, promotionName: linkPromotionName });
+    } catch (err) {
+      emit({ type: 'link-stories-error', message: `Link stories failed: ${String(err)}` });
     }
     process.exit(0);
   }
