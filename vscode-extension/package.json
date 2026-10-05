@@ -25,6 +25,10 @@
       {
         "command": "promoter.openLinkStories",
         "title": "Copado: Link Stories to Promotion"
+      },
+      {
+        "command": "promoter.installAgentia",
+        "title": "Copado Commit Validator: Install agentia commands"
       }
     ]
   },

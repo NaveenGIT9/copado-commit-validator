@@ -4,8 +4,13 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { PromoterPanel } from './panel';
 import { LinkStoriesPanel } from './linkStoriesPanel';
+import { installAgentiaCommands } from './installAgentia';
 
 export function activate(context: vscode.ExtensionContext): void {
+  context.subscriptions.push(
+    vscode.commands.registerCommand('promoter.installAgentia', () => installAgentiaCommands()),
+  );
+
   const cmd = vscode.commands.registerCommand('promoter.open', () => {
     PromoterPanel.createOrShow(context.extensionUri, context);
   });
