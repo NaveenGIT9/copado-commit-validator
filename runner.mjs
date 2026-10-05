@@ -932,6 +932,12 @@ async function main() {
   const credLevel = new Map(); // envName (lowercase) → numeric level
   let pipelineEdges = []; // { from, to, fromId, toId }[]
   const pipelineEnvIdToName = new Map(); // envId → original-case env name
+  // dstEnvName is lowercased for matching; this returns the real Environment name (e.g. RBKUAT) for display.
+  const displayEnvName = (lowerName) => {
+    if (!lowerName) return null;
+    const edge = pipelineEdges.find(e => e.to === lowerName);
+    return (edge && pipelineEnvIdToName.get(edge.toId)) || lowerName;
+  };
   const orgBranchNames = new Set(); // lowercase source-branch names of all pipeline steps — for org-branch-merge detection
   try {
     const pipelineFilter = detectedPipelineId
@@ -1131,6 +1137,7 @@ async function main() {
         latestUnregisteredCommitDate: null,
         srcEnvName: _srcEnv2,
         dstEnvName: _srcEnv2 ? (pipelineEdges.find(e => e.from === _srcEnv2.toLowerCase())?.to ?? null) : null,
+        dstEnvDisplayName: _srcEnv2 ? displayEnvName(pipelineEdges.find(e => e.from === _srcEnv2.toLowerCase())?.to ?? null) : null,
         baseBranch: (story.copado__Base_Branch__c ?? '').trim() || null,
         dependencies: [],
         xmlTypeMetadata,
@@ -1216,7 +1223,7 @@ async function main() {
         parentStory: null, promotionCount: 0, lastPromoWarning: null, stalePromoInfo: null,
         latestCommitDate: story.copado__Latest_Commit_Date__c ?? null,
         latestUnregisteredCommitDate: null,
-        srcEnvName: _srcEnv, dstEnvName: _dstEnv,
+        srcEnvName: _srcEnv, dstEnvName: _dstEnv, dstEnvDisplayName: displayEnvName(_dstEnv),
         baseBranch: (story.copado__Base_Branch__c ?? '').trim() || null,
         dependencies: [],
         xmlTypeMetadata,
@@ -1719,7 +1726,7 @@ async function main() {
       parentStory, promotionCount, lastPromoWarning, stalePromoInfo,
       latestCommitDate: story.copado__Latest_Commit_Date__c ?? null,
       latestUnregisteredCommitDate,
-      srcEnvName, dstEnvName,
+      srcEnvName, dstEnvName, dstEnvDisplayName: displayEnvName(dstEnvName),
       baseBranch: (story.copado__Base_Branch__c ?? '').trim() || null,
       baseBranchSameEnv: !!(parentStory?.env && srcEnvName && parentStory.env.toLowerCase() === srcEnvName.toLowerCase()),
       baseBranchStoryEnv: parentStory?.env ?? null,

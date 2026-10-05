@@ -125832,6 +125832,11 @@ async function main() {
   const credLevel = /* @__PURE__ */ new Map();
   let pipelineEdges = [];
   const pipelineEnvIdToName = /* @__PURE__ */ new Map();
+  const displayEnvName = (lowerName) => {
+    if (!lowerName) return null;
+    const edge = pipelineEdges.find((e) => e.to === lowerName);
+    return edge && pipelineEnvIdToName.get(edge.toId) || lowerName;
+  };
   const orgBranchNames = /* @__PURE__ */ new Set();
   try {
     const pipelineFilter = detectedPipelineId ? ` WHERE copado__Deployment_Flow__c = '${detectedPipelineId}'` : "";
@@ -126009,6 +126014,7 @@ async function main() {
         latestUnregisteredCommitDate: null,
         srcEnvName: _srcEnv2,
         dstEnvName: _srcEnv2 ? pipelineEdges.find((e) => e.from === _srcEnv2.toLowerCase())?.to ?? null : null,
+        dstEnvDisplayName: _srcEnv2 ? displayEnvName(pipelineEdges.find((e) => e.from === _srcEnv2.toLowerCase())?.to ?? null) : null,
         baseBranch: (story.copado__Base_Branch__c ?? "").trim() || null,
         dependencies: [],
         xmlTypeMetadata,
@@ -126101,6 +126107,7 @@ async function main() {
         latestUnregisteredCommitDate: null,
         srcEnvName: _srcEnv,
         dstEnvName: _dstEnv,
+        dstEnvDisplayName: displayEnvName(_dstEnv),
         baseBranch: (story.copado__Base_Branch__c ?? "").trim() || null,
         dependencies: [],
         xmlTypeMetadata,
@@ -126496,6 +126503,7 @@ async function main() {
       latestUnregisteredCommitDate,
       srcEnvName,
       dstEnvName,
+      dstEnvDisplayName: displayEnvName(dstEnvName),
       baseBranch: (story.copado__Base_Branch__c ?? "").trim() || null,
       baseBranchSameEnv: !!(parentStory?.env && srcEnvName && parentStory.env.toLowerCase() === srcEnvName.toLowerCase()),
       baseBranchStoryEnv: parentStory?.env ?? null,

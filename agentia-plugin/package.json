@@ -1,0 +1,27 @@
+{
+  "name": "@naveengit9/agentia-ccv",
+  "version": "0.1.0",
+  "description": "Copado Commit Validator commands for the agentia CLI: open, verify, deploy",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "/dist",
+    "/bin"
+  ],
+  "dependencies": {
+    "@oclif/core": "^4"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  },
+  "oclif": {
+    "commands": "./dist/commands"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/copy-runner.mjs"
+  }
+}
