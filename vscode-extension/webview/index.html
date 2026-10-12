@@ -1084,9 +1084,9 @@ function renderPipelineEnvs(envs, pipelineName, newPipelineId = '') {
     // Filter toggle button (top-right)
     const gearBtn = document.createElement('button');
     gearBtn.id = `gear-${prefix}`;
-    gearBtn.style.cssText = 'position:absolute;top:3px;right:4px;background:none;box-shadow:none;border:none;cursor:pointer;font-size:13px;color:#8a9bb0;padding:2px 5px;line-height:1;border-radius:4px;';
+    gearBtn.style.cssText = 'position:absolute;top:3px;right:4px;background:none;box-shadow:none;border:none;cursor:pointer;font-size:14px;font-family:"Segoe UI Symbol","Apple Symbols",sans-serif;color:#8a9bb0;padding:2px 5px;line-height:1;border-radius:4px;';
     gearBtn.title = `Configure ${envName} filters`;
-    gearBtn.textContent = '▾';
+    gearBtn.textContent = '\u2699\uFE0E'; // a gear, in text style so it takes the colour set by _updateGearHighlight
     gearBtn.onclick = (e) => { e.stopPropagation(); toggleEnvFilter(envName, prefix); };
 
     // Env name (center)
