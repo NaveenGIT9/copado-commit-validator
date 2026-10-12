@@ -60,7 +60,10 @@ export class PromoterPanel {
   // The last fetch the user asked for, so a fetch that does not finish can be repeated after the dashboard is restarted.
   private lastFetch: { envType: string; orgAlias: string; filterJson: string; pipelineId: string } | null = null;
   private autoRetryUsed = false; // at most one automatic second try per click
-  private lastPageRetryAt = 0;   // when the page last asked for a restart + refetch (rate limit: it never loops)
+  private static lastPageRetryAt = 0; // when the page last asked for a restart + refetch (rate limit: it never loops)
+  // Handed to the next panel when this one is replaced by a fresh one (Reset / automatic restart)
+  private static nextAutoFetch: { envType: string; orgAlias: string; filterJson: string; pipelineId: string } | null = null;
+  private readonly extensionUri: vscode.Uri;
   private pendingAutoFetch: { envType: string; orgAlias: string; filterJson: string; pipelineId: string } | null = null;
   // processes that were stopped on purpose; their exit is not reported to the page
   private readonly silenced = new WeakSet<object>();
@@ -85,6 +88,11 @@ export class PromoterPanel {
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, context: vscode.ExtensionContext) {
     this.panel = panel;
     this.context = context;
+    this.extensionUri = extensionUri;
+    // A panel opened by a restart repeats the fetch once; that repeat is the one second try allowed for the click.
+    this.pendingAutoFetch = PromoterPanel.nextAutoFetch;
+    this.autoRetryUsed = PromoterPanel.nextAutoFetch !== null;
+    PromoterPanel.nextAutoFetch = null;
     this.panel.webview.html = this.getHtml();
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
     this.panel.webview.onDidReceiveMessage((msg) => this.handleMessage(msg), null, this.disposables);
@@ -186,8 +194,8 @@ export class PromoterPanel {
     } else if (msg.command === 'resetDashboard') {
       // The page got no answer to a fetch and asks for a restart plus the same fetch again (once per click).
       const r = msg.retry;
-      if (r && typeof r.envType === 'string' && typeof r.orgAlias === 'string' && Date.now() - this.lastPageRetryAt > 15_000) {
-        this.lastPageRetryAt = Date.now();
+      if (r && typeof r.envType === 'string' && typeof r.orgAlias === 'string' && Date.now() - PromoterPanel.lastPageRetryAt > 15_000) {
+        PromoterPanel.lastPageRetryAt = Date.now();
         this.pendingAutoFetch = {
           envType: r.envType, orgAlias: r.orgAlias,
           filterJson: typeof r.filterJson === 'string' ? r.filterJson : '',
@@ -310,9 +318,9 @@ export class PromoterPanel {
     proc.on('close', () => clearTimeout(timer));
   }
 
-  // Reset = what closing and reopening the dashboard does. The page stays alive while it is hidden, so its state (and the
-  // extension's record of running work) can go stale; this stops unfinished fetch/verify work and loads the page again from scratch.
-  // A running promotion is never cut short, and then the page is left in place so its progress stays on screen.
+  // Reset = exactly what closing and reopening the dashboard does: this panel (the page AND its connection to the extension)
+  // is thrown away and a new one opened. Only reloading the page was not enough: a fetch could still get no answer afterwards.
+  // A running promotion is never cut short, and then the panel is left in place so its progress stays on screen.
   private resetDashboard(): boolean {
     logLine('reset: restarting the dashboard');
     this.stopFetch();
@@ -327,8 +335,12 @@ export class PromoterPanel {
       this.activeProc = null;
       this.activeKind = null;
     }
-    // VS Code ignores a new html value that equals the old one, so a changing comment forces a real reload.
-    this.panel.webview.html = `${this.getHtml()}\n<!-- reload ${Date.now()} -->`;
+    // Replace the panel: dispose() stops unfinished fetch/verify work, then a fresh panel opens (carrying a pending repeat-fetch).
+    PromoterPanel.nextAutoFetch = this.pendingAutoFetch;
+    this.pendingAutoFetch = null;
+    const { extensionUri, context } = this;
+    this.dispose();
+    PromoterPanel.createOrShow(extensionUri, context);
     return true;
   }
 
@@ -556,7 +568,7 @@ export class PromoterPanel {
       this.activeProc = null;
       this.activeKind = null;
     }
-    PromoterPanel.currentPanel = undefined;
+    if (PromoterPanel.currentPanel === this) PromoterPanel.currentPanel = undefined; // never wipe a newer panel
     this.panel.dispose();
     for (const d of this.disposables) d.dispose();
     this.disposables = [];
