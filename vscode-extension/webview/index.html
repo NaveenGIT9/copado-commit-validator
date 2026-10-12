@@ -340,7 +340,7 @@
 <div id="verifyBtnRow" class="btn-row">
   <button class="btn btn-primary" id="verifyBtn" onclick="verify()">Verify Stories</button>
   <button class="btn btn-reset" id="cancelBtn" onclick="abort()" style="display:none;">Cancel</button>
-  <button class="btn btn-reset" onclick="reset()">Reset</button>
+  <button class="btn btn-reset" onclick="reset()">RESET</button>
 </div>
 
 <!-- Status -->
@@ -461,6 +461,8 @@ let gitRepoUrl         = '';   // GitHub HTTPS base URL (no trailing slash, no .
 let storyIdMap         = {};   // storyName → Salesforce record ID
 let runCompleted       = false;
 let _fetchWatchdog     = null;   // set when a fetch is requested; cleared by the first sign of life from the extension
+let _watchdogRetried   = false;  // the no-response restart has been used for this click
+let _lastFetchReq      = null;   // what the user asked for, so it can be repeated after a restart
 let inPromoteMode      = false;
 let mergeDeployResults = [];   // [{success, promotionId, jobId?, error?}]
 let isPartialReVerify  = false; // true when re-verifying only force-promote stories
@@ -1240,13 +1242,24 @@ function fetchReady(envType, override) {
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
   // If the extension does not react at all (not even "started"), say so instead of spinning forever.
+  const pipelineIdForFetch = (override && override.pipelineId !== undefined) ? override.pipelineId : _selectedPipelineId;
+  _lastFetchReq = { envType, orgAlias, filterJson, pipelineId: pipelineIdForFetch };
+  _watchdogRetried = !!override; // a repeated fetch never restarts again; a click by the user does
+  const showNoResponse = () => {
+    _fetchWatchdog = null;
+    setStatus('error', 'No response from the extension, even after restarting the dashboard. Click the environment again.');
+    endRun();
+  };
   clearTimeout(_fetchWatchdog);
   _fetchWatchdog = setTimeout(() => {
-    _fetchWatchdog = null;
-    setStatus('error', 'No response from the extension after 10 seconds. Click Reset to restart the dashboard, then try again. (View > Output > "Copado Commit Validator" shows what the extension did.)');
-    endRun();
+    if (_watchdogRetried || !_lastFetchReq) { showNoResponse(); return; }
+    // Restart the dashboard (as Reset does) and have it ask for the same fetch again.
+    _watchdogRetried = true;
+    setStatus('info', 'No response after 10 seconds — restarting the dashboard and trying again…', true);
+    vscode.postMessage({ command: 'resetDashboard', retry: _lastFetchReq });
+    _fetchWatchdog = setTimeout(showNoResponse, 10000); // if even the restart gets no answer
   }, 10000);
-  vscode.postMessage({ command: 'fetchReady', envType, orgAlias, filterJson, pipelineId: (override && override.pipelineId !== undefined) ? override.pipelineId : _selectedPipelineId, auto: !!override });
+  vscode.postMessage({ command: 'fetchReady', envType, orgAlias, filterJson, pipelineId: pipelineIdForFetch, auto: !!override });
 }
 
 

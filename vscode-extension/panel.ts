@@ -60,6 +60,7 @@ export class PromoterPanel {
   // The last fetch the user asked for, so a fetch that does not finish can be repeated after the dashboard is restarted.
   private lastFetch: { envType: string; orgAlias: string; filterJson: string; pipelineId: string } | null = null;
   private autoRetryUsed = false; // at most one automatic second try per click
+  private lastPageRetryAt = 0;   // when the page last asked for a restart + refetch (rate limit: it never loops)
   private pendingAutoFetch: { envType: string; orgAlias: string; filterJson: string; pipelineId: string } | null = null;
   // processes that were stopped on purpose; their exit is not reported to the page
   private readonly silenced = new WeakSet<object>();
@@ -144,6 +145,7 @@ export class PromoterPanel {
     pipelineRepoUri?: string;
     pipelineId?: string;
     auto?: boolean;
+    retry?: { envType?: unknown; orgAlias?: unknown; filterJson?: unknown; pipelineId?: unknown };
     envType?: string;
     filterJson?: string;
     url?: string;
@@ -182,7 +184,20 @@ export class PromoterPanel {
         void this.context.globalState.update('promoter.fetchFiltersByPipeline', byPipeline);
       }
     } else if (msg.command === 'resetDashboard') {
-      this.resetDashboard();
+      // The page got no answer to a fetch and asks for a restart plus the same fetch again (once per click).
+      const r = msg.retry;
+      if (r && typeof r.envType === 'string' && typeof r.orgAlias === 'string' && Date.now() - this.lastPageRetryAt > 15_000) {
+        this.lastPageRetryAt = Date.now();
+        this.pendingAutoFetch = {
+          envType: r.envType, orgAlias: r.orgAlias,
+          filterJson: typeof r.filterJson === 'string' ? r.filterJson : '',
+          pipelineId: typeof r.pipelineId === 'string' ? r.pipelineId : '',
+        };
+        logLine(`page got no answer for ${r.envType}: restarting the dashboard and fetching again`);
+        if (!this.resetDashboard()) this.pendingAutoFetch = null; // a promotion is running, so the page cannot be reloaded
+      } else {
+        this.resetDashboard();
+      }
     } else if (msg.command === 'abort') {
       this.abortRun();
     } else if (msg.command === 'getDefaultOrg') {
@@ -398,7 +413,7 @@ export class PromoterPanel {
       this.post({
         type: 'fatal',
         message: isFetch
-          ? 'The fetch did not finish within 20 seconds, even after restarting the dashboard. Check your network and the Copado org, then click the environment again. (View > Output > "Copado Commit Validator" shows what happened.)'
+          ? 'The fetch did not finish within 20 seconds, even after restarting the dashboard. Check your network and the Copado org, then click the environment again.'
           : 'Timed out after 25 minutes. Check org connectivity and try again.',
       });
     }, isFetch ? FETCH_TIMEOUT_MS : RUN_TIMEOUT_MS);
