@@ -2114,7 +2114,24 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 }
 
 window.addEventListener('message', (event) => {
-  handleIncomingMessage(event.data);
+  try {
+    handleIncomingMessage(event.data);
+  } catch (err) {
+    // A failure while showing one message must not leave the page stuck on a spinner (the page stays alive while hidden,
+    // so stale state can make a handler fail long after the panel was opened).
+    const type = event.data && event.data.type;
+    console.error('Commit Validator: could not handle message', type, err);
+    const wrap = document.getElementById('debugLogWrap');
+    const log = document.getElementById('debugLog');
+    if (wrap && log) {
+      wrap.style.display = 'block';
+      log.textContent += 'UI error while handling "' + type + '": ' + (err && err.message ? err.message : err) + '\n';
+    }
+    if (type === 'fetch-done') {
+      setStatus('error', 'The stories were fetched but could not be shown (see the debug log). Click the environment again.');
+      endRun();
+    }
+  }
 });
 
 function handleIncomingMessage(msg) {

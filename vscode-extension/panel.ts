@@ -33,13 +33,21 @@ interface StoryResult {
 }
 
 const RUN_TIMEOUT_MS = 1_500_000; // 25 minutes — first-time clone of large repos can take a while
+const FETCH_TIMEOUT_MS = 180_000; // 3 minutes — a fetch normally takes seconds; stop one that hangs
 
 export class PromoterPanel {
   public static currentPanel: PromoterPanel | undefined;
   private readonly panel: vscode.WebviewPanel;
   private disposables: vscode.Disposable[] = [];
+  // verify / promote
   private activeProc: ReturnType<typeof spawn> | null = null;
   private activeTimer: ReturnType<typeof setTimeout> | null = null;
+  private activeKind: 'verify' | 'promote' | null = null;
+  // fetch of ready stories (tracked apart, so it can be replaced without touching a verify or a promotion)
+  private fetchProc: ReturnType<typeof spawn> | null = null;
+  private fetchTimer: ReturnType<typeof setTimeout> | null = null;
+  // processes that were stopped on purpose; their exit is not reported to the page
+  private readonly silenced = new WeakSet<object>();
 
   private readonly context: vscode.ExtensionContext;
 
@@ -243,7 +251,7 @@ export class PromoterPanel {
       '--filters', filterJson,
       ...(pipelineId ? ['--pipeline-id', pipelineId] : []),
     ];
-    this.spawnCommand(args, true);
+    this.spawnCommand(args, 'fetch');
   }
 
   private runFetchPipelineEnvs(orgAlias: string): void {
@@ -267,8 +275,9 @@ export class PromoterPanel {
   }
 
   private abortRun(): void {
+    this.stopFetch();
     if (this.activeTimer) { clearTimeout(this.activeTimer); this.activeTimer = null; }
-    if (this.activeProc) { this.activeProc.kill(); this.activeProc = null; }
+    if (this.activeProc) { this.silenced.add(this.activeProc); this.activeProc.kill(); this.activeProc = null; this.activeKind = null; }
     this.post({ type: 'aborted' });
   }
 
@@ -284,7 +293,7 @@ export class PromoterPanel {
       ...(pipelineRepoUri ? ['--pipeline-repo-uri', pipelineRepoUri] : []),
       ...(pipelineId ? ['--pipeline-id', pipelineId] : []),
     ];
-    this.spawnCommand(args);
+    this.spawnCommand(args, 'verify');
   }
 
   private runPromote(
@@ -306,45 +315,74 @@ export class PromoterPanel {
       '--groups', JSON.stringify(groups),
       '--merge-deploy', String(mergeDeployAfter),
     ];
-    this.spawnCommand(args);
+    this.spawnCommand(args, 'promote');
   }
 
-  private spawnCommand(args: string[], isFetch = false): void {
+  // Starts the runner. Every run owns its process and timer, so one run can never clear another's. A fetch (read-only, a few
+  // seconds) is tracked apart from verify and promote: starting a new fetch stops an unfinished earlier one, but a fetch can
+  // never cut a verify or a promotion short.
+  private spawnCommand(args: string[], kind: 'fetch' | 'verify' | 'promote'): void {
+    const isFetch = kind === 'fetch';
+    if (isFetch) this.stopFetch();
+
     const proc = spawn(NODE_EXEC_PATH, args, { shell: false, env: { ...process.env, NODE_NO_WARNINGS: '1' } });
-    this.activeProc = proc;
+    let sawResult = false; // for a fetch: the runner reported its outcome (fetch-done, or fatal with the reason)
 
-    this.activeTimer = setTimeout(() => {
+    const timer = setTimeout(() => {
+      this.silenced.add(proc);
       proc.kill();
-      this.activeProc = null;
-      this.activeTimer = null;
-      this.post({ type: 'fatal', message: 'Timed out after 25 minutes. Check org connectivity and try again.' });
-    }, RUN_TIMEOUT_MS);
+      this.release(proc, isFetch);
+      this.post({
+        type: 'fatal',
+        message: isFetch
+          ? 'The fetch took longer than 3 minutes and was stopped. Check org connectivity, then click the environment again.'
+          : 'Timed out after 25 minutes. Check org connectivity and try again.',
+      });
+    }, isFetch ? FETCH_TIMEOUT_MS : RUN_TIMEOUT_MS);
 
-    proc.stdout.on('data', (chunk: Buffer) => {
-      const lines = chunk.toString().split('\n').filter(l => l.trim());
-      for (const line of lines) {
-        try {
-          const msg = JSON.parse(line) as Record<string, unknown>;
-          // For fetch-done and stories-fetched: try to resolve repoName to a local
-          // workspace folder path (best-effort; blank if not open in this window).
-          if ((isFetch && msg.type === 'fetch-done' && msg.repoName) ||
-              (msg.type === 'stories-fetched' && msg.repoName)) {
-            const folders = vscode.workspace.workspaceFolders ?? [];
-            const repoName = msg.repoName as string;
-            const match = folders.find(f =>
-              f.uri.fsPath.endsWith(repoName) ||
-              f.uri.fsPath.endsWith('\\' + repoName) ||
-              f.uri.fsPath.endsWith('/' + repoName));
-            const repoPath = match?.uri.fsPath ?? '';
-            this.post({ ...msg, repoPath });
-          } else {
-            // All other messages (including effective-repo-path) pass through as-is
-            this.post(msg);
-          }
-        } catch {
-          this.post({ type: 'stderr', message: `stdout: ${line}` });
+    if (isFetch) {
+      this.fetchProc = proc;
+      this.fetchTimer = timer;
+    } else {
+      this.activeProc = proc;
+      this.activeTimer = timer;
+      this.activeKind = kind === 'promote' ? 'promote' : 'verify';
+    }
+
+    const handleLine = (line: string): void => {
+      try {
+        const msg = JSON.parse(line) as Record<string, unknown>;
+        if (isFetch && (msg.type === 'fetch-done' || msg.type === 'fatal')) sawResult = true;
+        // For fetch-done and stories-fetched: try to resolve repoName to a local
+        // workspace folder path (best-effort; blank if not open in this window).
+        if ((isFetch && msg.type === 'fetch-done' && msg.repoName) ||
+            (msg.type === 'stories-fetched' && msg.repoName)) {
+          const folders = vscode.workspace.workspaceFolders ?? [];
+          const repoName = msg.repoName as string;
+          const match = folders.find(f =>
+            f.uri.fsPath.endsWith(repoName) ||
+            f.uri.fsPath.endsWith('\\' + repoName) ||
+            f.uri.fsPath.endsWith('/' + repoName));
+          const repoPath = match?.uri.fsPath ?? '';
+          this.post({ ...msg, repoPath });
+        } else {
+          // All other messages (including effective-repo-path) pass through as-is
+          this.post(msg);
         }
+      } catch {
+        this.post({ type: 'stderr', message: `stdout: ${line}` });
       }
+    };
+
+    // Output arrives in chunks that need not end on a line break: a long line (for example the list of fetched stories) can
+    // be cut in two. Keep the unfinished tail until the rest arrives, otherwise that line is lost and the page never learns
+    // the result.
+    let buf = '';
+    proc.stdout.on('data', (chunk: Buffer) => {
+      buf += chunk.toString();
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines) if (line.trim()) handleLine(line);
     });
 
     proc.stderr.on('data', (chunk: Buffer) => {
@@ -353,10 +391,41 @@ export class PromoterPanel {
     });
 
     proc.on('close', (code) => {
-      if (this.activeTimer) { clearTimeout(this.activeTimer); this.activeTimer = null; }
-      this.activeProc = null;
+      clearTimeout(timer);
+      if (buf.trim()) handleLine(buf); // the last line may have no line break after it
+      buf = '';
+      this.release(proc, isFetch);
+      if (this.silenced.has(proc)) return; // stopped on purpose; the page was already told (or no longer waits)
+      if (isFetch && !sawResult) {
+        // The runner ended without saying what happened. Tell the page, or it would show "Fetching..." forever.
+        this.post({
+          type: 'fatal',
+          message: `The fetch ended without returning stories (exit code ${code}). Open "Show debug log" for details, then try again.`,
+        });
+        return;
+      }
       this.post({ type: 'process-exit', code });
     });
+  }
+
+  // Forget a finished or stopped process, but only if it is still the one on record (a newer run may have replaced it).
+  private release(proc: ReturnType<typeof spawn>, isFetch: boolean): void {
+    if (isFetch) {
+      if (this.fetchProc === proc) { this.fetchProc = null; this.fetchTimer = null; }
+    } else if (this.activeProc === proc) {
+      this.activeProc = null;
+      this.activeTimer = null;
+      this.activeKind = null;
+    }
+  }
+
+  private stopFetch(): void {
+    if (this.fetchTimer) { clearTimeout(this.fetchTimer); this.fetchTimer = null; }
+    if (this.fetchProc) {
+      this.silenced.add(this.fetchProc);
+      this.fetchProc.kill();
+      this.fetchProc = null;
+    }
   }
 
   private post(data: Record<string, unknown>): void {
@@ -381,6 +450,16 @@ export class PromoterPanel {
   }
 
   public dispose(): void {
+    // Stop work nobody is waiting for any more. A promotion is left to finish: cutting it short could leave a
+    // half-created promotion in Copado.
+    this.stopFetch();
+    if (this.activeProc && this.activeKind === 'verify') {
+      if (this.activeTimer) { clearTimeout(this.activeTimer); this.activeTimer = null; }
+      this.silenced.add(this.activeProc);
+      this.activeProc.kill();
+      this.activeProc = null;
+      this.activeKind = null;
+    }
     PromoterPanel.currentPanel = undefined;
     this.panel.dispose();
     for (const d of this.disposables) d.dispose();
