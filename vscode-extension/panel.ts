@@ -33,7 +33,7 @@ interface StoryResult {
 }
 
 const RUN_TIMEOUT_MS = 1_500_000; // 25 minutes — first-time clone of large repos can take a while
-const FETCH_TIMEOUT_MS = 180_000; // 3 minutes — a fetch normally takes seconds; stop one that hangs
+const FETCH_TIMEOUT_MS = 120_000; // 2 minutes — a fetch normally takes seconds; stop one that hangs
 
 export class PromoterPanel {
   public static currentPanel: PromoterPanel | undefined;
@@ -335,7 +335,7 @@ export class PromoterPanel {
       this.post({
         type: 'fatal',
         message: isFetch
-          ? 'The fetch took longer than 3 minutes and was stopped. Check org connectivity, then click the environment again.'
+          ? 'The fetch took longer than 2 minutes and was stopped. Check org connectivity, then click the environment again.'
           : 'Timed out after 25 minutes. Check org connectivity and try again.',
       });
     }, isFetch ? FETCH_TIMEOUT_MS : RUN_TIMEOUT_MS);
