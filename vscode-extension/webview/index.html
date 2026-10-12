@@ -460,6 +460,7 @@ let instanceUrl        = '';
 let gitRepoUrl         = '';   // GitHub HTTPS base URL (no trailing slash, no .git)
 let storyIdMap         = {};   // storyName → Salesforce record ID
 let runCompleted       = false;
+let _fetchWatchdog     = null;   // set when a fetch is requested; cleared by the first sign of life from the extension
 let inPromoteMode      = false;
 let mergeDeployResults = [];   // [{success, promotionId, jobId?, error?}]
 let isPartialReVerify  = false; // true when re-verifying only force-promote stories
@@ -1053,6 +1054,19 @@ function renderPipelineList(pipelines) {
   if (pipelines.length === 1) track.querySelector('button')?.click();
 }
 
+// After the extension restarted the dashboard because a fetch did not finish, repeat what the user did: pick the same
+// pipeline, then fetch the same environment with the same filters.
+function _runAutoFetch(a) {
+  const orgInput = document.getElementById('orgAlias');
+  if (orgInput && a.orgAlias) orgInput.value = a.orgAlias;
+  const p = _allPipelines.find(x => (x.id ?? '') === (a.pipelineId ?? ''));
+  if (p) {
+    const chip = [...document.querySelectorAll('#pipelineNameTrack button')].find(b => b.dataset.pname === p.name);
+    if (chip) chip.click();
+  }
+  fetchReady(a.envType, { orgAlias: a.orgAlias, filterJson: a.filterJson, pipelineId: a.pipelineId });
+}
+
 function renderPipelineEnvs(envs, pipelineName, newPipelineId = '') {
   // Save the OUTGOING pipeline's filters under its own scoped key before wiping DOM.
   if (_pipelineEnvs.length && _currentRenderPipelineId) {
@@ -1202,11 +1216,11 @@ function restoreFetchFilters() {
   // Filters are now restored per-env when renderPipelineEnvs() is called after pipeline loads.
 }
 
-function fetchReady(envType) {
-  const orgAlias = document.getElementById('orgAlias').value.trim() || (window.__defaultOrg ?? '');
+function fetchReady(envType, override) {
+  const orgAlias = (override && override.orgAlias) || document.getElementById('orgAlias').value.trim() || (window.__defaultOrg ?? '');
   if (!orgAlias) { setStatus('error', 'Enter your Copado org alias or username.'); return; }
   const prefix = envType.toLowerCase().replace(/[^a-z0-9]/g, '_');
-  const filterJson = serializeFilters(prefix);
+  const filterJson = (override && override.filterJson !== undefined) ? override.filterJson : serializeFilters(prefix);
   // Close any open env filter panel
   if (_activeFilterEnv) {
     const panel = document.getElementById(`envfilter-${_activeFilterEnv}`);
@@ -1222,10 +1236,17 @@ function fetchReady(envType) {
   document.getElementById('promote-section').style.display = 'none';
   document.getElementById('cleanCount').textContent = '0';
   document.getElementById('promoteList').textContent = '';
-  setStatus('info', `Fetching ${envType} ready stories from Copado...`, true);
+  setStatus('info', `Fetching ${envType} ready stories from Copado...${override ? ' (second try, after restarting the dashboard)' : ''}`, true);
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('cancelBtn').style.display = 'inline-flex';
-  vscode.postMessage({ command: 'fetchReady', envType, orgAlias, filterJson, pipelineId: _selectedPipelineId });
+  // If the extension does not react at all (not even "started"), say so instead of spinning forever.
+  clearTimeout(_fetchWatchdog);
+  _fetchWatchdog = setTimeout(() => {
+    _fetchWatchdog = null;
+    setStatus('error', 'No response from the extension after 10 seconds. Click Reset to restart the dashboard, then try again. (View > Output > "Copado Commit Validator" shows what the extension did.)');
+    endRun();
+  }, 10000);
+  vscode.postMessage({ command: 'fetchReady', envType, orgAlias, filterJson, pipelineId: (override && override.pipelineId !== undefined) ? override.pipelineId : _selectedPipelineId, auto: !!override });
 }
 
 
@@ -1385,6 +1406,8 @@ function _resetState() {
 
 function reset() {
   _resetState();
+  // Also ask the extension to stop unfinished work and load this page again from scratch, as reopening the dashboard does.
+  vscode.postMessage({ command: 'resetDashboard' });
   // Also re-fetch the default org from config (full reset only)
   vscode.postMessage({ command: 'getDefaultOrg' });
 }
@@ -2135,6 +2158,10 @@ window.addEventListener('message', (event) => {
 });
 
 function handleIncomingMessage(msg) {
+  if (_fetchWatchdog && msg && ['fetch-started', 'fetch-start', 'debug', 'stderr', 'fetch-done', 'fatal', 'aborted', 'process-exit'].includes(msg.type)) {
+    clearTimeout(_fetchWatchdog);
+    _fetchWatchdog = null;
+  }
   if (msg.type === 'debug') {
     document.getElementById('debugLogWrap').style.display = 'block';
     const log = document.getElementById('debugLog');
@@ -2149,6 +2176,7 @@ function handleIncomingMessage(msg) {
     const status = document.getElementById('pipelineLoadStatus');
     if (status) status.textContent = `${pipelines.length} pipeline${pipelines.length !== 1 ? 's' : ''} found`;
     renderPipelineList(pipelines);
+    if (window.__autoFetch) { const a = window.__autoFetch; window.__autoFetch = null; _runAutoFetch(a); }
   }
 
   else if (msg.type === 'pipeline-envs-error') {

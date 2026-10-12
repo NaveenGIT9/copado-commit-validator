@@ -33,7 +33,18 @@ interface StoryResult {
 }
 
 const RUN_TIMEOUT_MS = 1_500_000; // 25 minutes — first-time clone of large repos can take a while
-const FETCH_TIMEOUT_MS = 120_000; // 2 minutes — a fetch normally takes seconds; stop one that hangs
+const FETCH_TIMEOUT_MS = 20_000; // 20 seconds — a fetch normally takes about a second; one that takes longer is restarted
+
+// What the extension does is written to an Output panel (View > Output > "Copado Commit Validator"), so a run that goes
+// quiet can be traced: the click, the runner start, its first output and how it ended.
+let outputChannel: vscode.OutputChannel | undefined;
+function logLine(message: string): void {
+  try {
+    outputChannel ??= vscode.window.createOutputChannel('Copado Commit Validator');
+    outputChannel.appendLine(`${new Date().toISOString().slice(11, 23)}  ${message}`);
+  } catch { /* logging must never break the dashboard */ }
+}
+const summarizeArgs = (args: string[]): string => args.slice(1).join(' ').slice(0, 160);
 
 export class PromoterPanel {
   public static currentPanel: PromoterPanel | undefined;
@@ -46,6 +57,10 @@ export class PromoterPanel {
   // fetch of ready stories (tracked apart, so it can be replaced without touching a verify or a promotion)
   private fetchProc: ReturnType<typeof spawn> | null = null;
   private fetchTimer: ReturnType<typeof setTimeout> | null = null;
+  // The last fetch the user asked for, so a fetch that does not finish can be repeated after the dashboard is restarted.
+  private lastFetch: { envType: string; orgAlias: string; filterJson: string; pipelineId: string } | null = null;
+  private autoRetryUsed = false; // at most one automatic second try per click
+  private pendingAutoFetch: { envType: string; orgAlias: string; filterJson: string; pipelineId: string } | null = null;
   // processes that were stopped on purpose; their exit is not reported to the page
   private readonly silenced = new WeakSet<object>();
 
@@ -128,6 +143,7 @@ export class PromoterPanel {
     repoPath?: string;
     pipelineRepoUri?: string;
     pipelineId?: string;
+    auto?: boolean;
     envType?: string;
     filterJson?: string;
     url?: string;
@@ -137,6 +153,7 @@ export class PromoterPanel {
     storyNames?: string[];
     storyIds?: string[];
   }): void {
+    logLine(`page asked: ${msg.command}`);
     if (msg.command === 'verify') {
       this.saveOrgHistory(msg.orgAlias ?? '');
       this.runVerify(msg.stories ?? '', msg.orgAlias ?? '', msg.repoPath ?? '', msg.pipelineRepoUri ?? '', msg.pipelineId ?? '');
@@ -144,6 +161,7 @@ export class PromoterPanel {
       this.saveOrgHistory(msg.orgAlias ?? '');
       this.runPromote(msg.groups ?? [], msg.orgAlias ?? '', msg.mergeDeployAfter ?? false);
     } else if (msg.command === 'fetchReady') {
+      if (!msg.auto) this.autoRetryUsed = false; // a click by the user starts a fresh allowance
       this.saveOrgHistory(msg.orgAlias ?? '');
       this.runFetchReady(msg.envType ?? 'QA', msg.orgAlias ?? '', msg.filterJson ?? '', msg.pipelineId ?? '');
     } else if (msg.command === 'fetchPipelineEnvs') {
@@ -163,6 +181,8 @@ export class PromoterPanel {
         byPipeline[pipelineId] = msg.filters;
         void this.context.globalState.update('promoter.fetchFiltersByPipeline', byPipeline);
       }
+    } else if (msg.command === 'resetDashboard') {
+      this.resetDashboard();
     } else if (msg.command === 'abort') {
       this.abortRun();
     } else if (msg.command === 'getDefaultOrg') {
@@ -243,6 +263,7 @@ export class PromoterPanel {
   }
 
   private runFetchReady(envType: string, orgAlias: string, filterJson: string, pipelineId = ''): void {
+    this.lastFetch = { envType, orgAlias, filterJson, pipelineId };
     const args = [
       RUNNER_PATH,
       '--target-org', orgAlias,
@@ -274,7 +295,42 @@ export class PromoterPanel {
     proc.on('close', () => clearTimeout(timer));
   }
 
+  // Reset = what closing and reopening the dashboard does. The page stays alive while it is hidden, so its state (and the
+  // extension's record of running work) can go stale; this stops unfinished fetch/verify work and loads the page again from scratch.
+  // A running promotion is never cut short, and then the page is left in place so its progress stays on screen.
+  private resetDashboard(): boolean {
+    logLine('reset: restarting the dashboard');
+    this.stopFetch();
+    if (this.activeProc && this.activeKind === 'promote') {
+      logLine('reset: a promotion is running, so the page is not reloaded');
+      return false;
+    }
+    if (this.activeProc) {
+      if (this.activeTimer) { clearTimeout(this.activeTimer); this.activeTimer = null; }
+      this.silenced.add(this.activeProc);
+      this.activeProc.kill();
+      this.activeProc = null;
+      this.activeKind = null;
+    }
+    // VS Code ignores a new html value that equals the old one, so a changing comment forces a real reload.
+    this.panel.webview.html = `${this.getHtml()}\n<!-- reload ${Date.now()} -->`;
+    return true;
+  }
+
+  // A fetch that did not finish in time: restart the dashboard (as Reset does) and have the page ask for the same fetch again.
+  // Only once per click: if the second try also stalls, the user is told instead of looping. Returns false when it cannot recover.
+  private recoverFetch(): boolean {
+    if (!this.lastFetch || this.autoRetryUsed) return false;
+    logLine(`fetch of ${this.lastFetch.envType} did not finish in ${FETCH_TIMEOUT_MS / 1000} s: restarting the dashboard and fetching again`);
+    this.autoRetryUsed = true;
+    this.pendingAutoFetch = this.lastFetch;
+    if (this.resetDashboard()) return true;
+    this.pendingAutoFetch = null; // a promotion is running, so the page cannot be reloaded
+    return false;
+  }
+
   private abortRun(): void {
+    logLine('cancel requested');
     this.stopFetch();
     if (this.activeTimer) { clearTimeout(this.activeTimer); this.activeTimer = null; }
     if (this.activeProc) { this.silenced.add(this.activeProc); this.activeProc.kill(); this.activeProc = null; this.activeKind = null; }
@@ -327,15 +383,22 @@ export class PromoterPanel {
 
     const proc = spawn(NODE_EXEC_PATH, args, { shell: false, env: { ...process.env, NODE_NO_WARNINGS: '1' } });
     let sawResult = false; // for a fetch: the runner reported its outcome (fetch-done, or fatal with the reason)
+    const startedAt = Date.now();
+    let gotOutput = false;
+    logLine(`start ${kind}: pid ${proc.pid}, node ${NODE_EXEC_PATH}, ${summarizeArgs(args)}`);
+    // Tell the page right away that the runner started, so it can tell "started but quiet" from "never started".
+    if (isFetch) this.post({ type: 'fetch-started', pid: proc.pid });
 
     const timer = setTimeout(() => {
+      logLine(`${kind} pid ${proc.pid}: no result within the time limit, stopping it`);
       this.silenced.add(proc);
       proc.kill();
       this.release(proc, isFetch);
+      if (isFetch && this.recoverFetch()) return;
       this.post({
         type: 'fatal',
         message: isFetch
-          ? 'The fetch took longer than 2 minutes and was stopped. Check org connectivity, then click the environment again.'
+          ? 'The fetch did not finish within 20 seconds, even after restarting the dashboard. Check your network and the Copado org, then click the environment again. (View > Output > "Copado Commit Validator" shows what happened.)'
           : 'Timed out after 25 minutes. Check org connectivity and try again.',
       });
     }, isFetch ? FETCH_TIMEOUT_MS : RUN_TIMEOUT_MS);
@@ -350,9 +413,14 @@ export class PromoterPanel {
     }
 
     const handleLine = (line: string): void => {
+      if (!gotOutput) {
+        gotOutput = true;
+        logLine(`${kind} pid ${proc.pid}: first output after ${Date.now() - startedAt} ms`);
+      }
       try {
         const msg = JSON.parse(line) as Record<string, unknown>;
         if (isFetch && (msg.type === 'fetch-done' || msg.type === 'fatal')) sawResult = true;
+        if (isFetch && msg.type === 'fetch-done') this.autoRetryUsed = false;
         // For fetch-done and stories-fetched: try to resolve repoName to a local
         // workspace folder path (best-effort; blank if not open in this window).
         if ((isFetch && msg.type === 'fetch-done' && msg.repoName) ||
@@ -390,8 +458,19 @@ export class PromoterPanel {
       this.post({ type: 'stderr', message: text });
     });
 
+    // The runner could not be started at all (for example node was not found). Without this the failure is silent.
+    proc.on('error', (err) => {
+      clearTimeout(timer);
+      logLine(`${kind} pid ${proc.pid}: could not run: ${err.message}`);
+      this.release(proc, isFetch);
+      if (this.silenced.has(proc)) return;
+      this.silenced.add(proc); // a 'close' may follow; the failure is reported here, once
+      this.post({ type: 'fatal', message: `The runner could not be started: ${err.message}. Check that Node.js is installed and on your PATH, then reload the window.` });
+    });
+
     proc.on('close', (code) => {
       clearTimeout(timer);
+      logLine(`${kind} pid ${proc.pid}: ended with code ${code} after ${Date.now() - startedAt} ms${isFetch ? (sawResult ? ', result reported' : ', NO result reported') : ''}${this.silenced.has(proc) ? ' (stopped on purpose)' : ''}`);
       if (buf.trim()) handleLine(buf); // the last line may have no line break after it
       buf = '';
       this.release(proc, isFetch);
@@ -422,6 +501,7 @@ export class PromoterPanel {
   private stopFetch(): void {
     if (this.fetchTimer) { clearTimeout(this.fetchTimer); this.fetchTimer = null; }
     if (this.fetchProc) {
+      logLine(`stopping the running fetch (pid ${this.fetchProc.pid})`);
       this.silenced.add(this.fetchProc);
       this.fetchProc.kill();
       this.fetchProc = null;
@@ -442,8 +522,9 @@ export class PromoterPanel {
       const savedFiltersByPipeline = this.context.globalState.get('promoter.fetchFiltersByPipeline', {});
       html = html.replace(
         '<script>',
-        `<script>window.__defaultOrg = ${JSON.stringify(defaultOrg)};\nwindow.__orgHistory = ${JSON.stringify(orgHistory)};\nwindow.__savedFilters = ${JSON.stringify(savedFilters)};\nwindow.__savedFiltersByPipeline = ${JSON.stringify(savedFiltersByPipeline)};\n`,
+        `<script>window.__defaultOrg = ${JSON.stringify(defaultOrg)};\nwindow.__orgHistory = ${JSON.stringify(orgHistory)};\nwindow.__savedFilters = ${JSON.stringify(savedFilters)};\nwindow.__savedFiltersByPipeline = ${JSON.stringify(savedFiltersByPipeline)};\nwindow.__autoFetch = ${JSON.stringify(this.pendingAutoFetch)};\n`,
       );
+      this.pendingAutoFetch = null; // handed over once
       return html;
     }
     return '<html><body>Loading...</body></html>';

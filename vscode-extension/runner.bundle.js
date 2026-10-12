@@ -125059,6 +125059,29 @@ function gitInstanceFactory(baseDir, options) {
 init_git_response_error();
 var simpleGit = gitInstanceFactory;
 
+// ../queryWithRetry.mjs
+async function withRetry(run, { attempts = 3, timeoutMs = 2e4, onRetry = () => {
+} } = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    let timer;
+    try {
+      return await Promise.race([
+        run(),
+        new Promise((_2, reject) => {
+          timer = setTimeout(() => reject(new Error(`no answer after ${Math.round(timeoutMs / 1e3)} s`)), timeoutMs);
+        })
+      ]);
+    } catch (err) {
+      lastError = err;
+      if (attempt < attempts) onRetry(`${String(err.message ?? err).slice(0, 140)}; trying again (${attempt}/${attempts - 1})`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError;
+}
+
 // ../runner.mjs
 function emit(data) {
   process.stdout.write(JSON.stringify(data) + "\n");
@@ -125398,6 +125421,7 @@ async function main() {
   }
   if (doFetchReady) {
     emit({ type: "fetch-start", envType: fetchEnvType });
+    const fetchQuery = (q2) => withRetry(() => conn.query(q2), { attempts: 2, timeoutMs: 8e3, onRetry: (m) => emit({ type: "debug", message: `fetch query: ${m}` }) });
     let whereClause = "";
     if (fetchFiltersJson) {
       try {
@@ -125420,7 +125444,7 @@ async function main() {
     emit({ type: "debug", message: `fetch SOQL: ${soql}` });
     let storyIds = [], storyNames2 = [];
     try {
-      const res = await conn.query(soql);
+      const res = await fetchQuery(soql);
       for (const r2 of res.records ?? []) {
         if (r2.Id && r2.Name) {
           storyIds.push(r2.Id);
@@ -125439,7 +125463,7 @@ async function main() {
     const latestCommitDateMap = {};
     try {
       const storyIdList = storyIds.map((id) => `'${id}'`).join(",");
-      const cdRes = await conn.query(
+      const cdRes = await fetchQuery(
         `SELECT Id, copado__Latest_Commit_Date__c FROM copado__User_Story__c WHERE Id IN (${storyIdList})`
       );
       for (const r2 of cdRes.records) latestCommitDateMap[r2.Id] = r2.copado__Latest_Commit_Date__c;
@@ -125455,7 +125479,7 @@ async function main() {
     let repoName = "";
     if (validStories.length > 0) {
       try {
-        const storyRec = await conn.query(
+        const storyRec = await fetchQuery(
           `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.copado__URI__c FROM copado__User_Story__c WHERE Id = '${validStories[0].id}'`
         );
         const uri = storyRec.records[0]?.copado__Project__r?.copado__Deployment_Flow__r?.copado__Git_Repository__r?.copado__URI__c ?? "";

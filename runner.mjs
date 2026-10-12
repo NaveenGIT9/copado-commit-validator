@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 import { join as pathJoin } from 'path';
 import { AuthInfo, Connection, StateAggregator } from '@salesforce/core';
 import { simpleGit } from 'simple-git';
+import { withRetry } from './queryWithRetry.mjs';
 
 function emit(data) {
   process.stdout.write(JSON.stringify(data) + '\n');
@@ -393,6 +394,8 @@ async function main() {
   // ── FETCH READY MODE ────────────────────────────────────────────────────────
   if (doFetchReady) {
     emit({ type: 'fetch-start', envType: fetchEnvType });
+    // Each fetch query gets a time limit and is retried, so one request that never answers cannot hang the fetch.
+    const fetchQuery = (q) => withRetry(() => conn.query(q), { attempts: 2, timeoutMs: 8000, onRetry: (m) => emit({ type: 'debug', message: `fetch query: ${m}` }) });
 
     // Build WHERE clause: prefer dynamic filter JSON; fall back to legacy static args.
     let whereClause = '';
@@ -424,7 +427,7 @@ async function main() {
 
     let storyIds = [], storyNames = [];
     try {
-      const res = await conn.query(soql);
+      const res = await fetchQuery(soql);
       for (const r of (res.records ?? [])) {
         if (r.Id && r.Name) { storyIds.push(r.Id); storyNames.push(r.Name); }
       }
@@ -444,7 +447,7 @@ async function main() {
     const latestCommitDateMap = {};
     try {
       const storyIdList = storyIds.map(id => `'${id}'`).join(',');
-      const cdRes = await conn.query(
+      const cdRes = await fetchQuery(
         `SELECT Id, copado__Latest_Commit_Date__c FROM copado__User_Story__c WHERE Id IN (${storyIdList})`
       );
       for (const r of cdRes.records) latestCommitDateMap[r.Id] = r.copado__Latest_Commit_Date__c;
@@ -465,7 +468,7 @@ async function main() {
     let repoName = '';
     if (validStories.length > 0) {
       try {
-        const storyRec = await conn.query(
+        const storyRec = await fetchQuery(
           `SELECT copado__Project__r.copado__Deployment_Flow__r.copado__Git_Repository__r.copado__URI__c ` +
           `FROM copado__User_Story__c WHERE Id = '${validStories[0].id}'`
         );
