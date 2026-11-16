@@ -145,6 +145,19 @@ function repoNameFromUri(uri) {
   return uri.replace(/\.git$/, '').split(/[/:]/).pop() ?? '';
 }
 
+// simple-git's raw() resolves on a silent exit 1, which is how --is-ancestor says "no" — read the exit code instead.
+function isAncestor(repoDir, commit, ref) {
+  return spawnSync('git', ['-C', repoDir, 'merge-base', '--is-ancestor', commit, ref], { stdio: 'ignore' }).status === 0;
+}
+
+// Branch named in a default git / GitHub merge subject, or null for a custom message.
+function parseMergedBranch(subject) {
+  const git = subject.match(/^Merge (?:remote-tracking )?branch '(?:origin\/)?([^']+)'/i);
+  if (git) return git[1];
+  const pr = subject.match(/^Merge pull request #\d+ from [^/\s]+\/(\S+)/i);
+  return pr ? pr[1] : null;
+}
+
 function parseApiName(filePath) {
   const parts = filePath.replace(/\\/g, '/').split('/');
   const defaultIdx = parts.indexOf('default');
@@ -989,7 +1002,13 @@ async function main() {
     emit({ type: 'pipeline-info', envOrder: pipelineOrderedEnvs });
   } catch (pipelineErr) { emit({ type: 'debug', message: `pipeline ERROR: ${pipelineErr}` }); }
 
-  emit({ type: 'debug', message: `org branch names in pipeline: ${[...orgBranchNames].join(', ') || '(none)'}` });
+  // An org can have a branch without being a pipeline step (e.g. a hotfix org) — Environment names count too.
+  try {
+    const envRes = await conn.query(`SELECT Name FROM copado__Environment__c`);
+    for (const e of envRes.records) if (e.Name) orgBranchNames.add(e.Name.toLowerCase());
+  } catch (envErr) { emit({ type: 'debug', message: `environment names ERROR: ${envErr}` }); }
+
+  emit({ type: 'debug', message: `org branch names (pipeline steps + environments): ${[...orgBranchNames].join(', ') || '(none)'}` });
 
   // Resolve credential IDs → env name using pipelineEnvIdToName.
   // Queries copado__Org__c by primary key (Id) — always indexed/fast.
@@ -1144,25 +1163,31 @@ async function main() {
         baseBranch: (story.copado__Base_Branch__c ?? '').trim() || null,
         dependencies: [],
         xmlTypeMetadata,
-        orgBranchMerges: [],
+        branchMerges: [],
         customFields: customFieldConfigs.map(f => ({ label: f.label, value: story[f.apiName] ?? null })),
         verdict: 'branch-not-found',
       });
       continue;
     }
 
-    // ── Phase 1: fast org-branch merge detection (first-parent only, milliseconds) ─────────────
+    // ── Phase 1: branch-merge detection (first-parent only, milliseconds) ─────────────
     // --first-parent traverses ONLY the mainline so it skips all merged-branch history.
-    // For a bloated branch (e.g. rbkintcsad merged in) this finishes instantly instead of
-    // reading 3000+ commit objects. Uses two detection methods so we're not dependent on any
-    // single commit-message format:
-    //   Method A — subject regex: catches "Merge branch 'X'" and "Merge remote-tracking branch 'origin/X'"
-    //   Method B — second-parent ancestry: reliable regardless of commit message
-    const orgBranchMerges = [];
+    // Every mainline merge that brings in another branch blocks the story — org, feature,
+    // promotion or any other branch. Not reported: pulling the story's own branch, and merges
+    // whose incoming side is already in the base branch (a base sync brings nothing foreign).
+    const ownBranch = branchName.toLowerCase();
+    const branchKind = (name) => {
+      const n = name.toLowerCase();
+      if (orgBranchNames.has(n)) return 'org';
+      if (n.startsWith('feature/')) return 'feature';
+      if (n.startsWith('promotion/')) return 'promotion';
+      return 'other';
+    };
+    const KIND_RANK = { org: 0, feature: 1, other: 2, promotion: 3 };
+    const branchMerges = [];
     let firstParentCommits = []; // the developer's own commits (small count, used if we fast-block)
-    let firstParentRaw = '';
     try {
-      firstParentRaw = await git.raw(['log', '--first-parent', '--format=%H%x00%P%x00%s',
+      const firstParentRaw = await git.raw(['log', '--first-parent', '--format=%H%x00%P%x00%s',
         `${diffBase}..${remoteBranch}`]);
       for (const line of firstParentRaw.split('\n').filter(l => l.includes('\0'))) {
         const [hashRaw, parentsRaw = '', subject = ''] = line.split('\0');
@@ -1170,46 +1195,29 @@ async function main() {
         if (hash.length !== 40) continue;
         firstParentCommits.push(hash);
 
-        if (orgBranchNames.size > 0) {
-          // Method A: subject-based
-          const m = subject.match(/^Merge (?:remote-tracking )?branch '(?:origin\/)?([^']+)'/i);
-          if (m && orgBranchNames.has(m[1].toLowerCase()))
-            orgBranchMerges.push({ sha: hash.slice(0, 10), mergedBranch: m[1] });
+        const parents = parentsRaw.trim().split(/\s+/).filter(Boolean);
+        if (parents.length < 2) continue;
+        const incoming = parents[1];
+        let merged = parseMergedBranch(subject);
+        if (merged && merged.toLowerCase() === ownBranch) continue;
+        if (isAncestor(effectiveRepoPath, incoming, diffBase)) continue;
+        if (!merged) {
+          // Custom merge message: name it from the remote branches holding the incoming commit, org branches first.
+          const raw = await git.raw(['branch', '-r', '--contains', incoming, '--format=%(refname:short)']).catch(() => '');
+          const candidates = raw.split('\n')
+            .map(s => s.trim().replace(/^origin\//, ''))
+            .filter(b => b && b !== 'HEAD' && b !== 'origin' && b.toLowerCase() !== ownBranch)
+            .sort((a, b) => KIND_RANK[branchKind(a)] - KIND_RANK[branchKind(b)]);
+          merged = candidates[0] ?? null;
         }
-      }
-
-      // Method B: parent-based fallback (if subject matching caught nothing)
-      if (orgBranchMerges.length === 0 && orgBranchNames.size > 0) {
-        for (const line of firstParentRaw.split('\n').filter(l => l.includes('\0'))) {
-          const [hashRaw, parentsRaw = '', subjectRaw = ''] = line.split('\0');
-          const hash = hashRaw.trim();
-          const parents = parentsRaw.trim().split(/\s+/).filter(Boolean);
-          if (parents.length < 2) continue; // not a merge commit
-          const mergedParent = parents[1]; // second parent = what was merged in
-          // Skip merge commits that pull the story's own remote tracking branch (git pull self-merge)
-          const selfMergeMatch = subjectRaw.match(/^Merge (?:remote-tracking )?branch '(?:origin\/)?([^']+)'/i);
-          if (selfMergeMatch && selfMergeMatch[1].toLowerCase() === branchName.replace(/^origin\//, '').toLowerCase()) continue;
-          for (const branchName2 of orgBranchNames) {
-            try {
-              await git.raw(['merge-base', '--is-ancestor', mergedParent, `origin/${branchName2}`]);
-              // Exclude false positives: if the merged parent is already in the base branch
-              // it's just common history (e.g. a previously promoted commit), not contamination
-              let inBase = false;
-              try { await git.raw(['merge-base', '--is-ancestor', mergedParent, diffBase]); inBase = true; } catch { /* not in base */ }
-              if (inBase) continue;
-              orgBranchMerges.push({ sha: hash.slice(0, 10), mergedBranch: branchName2 });
-              break;
-            } catch { /* not reachable from this branch */ }
-          }
-          if (orgBranchMerges.length > 0) break;
-        }
+        branchMerges.push({ sha: hash.slice(0, 10), mergedBranch: merged ?? 'unidentified branch', kind: merged ? branchKind(merged) : 'other', subject });
       }
     } catch { /* Phase 1 failed (e.g. branch not fetched yet) — fall through to Phase 2 */ }
 
-    if (orgBranchMerges.length > 0) {
+    if (branchMerges.length > 0) {
       const _srcEnv = story.copado__Environment__r?.Name ?? story.copado__Org_Credential__r?.Name ?? null;
       const _dstEnv = _srcEnv ? (pipelineEdges.find(e => e.from === _srcEnv.toLowerCase())?.to ?? null) : null;
-      emit({ type: 'debug', message: `${story.Name}: org-branch merge detected (fast-fail): ${orgBranchMerges.map(m => `${m.mergedBranch}@${m.sha}`).join(', ')}` });
+      emit({ type: 'debug', message: `${story.Name}: branch merge detected (fast-fail): ${branchMerges.map(m => `${m.mergedBranch}[${m.kind}]@${m.sha}`).join(', ')}` });
       emit({
         type: 'story-verified',
         storyName: story.Name, storyId: story.Id,
@@ -1230,7 +1238,7 @@ async function main() {
         baseBranch: (story.copado__Base_Branch__c ?? '').trim() || null,
         dependencies: [],
         xmlTypeMetadata,
-        orgBranchMerges,
+        branchMerges,
         customFields: customFieldConfigs.map(f => ({ label: f.label, value: story[f.apiName] ?? null })),
         verdict: 'skip-unregistered',
       });
@@ -1735,7 +1743,7 @@ async function main() {
       baseBranchStoryEnv: parentStory?.env ?? null,
       dependencies,
       xmlTypeMetadata,
-      orgBranchMerges,
+      branchMerges: [],
       customFields: customFieldConfigs.map(f => ({ label: f.label, value: story[f.apiName] ?? null })),
       verdict,
     });

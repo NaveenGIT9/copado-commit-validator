@@ -50,7 +50,7 @@ export function evaluateStory(ev: RunnerEvent): Evaluation {
   const dependencies: Array<{ parentAhead?: boolean; parentInSamePromo?: boolean; parentName?: string }> = ev.dependencies ?? [];
   const dependencyBlocked = dependencies.some((d) => !d.parentAhead && !d.parentInSamePromo);
   const xmlTypeMetadata: unknown[] = ev.xmlTypeMetadata ?? [];
-  const orgBranchMerges: unknown[] = ev.orgBranchMerges ?? [];
+  const branchMerges: Array<{ mergedBranch?: string; kind?: string; sha?: string }> = ev.branchMerges ?? [];
 
   const blockers: string[] = [];
   const warnings: string[] = [];
@@ -65,7 +65,9 @@ export function evaluateStory(ev: RunnerEvent): Evaluation {
   if (parentBlocked) blockers.push(`Parent story ${ev.parentStory.name} is not promoted yet`);
   if (dependencyBlocked) blockers.push('A dependency is not ahead in the pipeline and not in the same promotion');
   if (xmlTypeMetadata.length > 0) blockers.push('Story has XML-type metadata entries');
-  if (orgBranchMerges.length > 0) blockers.push('Org-branch merge detected on the feature branch');
+  for (const m of branchMerges) {
+    blockers.push(`${m.kind === 'org' ? 'Org branch' : 'Branch'} merged into the feature branch: ${m.mergedBranch} (${m.sha})`);
+  }
 
   const base = { storyName: ev.storyName as string, blockers, warnings };
   const eligible = blockers.length === 0;
