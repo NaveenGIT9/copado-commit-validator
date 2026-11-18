@@ -2,7 +2,7 @@
   "name": "promoter",
   "displayName": "Copado Commit Validator",
   "description": "Verify and promote Copado User Stories with branch commit validation",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "publisher": "NaveenBonthu9",
   "engines": {
     "vscode": "^1.85.0"
@@ -13,7 +13,8 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onUri"
+    "onUri",
+    "onWebviewPanel:sfPromoter"
   ],
   "main": "./dist/extension.js",
   "contributes": {

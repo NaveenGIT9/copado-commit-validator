@@ -15,6 +15,11 @@ export function activate(context: vscode.ExtensionContext): void {
     PromoterPanel.createOrShow(context.extensionUri, context);
   });
   context.subscriptions.push(cmd);
+  context.subscriptions.push(vscode.window.registerWebviewPanelSerializer('sfPromoter', {
+    async deserializeWebviewPanel(panel: vscode.WebviewPanel): Promise<void> {
+      PromoterPanel.revive(panel, context.extensionUri, context);
+    },
+  }));
 
   const linkStoriesCmd = vscode.commands.registerCommand('promoter.openLinkStories', () => {
     LinkStoriesPanel.createOrShow(context.extensionUri);

@@ -408,6 +408,8 @@
 
 <script>
 const vscode = acquireVsCodeApi();
+// Any saved state makes VS Code hand this tab back to the extension after it restarts, so the tab is reconnected.
+vscode.setState({ open: true });
 
 let storyDevMap        = {};   // storyName → developer name (populated on fetch)
 let fetchedStoryIdMap  = {};   // storyName → Salesforce record Id (populated on fetch)
@@ -1815,6 +1817,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         lines.push(`<span style="color:#e3b341;font-size:10px">In metadata:<br>${d.coveredComponents.join('<br>')}</span>`);
       if (d.uncoveredComponents && d.uncoveredComponents.length > 0)
         lines.push(`<span style="color:#f85149;font-size:10px">Not in metadata:<br>${d.uncoveredComponents.join('<br>')}</span>`);
+      if (d.noNetChangeComponents && d.noNetChangeComponents.length > 0)
+        lines.push(`<span style="color:#8a9bb0;font-size:10px">No net change:<br>${d.noNetChangeComponents.join('<br>')}</span>`);
       if (d.authorMismatch)
         lines.push(`<span style="color:#f85149;font-size:10px">⚠ Different author: ${d.authorName || d.authorEmail}</span>`);
       if (d.isAmended)
@@ -1894,13 +1898,15 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
             : '';
           const covLine   = covered.length   > 0 ? `<div style="color:#4ade80;font-size:10px;margin-top:2px">✓ In metadata: ${covered.join(', ')}</div>`   : '';
           const uncovLine = uncovered.length > 0 ? `<div style="color:#f87171;font-size:10px;margin-top:2px">✗ Not in metadata: ${uncovered.join(', ')}</div>` : '';
+          const noNet     = (d.noNetChangeComponents || []);
+          const noNetLine = noNet.length > 0 ? `<div style="color:#8a9bb0;font-size:10px;margin-top:2px">– No net change: ${noNet.join(', ')}</div>` : '';
           const msgLine   = d.commitMessage ? `<div style="color:#8a9bb0;font-style:italic;font-size:10px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.commitMessage}">${d.commitMessage}</div>` : '';
           const authLine  = d.authorMismatch ? `<div style="color:#f87171;font-size:10px;margin-top:2px">⚠ Author: ${d.authorName || d.authorEmail}</div>` : '';
-          const noCovLine = (covered.length === 0 && uncovered.length === 0 && !d.copadoStatus)
+          const noCovLine = (covered.length === 0 && uncovered.length === 0 && noNet.length === 0 && !d.copadoStatus)
             ? `<div style="color:#8a9bb0;font-size:10px;margin-top:2px">No metadata components found in this commit</div>` : '';
           return `<div style="padding:6px 8px;background:#f0f2f8;border:none;box-shadow:inset 2px 2px 5px rgba(0,0,0,0.05),inset -2px -2px 5px rgba(255,255,255,0.9);border-radius:6px;margin-top:4px">
             <div style="font-family:monospace;color:#4f7ef7;font-size:10px">${d.sha || ''}</div>
-            ${statusLine}${covLine}${uncovLine}${authLine}${noCovLine}${msgLine}
+            ${statusLine}${covLine}${uncovLine}${noNetLine}${authLine}${noCovLine}${msgLine}
           </div>`;
         }).join('');
         tlItems.push(`<details style="margin-top:2px">

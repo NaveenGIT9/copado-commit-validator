@@ -70,6 +70,16 @@ export class PromoterPanel {
 
   private readonly context: vscode.ExtensionContext;
 
+  // When VS Code restarts its extensions (an extension install or update does this), an open dashboard stays on screen but
+  // loses its link to the extension: clicks then go nowhere. VS Code hands that tab back here, and it is reconnected.
+  public static revive(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, context: vscode.ExtensionContext): void {
+    logLine('dashboard tab reconnected after VS Code restarted its extensions');
+    panel.webview.options = { enableScripts: true };
+    panel.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'copado-logo.png');
+    PromoterPanel.currentPanel?.dispose();
+    PromoterPanel.currentPanel = new PromoterPanel(panel, extensionUri, context);
+  }
+
   public static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext): void {
     if (PromoterPanel.currentPanel) {
       PromoterPanel.currentPanel.panel.reveal(vscode.ViewColumn.One);

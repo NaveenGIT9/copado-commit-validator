@@ -150,6 +150,18 @@ function isAncestor(repoDir, commit, ref) {
   return spawnSync('git', ['-C', repoDir, 'merge-base', '--is-ancestor', commit, ref], { stdio: 'ignore' }).status === 0;
 }
 
+// A custom-message merge whose incoming side is only this story's own registered, non-merge commits
+// is a pull of the story's own branch (local work joined with a Copado commit), not a foreign merge —
+// even when that commit has since been promoted into an org branch.
+async function isOwnStorySync(git, mainParent, incoming, diffBase, registeredShas) {
+  const raw = await git.raw(['rev-list', '--parents', incoming, `^${mainParent}`, `^${diffBase}`]).catch(() => null);
+  if (raw === null) return false;
+  const brought = raw.split('\n').map(l => l.trim().split(/\s+/)).filter(p => p[0]);
+  if (brought.length === 0 || brought.some(p => p.length > 2)) return false;
+  const reg = registeredShas.map(s => s.toLowerCase()).filter(s => s.length >= 7);
+  return brought.every(([sha]) => reg.some(r => sha.toLowerCase().startsWith(r)));
+}
+
 // Branch named in a default git / GitHub merge subject, or null for a custom message.
 function parseMergedBranch(subject) {
   const git = subject.match(/^Merge (?:remote-tracking )?branch '(?:origin\/)?([^']+)'/i);
@@ -1201,6 +1213,7 @@ async function main() {
         let merged = parseMergedBranch(subject);
         if (merged && merged.toLowerCase() === ownBranch) continue;
         if (isAncestor(effectiveRepoPath, incoming, diffBase)) continue;
+        if (!merged && await isOwnStorySync(git, parents[0], incoming, diffBase, copadoCommits)) continue;
         if (!merged) {
           // Custom merge message: name it from the remote branches holding the incoming commit, org branches first.
           const raw = await git.raw(['branch', '-r', '--contains', incoming, '--format=%(refname:short)']).catch(() => '');
@@ -1293,6 +1306,15 @@ async function main() {
     // only reflects Copado-registered commits; unregistered commits may be newer).
     let latestUnregisteredCommitDate = null;
     const unregisteredDetail = [];
+    // Components the story really changes (merge-base vs branch head). One a commit touched but a later commit put back
+    // has nothing to deploy, so it need not be in the story's metadata. null (no merge-base) = treat everything as changed.
+    let netChanged = null;
+    if (unregistered.length > 0) {
+      try {
+        const raw = await git.raw(['-c', 'core.quotepath=off', 'diff', '--name-only', '--no-renames', `${diffBase}...${remoteBranch}`]);
+        netChanged = new Set(raw.split('\n').map(f => f.trim()).filter(Boolean).map(parseApiName).filter(Boolean).map(c => c.toLowerCase()));
+      } catch { /* keep null */ }
+    }
     for (const sha of unregistered) {
       let files = [];
       try {
@@ -1331,7 +1353,9 @@ async function main() {
         return false;
       };
       const coveredComponents   = components.filter(c => isCovered(c));
-      const uncoveredComponents = components.filter(c => !isCovered(c));
+      const noNetChangeComponents = netChanged
+        ? components.filter(c => !isCovered(c) && !netChanged.has(c.toLowerCase())) : [];
+      const uncoveredComponents = components.filter(c => !isCovered(c) && !noNetChangeComponents.includes(c));
       const authorMismatch      = authorEmail ? !storyAuthorEmails.has(authorEmail.toLowerCase()) : false;
 
       // Check if this unregistered SHA matches a Copado commit record with non-Complete status.
@@ -1347,7 +1371,7 @@ async function main() {
 
       unregisteredDetail.push({
         sha: sha.substring(0, 10), authorName, authorEmail, committerName, isAmended, commitMessage,
-        components, coveredComponents, uncoveredComponents, authorMismatch, copadoAuto, copadoStatus,
+        components, coveredComponents, uncoveredComponents, noNetChangeComponents, authorMismatch, copadoAuto, copadoStatus,
       });
     }
 
