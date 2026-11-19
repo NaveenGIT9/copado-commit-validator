@@ -1811,6 +1811,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
         ].join('<br>');
       }
       const lines = [`<span class="hash-list" style="color:#8a9bb0">${d.sha}</span>`];
+      if (d.amendedFrom)
+        lines.push(`<span style="color:#0d9488;font-size:10px">✎ Amended from ${d.amendedFrom} (registered in Copado) · ${d.amendedSameChange ? 'same change' : 'change edited'}</span>`);
       if (d.copadoStatus === 'Failed')
         lines.push(`<span style="color:#e3b341;font-size:10px">⚠ Registered in Copado with 'Failed' status — checking metadata coverage</span>`);
       if (d.coveredComponents && d.coveredComponents.length > 0)
@@ -1857,6 +1859,8 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
 
   // Build timeline check rows
   const tlItems = [];
+  const isAmendExempt = d => d.amendedFrom && (d.uncoveredComponents || []).length === 0;
+  const nAmended = (unregisteredDetail || []).filter(d => d.amendedFrom).length;
   if (!isVerifying) {
     // Commits
     const commitsDot = noCommitsNoTasks ? 'err' : commitOk ? 'ok' : 'warn';
@@ -1865,13 +1869,13 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
       : verdict === 'branch-not-found'
       ? `<span style="font-size:11px;font-weight:500;display:inline-flex;align-items:center"><span style="color:#475569">${copadoCommits?.length ?? 0} Copado &nbsp;·&nbsp; </span><span style="color:#3b82f6;display:inline-flex;align-items:center;margin:0 4px">${branchIconSvg}</span><span style="color:#d97706;font-weight:600">Branch no longer present</span></span>`
       : copadoCommits !== null
-      ? `<span style="color:#475569;font-size:11px;font-weight:500">${copadoCommits.length} Copado · ${extraCommits !== null ? (branchMerges.length > 0 ? extraCommits.length + '+' : extraCommits.length) : '?'} Branch</span>`
+      ? `<span style="color:#475569;font-size:11px;font-weight:500">${copadoCommits.length} Copado · ${extraCommits !== null ? (branchMerges.length > 0 ? extraCommits.length + '+' : extraCommits.length) : '?'} Branch${nAmended > 0 ? ` · <span style="color:#0d9488">${nAmended} amended</span>` : ''}</span>`
       : '<span style="color:#475569">—</span>';
     tlItems.push(tlRow(commitsDot, 'Commits', commitsVal));
 
     // Unregistered
     if (!noCommits && copadoCommits !== null) {
-      const effUnreg   = (unregisteredDetail || []).filter(d => !d.copadoAuto && !d._errorMsg);
+      const effUnreg   = (unregisteredDetail || []).filter(d => !d.copadoAuto && !d._errorMsg && !isAmendExempt(d));
       const nUnreg     = effUnreg.length;
       const allInMeta  = nUnreg === 0 || effUnreg.every(d => (d.uncoveredComponents || []).length === 0);
       const unregDot   = nUnreg === 0 ? 'ok' : allInMeta ? 'warn' : 'err';
@@ -1902,11 +1906,14 @@ function buildRowHtml(storyName, branch, copadoCommits, extraCommits, unregister
           const noNetLine = noNet.length > 0 ? `<div style="color:#8a9bb0;font-size:10px;margin-top:2px">– No net change: ${noNet.join(', ')}</div>` : '';
           const msgLine   = d.commitMessage ? `<div style="color:#8a9bb0;font-style:italic;font-size:10px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${d.commitMessage}">${d.commitMessage}</div>` : '';
           const authLine  = d.authorMismatch ? `<div style="color:#f87171;font-size:10px;margin-top:2px">⚠ Author: ${d.authorName || d.authorEmail}</div>` : '';
+          const amendLine = d.amendedFrom
+            ? `<div style="color:#0d9488;font-size:10px;margin-top:2px">✎ Amended from <span style="font-family:monospace">${d.amendedFrom}</span> (registered in Copado) · ${d.amendedSameChange ? 'same change' : 'change edited'}${d.committerName ? ` · rewritten by ${d.committerName}` : ''}${isAmendExempt(d) ? ' · exempt' : ''}</div>`
+            : '';
           const noCovLine = (covered.length === 0 && uncovered.length === 0 && noNet.length === 0 && !d.copadoStatus)
             ? `<div style="color:#8a9bb0;font-size:10px;margin-top:2px">No metadata components found in this commit</div>` : '';
           return `<div style="padding:6px 8px;background:#f0f2f8;border:none;box-shadow:inset 2px 2px 5px rgba(0,0,0,0.05),inset -2px -2px 5px rgba(255,255,255,0.9);border-radius:6px;margin-top:4px">
             <div style="font-family:monospace;color:#4f7ef7;font-size:10px">${d.sha || ''}</div>
-            ${statusLine}${covLine}${uncovLine}${noNetLine}${authLine}${noCovLine}${msgLine}
+            ${amendLine}${statusLine}${covLine}${uncovLine}${noNetLine}${authLine}${noCovLine}${msgLine}
           </div>`;
         }).join('');
         tlItems.push(`<details style="margin-top:2px">

@@ -1300,6 +1300,27 @@ async function main() {
     const copadoSet    = new Set(copadoCommits);
     const unregistered = extraCommits.filter(h => !copadoSet.has(h));
 
+    // Amend/rebase changes a commit's SHA but keeps its author email and author time, so a
+    // Copado commit that is no longer on the branch is matched to its rewritten copy by those two.
+    const branchShaSet = new Set(extraCommits.map(h => h.toLowerCase()));
+    const orphanedCopado = copadoCommits.filter(c => {
+      const cl = c.toLowerCase();
+      return ![...branchShaSet].some(b => b.startsWith(cl) || cl.startsWith(b));
+    });
+    const orphanByAuthorKey = new Map();
+    for (const c of orphanedCopado) {
+      try {
+        const k = (await git.raw(['log', '-1', '--format=%ae|%at', c])).trim().toLowerCase();
+        if (k && !orphanByAuthorKey.has(k)) orphanByAuthorKey.set(k, c);
+      } catch { /* commit not in local repo */ }
+    }
+    const patchId = (sha) => {
+      const show = spawnSync('git', ['show', sha], { cwd: effectiveRepoPath, maxBuffer: 256 * 1024 * 1024 });
+      if (show.status !== 0) return null;
+      const pid = spawnSync('git', ['patch-id', '--stable'], { cwd: effectiveRepoPath, input: show.stdout });
+      return pid.status === 0 ? (pid.stdout.toString().split(' ')[0] || null) : null;
+    };
+
     // Deep analysis of each unregistered commit.
     // Also track the latest committer date across all unregistered commits — used for the
     // CR stale-resolution check (more accurate than copado__Latest_Commit_Date__c which
@@ -1369,9 +1390,22 @@ async function main() {
         }
       }
 
+      let amendedFrom = null, amendedSameChange = null;
+      try {
+        const k = (await git.raw(['log', '-1', '--format=%ae|%at', sha])).trim().toLowerCase();
+        const orig = orphanByAuthorKey.get(k);
+        if (orig) {
+          orphanByAuthorKey.delete(k);
+          amendedFrom = orig.substring(0, 10);
+          const a = patchId(orig), b = patchId(sha);
+          amendedSameChange = !!(a && b && a === b);
+        }
+      } catch { /* not matched */ }
+
       unregisteredDetail.push({
         sha: sha.substring(0, 10), authorName, authorEmail, committerName, isAmended, commitMessage,
         components, coveredComponents, uncoveredComponents, noNetChangeComponents, authorMismatch, copadoAuto, copadoStatus,
+        amendedFrom, amendedSameChange,
       });
     }
 
@@ -1677,8 +1711,9 @@ async function main() {
       } // closes else { (no live SFDX JE)
     } catch (promoErr) { emit({ type: 'debug', message: `promo ERROR ${story.Name}: ${promoErr}` }); }
 
-    // Refined verdict — copado auto-commits (sourceApiVersion bumps) are always exempt
-    const effectiveUnregistered = unregisteredDetail.filter(d => !d.copadoAuto);
+    // Refined verdict — copado auto-commits (sourceApiVersion bumps) are always exempt, and so is a
+    // rewritten copy of a registered commit unless it now touches components outside the story's metadata.
+    const effectiveUnregistered = unregisteredDetail.filter(d => !d.copadoAuto && !(d.amendedFrom && d.uncoveredComponents.length === 0));
     const allCovered    = effectiveUnregistered.length === 0 || effectiveUnregistered.every(d => d.uncoveredComponents.length === 0);
     const allSameAuthor = effectiveUnregistered.every(d => !d.authorMismatch);
     // 'Failed' commits are checked via coverage (same as regular unregistered commits).

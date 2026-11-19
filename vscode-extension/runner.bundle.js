@@ -126204,6 +126204,25 @@ async function main() {
     }
     const copadoSet = new Set(copadoCommits);
     const unregistered = extraCommits.filter((h2) => !copadoSet.has(h2));
+    const branchShaSet = new Set(extraCommits.map((h2) => h2.toLowerCase()));
+    const orphanedCopado = copadoCommits.filter((c3) => {
+      const cl = c3.toLowerCase();
+      return ![...branchShaSet].some((b2) => b2.startsWith(cl) || cl.startsWith(b2));
+    });
+    const orphanByAuthorKey = /* @__PURE__ */ new Map();
+    for (const c3 of orphanedCopado) {
+      try {
+        const k2 = (await git.raw(["log", "-1", "--format=%ae|%at", c3])).trim().toLowerCase();
+        if (k2 && !orphanByAuthorKey.has(k2)) orphanByAuthorKey.set(k2, c3);
+      } catch {
+      }
+    }
+    const patchId = (sha) => {
+      const show = (0, import_child_process2.spawnSync)("git", ["show", sha], { cwd: effectiveRepoPath, maxBuffer: 256 * 1024 * 1024 });
+      if (show.status !== 0) return null;
+      const pid = (0, import_child_process2.spawnSync)("git", ["patch-id", "--stable"], { cwd: effectiveRepoPath, input: show.stdout });
+      return pid.status === 0 ? pid.stdout.toString().split(" ")[0] || null : null;
+    };
     let latestUnregisteredCommitDate = null;
     const unregisteredDetail = [];
     let netChanged = null;
@@ -126256,6 +126275,18 @@ async function main() {
           break;
         }
       }
+      let amendedFrom = null, amendedSameChange = null;
+      try {
+        const k2 = (await git.raw(["log", "-1", "--format=%ae|%at", sha])).trim().toLowerCase();
+        const orig = orphanByAuthorKey.get(k2);
+        if (orig) {
+          orphanByAuthorKey.delete(k2);
+          amendedFrom = orig.substring(0, 10);
+          const a = patchId(orig), b2 = patchId(sha);
+          amendedSameChange = !!(a && b2 && a === b2);
+        }
+      } catch {
+      }
       unregisteredDetail.push({
         sha: sha.substring(0, 10),
         authorName,
@@ -126269,7 +126300,9 @@ async function main() {
         noNetChangeComponents,
         authorMismatch,
         copadoAuto,
-        copadoStatus
+        copadoStatus,
+        amendedFrom,
+        amendedSameChange
       });
     }
     const extraCommittedBy = [...new Set(unregisteredDetail.map((d) => d.authorName).filter(Boolean))];
@@ -126480,7 +126513,7 @@ async function main() {
     } catch (promoErr) {
       emit({ type: "debug", message: `promo ERROR ${story.Name}: ${promoErr}` });
     }
-    const effectiveUnregistered = unregisteredDetail.filter((d) => !d.copadoAuto);
+    const effectiveUnregistered = unregisteredDetail.filter((d) => !d.copadoAuto && !(d.amendedFrom && d.uncoveredComponents.length === 0));
     const allCovered = effectiveUnregistered.length === 0 || effectiveUnregistered.every((d) => d.uncoveredComponents.length === 0);
     const allSameAuthor = effectiveUnregistered.every((d) => !d.authorMismatch);
     const hasHardBlock = unregisteredDetail.some((d) => d.copadoStatus && d.copadoStatus !== "Failed");
